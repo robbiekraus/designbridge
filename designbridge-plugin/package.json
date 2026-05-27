@@ -6,7 +6,7 @@
     "build": "node esbuild.config.js",
     "watch": "node esbuild.config.js --watch",
     "codegen": "node dist/codegen.js",
-    "export": "node dist/codegen.js --manifest \"../exports/components.manifest.json\" --out \"../exports/components\" && cp \"../exports/tokens.json\" \"../designbridge-web/public/data/tokens.json\" && cp \"../exports/components.manifest.json\" \"../designbridge-web/public/data/components.manifest.json\" && echo \"✓ Codegen + Dashboard sync done.\""
+    "export": "node scripts/sync-exports.js"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.90.0",

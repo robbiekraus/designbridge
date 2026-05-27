@@ -1,4 +1,5 @@
 import { readJSON, getFlatColors } from '@/lib/data';
+import SyncPanel from './SyncPanel';
 
 interface ComponentsManifest {
   version: string;
@@ -71,6 +72,9 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-8">
+      {/* Sync panel — client component */}
+      <SyncPanel />
+
       <div>
         <h1 className="text-2xl font-bold mb-1">Overview</h1>
         <p className="text-sm text-gray-500">Last export: {exportedAt}</p>

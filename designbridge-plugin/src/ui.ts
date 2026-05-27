@@ -82,12 +82,20 @@ exportBtn.addEventListener('click', () => {
   parent.postMessage({ pluginMessage: { type: 'EXPORT', fileKey: fileKeyInput.value.trim() } }, '*');
 });
 
+function fileSlug(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 downloadTokensBtn.addEventListener('click', () => {
-  if (lastPayload) downloadJSON('tokens.json', lastPayload.tokens);
+  if (!lastPayload) return;
+  const slug = fileSlug((lastPayload as typeof lastPayload & { fileName?: string }).fileName ?? 'export');
+  downloadJSON(`${slug}-tokens.json`, lastPayload.tokens);
 });
 
 downloadComponentsBtn.addEventListener('click', () => {
-  if (lastPayload) downloadJSON('components.manifest.json', lastPayload.components);
+  if (!lastPayload) return;
+  const slug = fileSlug((lastPayload as typeof lastPayload & { fileName?: string }).fileName ?? 'export');
+  downloadJSON(`${slug}-components.manifest.json`, lastPayload.components);
 });
 
 // ─── Message handler ──────────────────────────────────────────────────────────

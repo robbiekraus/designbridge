@@ -92,7 +92,7 @@ figma.ui.onmessage = async (msg: UIMessage) => {
 
     const response: SandboxMessage = {
       type: 'EXPORT_READY',
-      payload: { tokens, components: manifest, stats },
+      payload: { tokens, components: manifest, stats, fileName: figma.root.name },
     };
 
     figma.ui.postMessage(response);
