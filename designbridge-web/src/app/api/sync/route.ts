@@ -348,6 +348,32 @@ function generateOutputFiles(tokens: { color: TokenTree; typography: TokenTree }
     'export const tokens = { colors, typography } as const;',
   ];
   fs.writeFileSync(path.join(generatedDir, 'tokens.ts'), tsLines.join('\n') + '\n');
+
+  // ── tokens-theme.css (Tailwind v4 @theme block) ──────────────────────────────
+  // All color tokens become --color-db-<name> utilities: bg-db-*, text-db-*, etc.
+  // All font families become --font-db-<name> utilities: font-db-*
+  const themeLines: string[] = [
+    '/* DesignBridge — Tailwind v4 @theme utilities (auto-generated) */',
+    '/* Usage: bg-db-<name>  text-db-<name>  font-db-<name> */',
+    '@theme {',
+  ];
+  for (const token of colorTokens) {
+    const name = token.path.slice(1).join('-');
+    const varName = `--${token.path.join('-')}`;
+    themeLines.push(`  --color-db-${name}: var(${varName});`);
+  }
+  const seenFamilies = new Set<string>();
+  for (const token of typoTokens) {
+    const v = token.value as Record<string, string>;
+    if (!v.fontFamily) continue;
+    const key = token.path[token.path.length - 1];
+    if (seenFamilies.has(key)) continue;
+    seenFamilies.add(key);
+    const varName = `--${token.path.join('-')}-font-family`;
+    themeLines.push(`  --font-db-${key}: var(${varName});`);
+  }
+  themeLines.push('}');
+  fs.writeFileSync(path.join(generatedDir, 'tokens-theme.css'), themeLines.join('\n') + '\n');
 }
 
 // ─── API Route ────────────────────────────────────────────────────────────────
@@ -532,6 +558,10 @@ export async function POST(request: NextRequest) {
       fs.copyFileSync(
         path.join(generatedDir, 'tokens.ts'),
         path.join(devRepoLib, 'designbridge-tokens.ts'),
+      );
+      fs.copyFileSync(
+        path.join(generatedDir, 'tokens-theme.css'),
+        path.join(devRepoLib, 'designbridge-tokens-theme.css'),
       );
     }
 
