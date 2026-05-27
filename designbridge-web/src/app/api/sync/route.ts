@@ -520,6 +520,20 @@ export async function POST(request: NextRequest) {
     const generatedFiles = ['tokens.css', 'tailwind.config.tokens.js', 'tokens.ts'];
     generateOutputFiles(tokens, cwd);
 
+    // 8. Auto-sync tokens to designbridge-dev (if it exists next to designbridge-web)
+    const devRepoLib = path.join(cwd, '..', 'designbridge-dev', 'lib');
+    if (fs.existsSync(devRepoLib)) {
+      const generatedDir = path.join(cwd, 'public', 'data', 'generated');
+      fs.copyFileSync(
+        path.join(generatedDir, 'tokens.css'),
+        path.join(devRepoLib, 'designbridge-tokens.css'),
+      );
+      fs.copyFileSync(
+        path.join(generatedDir, 'tokens.ts'),
+        path.join(devRepoLib, 'designbridge-tokens.ts'),
+      );
+    }
+
     return NextResponse.json({
       success: true,
       stats: {
