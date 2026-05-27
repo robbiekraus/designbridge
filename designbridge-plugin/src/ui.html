@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DesignBridge</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #f5f5f5;
+      --border: #e0e0e0;
+      --text: #111111;
+      --text-muted: #666666;
+      --accent: #1D4ED8;
+      --accent-hover: #1741b0;
+      --success: #15803d;
+      --error: #b91c1c;
+      --radius: 8px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+    .subtitle { font-size: 11px; color: var(--text-muted); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    #export-btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 10px;
+    }
+
+    #export-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    #export-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 18px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status--loading::before {
+      content: '';
+      display: inline-block;
+      width: 10px; height: 10px;
+      border: 2px solid var(--accent);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .status--success { color: var(--success); }
+    .status--error   { color: var(--error); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── File key input ── */
+    .field-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      display: block;
+    }
+    .field-hint {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+    .field-hint a { color: var(--accent); text-decoration: none; }
+    input[type="text"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+      background: var(--bg);
+      color: var(--text);
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: #bbb; }
+
+    /* ── Diff stats ── */
+    #diff-stats {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .stat {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      border: 1.5px solid;
+    }
+
+    .stat--total   { color: #374151; border-color: #d1d5db; background: #f9fafb; }
+    .stat--new     { color: #065f46; border-color: #6ee7b7; background: #ecfdf5; }
+    .stat--modified{ color: #92400e; border-color: #fcd34d; background: #fffbeb; }
+    .stat--synced  { color: #1e40af; border-color: #93c5fd; background: #eff6ff; }
+    .stat--tokens  { color: #6b21a8; border-color: #d8b4fe; background: #faf5ff; }
+
+    /* ── Preview ── */
+    pre#preview {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--radius);
+      padding: 12px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      line-height: 1.6;
+      overflow: auto;
+      max-height: 200px;
+      white-space: pre;
+      margin-bottom: 12px;
+    }
+
+    pre#preview:empty { display: none; }
+
+    /* ── Download ── */
+    #download-section {
+      display: none;
+      gap: 8px;
+    }
+
+    .dl-btn {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .dl-btn:hover {
+      border-color: var(--accent);
+      background: #eff4ff;
+      color: var(--accent);
+    }
+
+    footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">DB</div>
+    <div>
+      <h1>DesignBridge</h1>
+      <p class="subtitle">Sprint 2 — Codegen + Sync</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <p class="card-title">Figma File Key</p>
+    <label class="field-label" for="file-key-input">Paste your file key</label>
+    <input
+      id="file-key-input"
+      type="text"
+      placeholder="e.g. aBcDeFgHiJkL1234"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <p class="field-hint">
+      Found in your Figma URL:
+      figma.com/design/<strong>KEY</strong>/...
+    </p>
+  </div>
+
+  <div class="card">
+    <p class="card-title">Export</p>
+    <button id="export-btn">Scan &amp; Export</button>
+    <p id="status" class="status status--idle">Ready — click to scan your file.</p>
+  </div>
+
+  <div id="diff-stats"></div>
+
+  <pre id="preview"></pre>
+
+  <div id="download-section">
+    <button id="download-tokens" class="dl-btn">⬇ tokens.json</button>
+    <button id="download-components" class="dl-btn">⬇ components.manifest.json</button>
+  </div>
+
+  <footer>DesignBridge v1.0 · Sprint 2</footer>
+
+  <script src="ui.js"></script>
+</body>
+</html>

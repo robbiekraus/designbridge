@@ -1,0 +1,19 @@
+{
+  "name": "designbridge-plugin",
+  "version": "1.0.0",
+  "description": "DesignBridge Figma Plugin — Sprint 1",
+  "scripts": {
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "codegen": "node dist/codegen.js",
+    "export": "node dist/codegen.js --manifest \"../Figma Plugin Export Assets/components.manifest.json\" --out \"../Figma Plugin Export Assets/components\" && cp \"../Figma Plugin Export Assets/tokens.json\" \"../designbridge-web/public/data/tokens.json\" && cp \"../Figma Plugin Export Assets/components.manifest.json\" \"../designbridge-web/public/data/components.manifest.json\" && echo \"✓ Codegen + Dashboard sync done.\""
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.90.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "uuid": "^11.1.1"
+  }
+}

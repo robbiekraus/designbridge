@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DesignBridge</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --surface: #f5f5f5;
+      --border: #e0e0e0;
+      --text: #111111;
+      --text-muted: #666666;
+      --accent: #1D4ED8;
+      --accent-hover: #1741b0;
+      --success: #15803d;
+      --error: #b91c1c;
+      --radius: 8px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.3px; }
+    .subtitle { font-size: 11px; color: var(--text-muted); }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    #export-btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-bottom: 10px;
+    }
+
+    #export-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    #export-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .status {
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 18px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status--loading::before {
+      content: '';
+      display: inline-block;
+      width: 10px; height: 10px;
+      border: 2px solid var(--accent);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      flex-shrink: 0;
+    }
+
+    .status--success { color: var(--success); }
+    .status--error   { color: var(--error); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── File key input ── */
+    .field-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+      display: block;
+    }
+    .field-hint {
+      font-size: 10px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+    .field-hint a { color: var(--accent); text-decoration: none; }
+    input[type="text"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: var(--font);
+      outline: none;
+      transition: border-color 0.15s;
+      background: var(--bg);
+      color: var(--text);
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: #bbb; }
+
+    /* ── Diff stats ── */
+    #diff-stats {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .stat {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      border: 1.5px solid;
+    }
+
+    .stat--total   { color: #374151; border-color: #d1d5db; background: #f9fafb; }
+    .stat--new     { color: #065f46; border-color: #6ee7b7; background: #ecfdf5; }
+    .stat--modified{ color: #92400e; border-color: #fcd34d; background: #fffbeb; }
+    .stat--synced  { color: #1e40af; border-color: #93c5fd; background: #eff6ff; }
+    .stat--tokens  { color: #6b21a8; border-color: #d8b4fe; background: #faf5ff; }
+
+    /* ── Preview ── */
+    pre#preview {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: var(--radius);
+      padding: 12px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      line-height: 1.6;
+      overflow: auto;
+      max-height: 200px;
+      white-space: pre;
+      margin-bottom: 12px;
+    }
+
+    pre#preview:empty { display: none; }
+
+    /* ── Download ── */
+    #download-section {
+      display: none;
+      gap: 8px;
+    }
+
+    .dl-btn {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: var(--radius);
+      border: 1.5px solid var(--border);
+      background: var(--bg);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text);
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .dl-btn:hover {
+      border-color: var(--accent);
+      background: #eff4ff;
+      color: var(--accent);
+    }
+
+    footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">DB</div>
+    <div>
+      <h1>DesignBridge</h1>
+      <p class="subtitle">Sprint 2 — Codegen + Sync</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <p class="card-title">Figma File Key</p>
+    <label class="field-label" for="file-key-input">Paste your file key</label>
+    <input
+      id="file-key-input"
+      type="text"
+      placeholder="e.g. aBcDeFgHiJkL1234"
+      autocomplete="off"
+      spellcheck="false"
+    />
+    <p class="field-hint">
+      Found in your Figma URL:
+      figma.com/design/<strong>KEY</strong>/...
+    </p>
+  </div>
+
+  <div class="card">
+    <p class="card-title">Export</p>
+    <button id="export-btn">Scan &amp; Export</button>
+    <p id="status" class="status status--idle">Ready — click to scan your file.</p>
+  </div>
+
+  <div id="diff-stats"></div>
+
+  <pre id="preview"></pre>
+
+  <div id="download-section">
+    <button id="download-tokens" class="dl-btn">⬇ tokens.json</button>
+    <button id="download-components" class="dl-btn">⬇ components.manifest.json</button>
+  </div>
+
+  <footer>DesignBridge v1.0 · Sprint 2</footer>
+
+  <script>
+"use strict";
+(() => {
+  // src/ui.ts
+  var exportBtn = document.getElementById("export-btn");
+  var statusEl = document.getElementById("status");
+  var previewEl = document.getElementById("preview");
+  var downloadSection = document.getElementById("download-section");
+  var downloadTokensBtn = document.getElementById("download-tokens");
+  var downloadComponentsBtn = document.getElementById("download-components");
+  var statsEl = document.getElementById("diff-stats");
+  var fileKeyInput = document.getElementById("file-key-input");
+  var lastPayload = null;
+  function setStatus(msg, type = "idle") {
+    statusEl.textContent = msg;
+    statusEl.className = `status status--${type}`;
+  }
+  function downloadJSON(filename, data) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function countLeafTokens(obj, depth = 0) {
+    if (depth > 10)
+      return 0;
+    let count = 0;
+    for (const val of Object.values(obj)) {
+      if (val && typeof val === "object" && "$type" in val) {
+        count++;
+      } else if (val && typeof val === "object") {
+        count += countLeafTokens(val, depth + 1);
+      }
+    }
+    return count;
+  }
+  function renderStats(payload) {
+    const { stats } = payload;
+    const total = payload.components.components.length;
+    const tokenCount = countLeafTokens(payload.tokens);
+    statsEl.innerHTML = [
+      `<span class="stat stat--total">${total} components</span>`,
+      stats.new > 0 ? `<span class="stat stat--new">${stats.new} new</span>` : "",
+      stats.modified > 0 ? `<span class="stat stat--modified">${stats.modified} modified</span>` : "",
+      stats.synced > 0 ? `<span class="stat stat--synced">${stats.synced} synced</span>` : "",
+      tokenCount > 0 ? `<span class="stat stat--tokens">${tokenCount} tokens</span>` : ""
+    ].filter(Boolean).join("");
+    statsEl.style.display = "flex";
+  }
+  function renderPreview(payload) {
+    const excerpt = JSON.stringify(payload.tokens, null, 2);
+    previewEl.textContent = excerpt.length > 2 ? excerpt.slice(0, 600) + (excerpt.length > 600 ? "\n  \u2026" : "") : "(no tokens \u2014 add Local Styles or Variables in Figma)";
+  }
+  exportBtn.addEventListener("click", () => {
+    exportBtn.disabled = true;
+    downloadSection.style.display = "none";
+    statsEl.style.display = "none";
+    statsEl.innerHTML = "";
+    previewEl.textContent = "";
+    setStatus("Exporting\u2026", "loading");
+    parent.postMessage({ pluginMessage: { type: "EXPORT", fileKey: fileKeyInput.value.trim() } }, "*");
+  });
+  downloadTokensBtn.addEventListener("click", () => {
+    if (lastPayload)
+      downloadJSON("tokens.json", lastPayload.tokens);
+  });
+  downloadComponentsBtn.addEventListener("click", () => {
+    if (lastPayload)
+      downloadJSON("components.manifest.json", lastPayload.components);
+  });
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage;
+    if (!msg)
+      return;
+    if (msg.type === "STATUS") {
+      setStatus(msg.message, "loading");
+      return;
+    }
+    if (msg.type === "FILE_KEY") {
+      const val = msg.value;
+      if (val && !fileKeyInput.value)
+        fileKeyInput.value = val;
+      return;
+    }
+    if (msg.type === "EXPORT_READY") {
+      lastPayload = msg.payload;
+      setStatus("Export ready", "success");
+      renderStats(msg.payload);
+      renderPreview(msg.payload);
+      downloadSection.style.display = "flex";
+      exportBtn.disabled = false;
+      return;
+    }
+    if (msg.type === "ERROR") {
+      setStatus(`Error: ${msg.message}`, "error");
+      exportBtn.disabled = false;
+    }
+  };
+})();
+
+</script>
+</body>
+</html>
