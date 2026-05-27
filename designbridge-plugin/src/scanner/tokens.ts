@@ -252,6 +252,77 @@ async function scanUsedStyles(
   }
 }
 
+// ─── Raw Fill Scanner (fallback — no style ref needed) ───────────────────────
+
+interface RawFill {
+  r: number; g: number; b: number; a: number;
+}
+
+function collectRawFills(node: BaseNode, fills: RawFill[]): void {
+  // Only collect from nodes that have NO style reference (direct fills)
+  if ('fills' in node && !('fillStyleId' in node && (node as GeometryMixin).fillStyleId)) {
+    const nodeFills = (node as GeometryMixin).fills;
+    if (Array.isArray(nodeFills)) {
+      for (const fill of nodeFills) {
+        if (fill.type === 'SOLID' && fill.visible !== false) {
+          fills.push({ r: fill.color.r, g: fill.color.g, b: fill.color.b, a: fill.opacity ?? 1 });
+        }
+      }
+    }
+  }
+  if ('children' in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      collectRawFills(child, fills);
+    }
+  }
+}
+
+function collectRawTypography(node: BaseNode, tokens: TokenGroup): void {
+  if (
+    node.type === 'TEXT' &&
+    !('textStyleId' in node && (node as TextNode).textStyleId)
+  ) {
+    const t = node as TextNode;
+    if (typeof t.fontName === 'object' && 'family' in t.fontName) {
+      const key = slugify(`${t.fontName.family}-${t.fontName.style}-${Math.round(t.fontSize as number)}`);
+      if (!tokens[key]) {
+        const token: TypographyToken = {
+          $value: {
+            fontFamily: t.fontName.family,
+            fontSize: `${t.fontSize}px`,
+            fontWeight: t.fontName.style,
+            lineHeight:
+              (t.lineHeight as LineHeight).unit === 'PERCENT'
+                ? ((t.lineHeight as { unit: 'PERCENT'; value: number }).value / 100).toFixed(2)
+                : (t.lineHeight as LineHeight).unit === 'PIXELS'
+                ? `${(t.lineHeight as { unit: 'PIXELS'; value: number }).value}px`
+                : '1.4',
+          },
+          $type: 'typography',
+        };
+        tokens[key] = token;
+      }
+    }
+  }
+  if ('children' in node) {
+    for (const child of (node as ChildrenMixin).children) {
+      collectRawTypography(child, tokens);
+    }
+  }
+}
+
+function buildRawColorTokens(fills: RawFill[]): RawColor[] {
+  // Deduplicate by clustering similar colors
+  const raws: RawColor[] = [];
+  for (const fill of fills) {
+    const hex = rgbToHex(fill.r, fill.g, fill.b);
+    // Reuse path as hex slug
+    const path = [`raw`, hex.toLowerCase().replace('#', 'c')];
+    raws.push({ path, r: fill.r, g: fill.g, b: fill.b, a: fill.a, source: 'style' });
+  }
+  return raws;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function scanTokens(): Promise<TokensFile> {
@@ -274,6 +345,24 @@ export async function scanTokens(): Promise<TokensFile> {
 
   // 3. Library/linked styles actually used by nodes in this file
   await scanUsedStyles(colorRaws, typographyGroup, seenStyleIds);
+
+  // 4. Fallback: raw fills/text from nodes with no style reference
+  if (colorRaws.length === 0) {
+    const rawFills: RawFill[] = [];
+    for (const page of figma.root.children) {
+      collectRawFills(page, rawFills);
+    }
+    const rawRaws = buildRawColorTokens(rawFills);
+    colorRaws.push(...rawRaws);
+  }
+
+  if (Object.keys(typographyGroup).length === 0) {
+    const rawTypo: TokenGroup = {};
+    for (const page of figma.root.children) {
+      collectRawTypography(page, rawTypo);
+    }
+    Object.assign(typographyGroup, rawTypo);
+  }
 
   const colorGroup: TokenGroup = {};
   clusterColors(colorRaws, colorGroup);

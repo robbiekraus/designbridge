@@ -1,9 +1,268 @@
 {
   "version": "1.0.0",
-  "exportedAt": "2026-05-27T09:12:50.754Z",
+  "exportedAt": "2026-05-27T09:43:32.022Z",
   "components": [
     {
-      "uuid": "4b44b8ac-8556-4690-b412-cab59f9d502c",
+      "uuid": "34e4ef28-5192-47b5-a9ee-767812521deb",
+      "name": "Button",
+      "figmaNodeId": "1:531",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-531",
+      "category": "organism",
+      "description": "",
+      "props": [
+        {
+          "name": "Type",
+          "type": "enum",
+          "values": [
+            "Primary",
+            "Hover",
+            "Type3"
+          ],
+          "default": "Primary"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.accent-2",
+        "color.text.link",
+        "typography.link",
+        "color.accent.accent-3",
+        "color.text.on-accent-1"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-27T09:32:23.055Z"
+    },
+    {
+      "uuid": "06f4289d-d7b1-4b33-8e76-4d89462db6b1",
+      "name": "Button linkout",
+      "figmaNodeId": "1:536",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-536",
+      "category": "molecule",
+      "description": "",
+      "props": [
+        {
+          "name": "State",
+          "type": "enum",
+          "values": [
+            "Default",
+            "Hover"
+          ],
+          "default": "Default"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.accent-1",
+        "color.text.on-accent-1",
+        "typography.link",
+        "color.accent.accent-3"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "bacae3bf-6b40-45ec-9ef0-d381aaaa59c0",
+      "name": "Arrow right",
+      "figmaNodeId": "1:545",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-545",
+      "category": "molecule",
+      "description": "",
+      "props": [
+        {
+          "name": "Type",
+          "type": "enum",
+          "values": [
+            "Default",
+            "Hover"
+          ],
+          "default": "Default"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.light-grey-surfaces",
+        "color.accent.accent-4",
+        "color.accent.accent-2"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "a0f5c2b0-6bec-47ec-ac1b-c5a88df4c308",
+      "name": "Arrow Left",
+      "figmaNodeId": "1:550",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-550",
+      "category": "molecule",
+      "description": "",
+      "props": [
+        {
+          "name": "State",
+          "type": "enum",
+          "values": [
+            "Default",
+            "Hover"
+          ],
+          "default": "Default"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.light-grey-surfaces",
+        "color.accent.accent-4",
+        "color.accent.accent-2"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "ac70dbf5-3fed-49fa-a7c0-58ef6445d6ef",
+      "name": "Navigation",
+      "figmaNodeId": "1:555",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-555",
+      "category": "organism",
+      "description": "",
+      "props": [
+        {
+          "name": "Breakpoint",
+          "type": "enum",
+          "values": [
+            "Tablet",
+            "Desktop"
+          ],
+          "default": "Desktop"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.accent-4",
+        "color.accent.accent-1",
+        "color.text.on-accent-1",
+        "typography.link"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "51b14843-c0e5-40c2-917c-5a1890406a44",
+      "name": "Navigation mobile",
+      "figmaNodeId": "1:567",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-567",
+      "category": "organism",
+      "description": "",
+      "props": [
+        {
+          "name": "Nav",
+          "type": "enum",
+          "values": [
+            "closed",
+            "open"
+          ],
+          "default": "closed"
+        }
+      ],
+      "tokenRefs": [
+        "color.background.background-1",
+        "color.text.link",
+        "color.dividers.divider-1",
+        "typography.link",
+        "color.accent.accent-1",
+        "color.text.on-accent-1"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "e5256fd9-fbbc-49e9-abe6-8704a9a7d85e",
+      "name": "Hero image",
+      "figmaNodeId": "1:601",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-601",
+      "category": "organism",
+      "description": "",
+      "props": [
+        {
+          "name": "Breakpoint",
+          "type": "enum",
+          "values": [
+            "Desktop",
+            "Tablet",
+            "Mobile"
+          ],
+          "default": "Desktop"
+        }
+      ],
+      "tokenRefs": [
+        "color.mid-green",
+        "color.accent.accent-4",
+        "color.accent.accent-6",
+        "color.background.background-1"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "d86b8146-c0c5-4f45-8e9a-4e81f5f99657",
+      "name": "Features carousel v1",
+      "figmaNodeId": "1:642",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-642",
+      "category": "organism",
+      "description": "",
+      "props": [
+        {
+          "name": "State",
+          "type": "enum",
+          "values": [
+            "Default",
+            "Second",
+            "Third"
+          ],
+          "default": "Default"
+        }
+      ],
+      "tokenRefs": [
+        "color.background.background-1",
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
+    },
+    {
+      "uuid": "26f2de7a-f197-4ce9-b436-c52d10b03de7",
+      "name": "Logo",
+      "figmaNodeId": "17:109",
+      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
+      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=17-109",
+      "category": "molecule",
+      "description": "",
+      "props": [
+        {
+          "name": "Eigenschaft 1",
+          "type": "string",
+          "values": [
+            "Standard"
+          ],
+          "default": "Standard"
+        }
+      ],
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-27T09:32:23.055Z"
+    },
+    {
+      "uuid": "5e4821c0-9f47-472d-9d82-68e361d268b8",
       "name": "Cable icon",
       "figmaNodeId": "1:505",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -11,13 +270,15 @@
       "category": "atom",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/CableIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "38c2f683-98d6-42e8-99e7-5d08ba901a4b",
+      "uuid": "6264bf7a-fda8-4f74-bc14-eb602d001fa6",
       "name": "Check icon",
       "figmaNodeId": "1:507",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -25,13 +286,15 @@
       "category": "atom",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/CheckIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "1d23fd1c-c450-4108-b7b5-d92bc6d66bc8",
+      "uuid": "1f985f92-b57d-469c-9a96-7854da810ad2",
       "name": "Close icon",
       "figmaNodeId": "1:509",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -39,13 +302,15 @@
       "category": "atom",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/CloseIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "3660a919-a44e-4443-81aa-e1d8bb3bfdad",
+      "uuid": "ec7a9286-2fc3-4f36-897f-27229119312a",
       "name": "Chart icon",
       "figmaNodeId": "1:511",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -54,12 +319,12 @@
       "description": "",
       "props": [],
       "tokenRefs": [],
-      "codeRef": "components/ChartIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "6e78faae-e892-43fb-89de-a0e505a67a81",
+      "uuid": "d4611f95-eef3-4a8e-9d93-bf4dc88c8af7",
       "name": "Account icon",
       "figmaNodeId": "1:513",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -68,12 +333,12 @@
       "description": "",
       "props": [],
       "tokenRefs": [],
-      "codeRef": "components/AccountIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "cd80992c-b6e3-4adc-ad59-4b3668bd948a",
+      "uuid": "7e5bedf0-9779-4c1d-b159-d6fe5c39e965",
       "name": "Earth icon",
       "figmaNodeId": "1:515",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -82,12 +347,12 @@
       "description": "",
       "props": [],
       "tokenRefs": [],
-      "codeRef": "components/EarthIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "187c6564-cdc3-4359-9b25-cca059664621",
+      "uuid": "a8ce0c6d-3521-4678-b2bc-c644d8e7c9e1",
       "name": "Government icon",
       "figmaNodeId": "1:517",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -95,13 +360,15 @@
       "category": "atom",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/GovernmentIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "f6d5b9d5-df8b-4879-af18-5054aa98a59d",
+      "uuid": "5278e94a-8150-4d46-910a-79a8e70fa4af",
       "name": "Paint icon",
       "figmaNodeId": "1:519",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -109,83 +376,15 @@
       "category": "atom",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/PaintIcon.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.accent.accent-4"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     },
     {
-      "uuid": "9fa5b9ed-2b8e-4002-b245-30ffdc9da5d4",
-      "name": "Button",
-      "figmaNodeId": "1:531",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-531",
-      "category": "atom",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/Button.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "adef9cee-5a7f-4208-aaa1-c6e2a439e7e2",
-      "name": "Button linkout",
-      "figmaNodeId": "1:536",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-536",
-      "category": "atom",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/ButtonLinkout.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "70e5d949-ae55-4747-82fc-61287514aace",
-      "name": "Arrow right",
-      "figmaNodeId": "1:545",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-545",
-      "category": "molecule",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/ArrowRight.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "3d0b0b0d-bdd8-4c24-b5f1-9c05dc47e58c",
-      "name": "Arrow Left",
-      "figmaNodeId": "1:550",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-550",
-      "category": "molecule",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/ArrowLeft.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "4f9428f4-8da1-4ca2-9f3c-07b360d9b9e6",
-      "name": "Navigation",
-      "figmaNodeId": "1:555",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-555",
-      "category": "molecule",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/Navigation.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "9fde6874-c0ea-49e9-bba7-9fae3ba2226c",
+      "uuid": "3333725a-055b-4a5b-a2c3-d70a7fbdc121",
       "name": "Table item",
       "figmaNodeId": "1:564",
       "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
@@ -193,66 +392,14 @@
       "category": "molecule",
       "description": "",
       "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/TableItem.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "6fd13418-ec7d-4e46-811a-72e16a7816a8",
-      "name": "Navigation mobile",
-      "figmaNodeId": "1:567",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-567",
-      "category": "molecule",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/NavigationMobile.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "8f72b700-69b2-4446-99e8-1ac56701a3b8",
-      "name": "Hero image",
-      "figmaNodeId": "1:601",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-601",
-      "category": "organism",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/HeroImage.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "ee505492-7ac4-4be4-b325-cd95c1e98cbe",
-      "name": "Features carousel v1",
-      "figmaNodeId": "1:642",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=1-642",
-      "category": "atom",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/FeaturesCarouselV1.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
-    },
-    {
-      "uuid": "3a54479b-ece8-45a3-9fcc-f403d41a2366",
-      "name": "Logo",
-      "figmaNodeId": "17:109",
-      "figmaFileKey": "J7YKfOdzfZxAjJz2Mxwkze",
-      "figmaUrl": "https://www.figma.com/design/J7YKfOdzfZxAjJz2Mxwkze?node-id=17-109",
-      "category": "atom",
-      "description": "",
-      "props": [],
-      "tokenRefs": [],
-      "codeRef": "components/Logo.tsx",
-      "status": "new",
-      "lastSyncedAt": "2026-05-27T09:12:50.754Z"
+      "tokenRefs": [
+        "color.dividers.divider-1",
+        "color.text.headline",
+        "typography.captions"
+      ],
+      "codeRef": null,
+      "status": "synced",
+      "lastSyncedAt": "2026-05-19T10:59:59.512Z"
     }
   ]
 }
