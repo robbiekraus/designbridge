@@ -1,3 +1,3 @@
 #!/bin/bash
-cd "/Users/robkraus/Library/Mobile Documents/com~apple~CloudDocs/Vibe Coding Bootcamp/Designbridge/designbridge-web"
+cd "/Users/robkraus/DATA/Designbridge/designbridge-web"
 exec /usr/local/bin/npm run dev

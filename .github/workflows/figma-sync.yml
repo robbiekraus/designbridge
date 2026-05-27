@@ -1,0 +1,73 @@
+name: Figma Sync
+
+on:
+  schedule:
+    # Runs Mon–Fri at 08:00 UTC
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install plugin dependencies
+        working-directory: designbridge-plugin
+        run: npm ci
+
+      - name: Fetch from Figma
+        run: node scripts/figma-fetch.js
+        env:
+          FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+          FIGMA_FILE_KEY: ${{ secrets.FIGMA_FILE_KEY }}
+
+      - name: Build plugin (codegen)
+        working-directory: designbridge-plugin
+        run: npm run build
+
+      - name: Run codegen
+        working-directory: designbridge-plugin
+        run: node dist/codegen.js --manifest "../exports/components.manifest.json" --out "../exports/components"
+
+      - name: Sync dashboard data
+        run: |
+          mkdir -p designbridge-web/public/data
+          cp exports/tokens.json designbridge-web/public/data/tokens.json
+          cp exports/components.manifest.json designbridge-web/public/data/components.manifest.json
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git diff --quiet exports/ designbridge-web/public/data/ || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore(sync): Figma sync ${{ github.run_id }}'
+          branch: figma-sync/auto
+          title: 'chore(sync): Design system update from Figma'
+          body: |
+            Automated sync from Figma REST API.
+
+            **Changes:**
+            - Updated `exports/tokens.json`
+            - Updated `exports/components.manifest.json`
+            - Synced dashboard data in `designbridge-web/public/data/`
+
+            Triggered by: ${{ github.event_name }}
+          labels: |
+            design-sync
+            automated
