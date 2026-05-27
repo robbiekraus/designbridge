@@ -522,7 +522,8 @@ export async function POST(request: NextRequest) {
 
     // 8. Auto-sync tokens to designbridge-dev (if it exists next to designbridge-web)
     const devRepoLib = path.join(cwd, '..', 'designbridge-dev', 'lib');
-    if (fs.existsSync(devRepoLib)) {
+    const devRepoExists = fs.existsSync(devRepoLib);
+    if (devRepoExists) {
       const generatedDir = path.join(cwd, 'public', 'data', 'generated');
       fs.copyFileSync(
         path.join(generatedDir, 'tokens.css'),
@@ -536,6 +537,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      devRepoUrl: devRepoExists ? 'http://localhost:3001' : null,
       stats: {
         components: manifestComponents.length,
         colors: colorCount,

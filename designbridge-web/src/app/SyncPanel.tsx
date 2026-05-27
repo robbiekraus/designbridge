@@ -16,10 +16,12 @@ interface SyncResult {
   stats?: SyncStats;
   error?: string;
   generated?: string[];
+  devRepoUrl?: string | null;
 }
 
 const FILE_KEY_STORAGE_KEY = 'designbridge_figma_file_key';
 const GENERATED_FILES_KEY = 'designbridge_generated_files';
+const DEV_REPO_URL_KEY = 'designbridge_dev_repo_url';
 const FIGMA_URL_REGEX = /figma\.com\/(?:design|file)\/([A-Za-z0-9]+)/;
 
 const DEFAULT_GENERATED_FILES = ['tokens.css', 'tailwind.config.tokens.js', 'tokens.ts'];
@@ -37,6 +39,7 @@ export default function SyncPanel() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
   const [persistedFiles, setPersistedFiles] = useState<string[]>([]);
+  const [devRepoUrl, setDevRepoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem(FILE_KEY_STORAGE_KEY);
@@ -48,6 +51,8 @@ export default function SyncPanel() {
       // Synced before but list got cleared — use defaults
       setPersistedFiles(DEFAULT_GENERATED_FILES);
     }
+    const savedDevUrl = localStorage.getItem(DEV_REPO_URL_KEY);
+    if (savedDevUrl) setDevRepoUrl(savedDevUrl);
   }, []);
 
   async function handleSync() {
@@ -79,6 +84,10 @@ export default function SyncPanel() {
         localStorage.setItem(GENERATED_FILES_KEY, JSON.stringify(files));
         localStorage.setItem('designbridge_has_synced', '1');
         setPersistedFiles(files);
+        if (data.devRepoUrl) {
+          localStorage.setItem(DEV_REPO_URL_KEY, data.devRepoUrl);
+          setDevRepoUrl(data.devRepoUrl);
+        }
         // Reload the page so server-rendered stat cards reflect new data
         setTimeout(() => window.location.reload(), 4000);
       }
@@ -94,6 +103,12 @@ export default function SyncPanel() {
     if (e.key === 'Enter' && !loading) handleSync();
   }
 
+  function handleClear() {
+    setInputValue('');
+    setResult(null);
+    localStorage.removeItem(FILE_KEY_STORAGE_KEY);
+  }
+
   return (
     <section className="bg-gray-900 border border-gray-800 rounded-xl p-5">
       <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
@@ -101,15 +116,28 @@ export default function SyncPanel() {
       </h2>
 
       <div className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="https://www.figma.com/design/..."
-          disabled={loading}
-          className="flex-1 min-w-0 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 disabled:opacity-50"
-        />
+        <div className="relative flex-1 min-w-0">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="https://www.figma.com/design/..."
+            disabled={loading}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 pr-9 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 disabled:opacity-50"
+          />
+          {inputValue && !loading && (
+            <button
+              onClick={handleClear}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+              aria-label="Clear"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
         <button
           onClick={handleSync}
           disabled={loading || !inputValue.trim()}
@@ -155,9 +183,24 @@ export default function SyncPanel() {
         </p>
       )}
 
-      {persistedFiles.length > 0 && (
+      {(persistedFiles.length > 0 || devRepoUrl) && (
         <div className="mt-4">
-          <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Generated Files</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-gray-400 uppercase tracking-wider">Generated Files</p>
+            {devRepoUrl && (
+              <a
+                href={devRepoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-violet-400 hover:text-violet-300 transition-colors"
+              >
+                Open Dev Repo
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             {persistedFiles.map((filename) => (
               <a
