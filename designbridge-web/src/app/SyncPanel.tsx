@@ -103,10 +103,17 @@ export default function SyncPanel() {
     if (e.key === 'Enter' && !loading) handleSync();
   }
 
-  function handleClear() {
+  async function handleClear() {
     setInputValue('');
     setResult(null);
+    setPersistedFiles([]);
+    setDevRepoUrl(null);
     localStorage.removeItem(FILE_KEY_STORAGE_KEY);
+    localStorage.removeItem(GENERATED_FILES_KEY);
+    localStorage.removeItem(DEV_REPO_URL_KEY);
+    localStorage.removeItem('designbridge_has_synced');
+    await fetch('/api/clear', { method: 'POST' });
+    window.location.reload();
   }
 
   return (
