@@ -56,9 +56,13 @@ function parseProps(node: ComponentSetNode): ComponentProp[] {
   return props;
 }
 
-function buildFigmaUrl(fileKey: string, nodeId: string): string {
+function buildFigmaUrl(fileKey: string, nodeId: string, fileName?: string): string {
   if (!fileKey) return '';
-  return `https://www.figma.com/design/${fileKey}?node-id=${nodeId.replace(':', '-')}`;
+  // Figma deep-link requires /slug after the file key, otherwise navigation breaks
+  const slug = fileName
+    ? encodeURIComponent(fileName.replace(/\s+/g, '-'))
+    : 'file';
+  return `https://www.figma.com/design/${fileKey}/${slug}?node-id=${nodeId.replace(':', '-')}`;
 }
 
 // ─── Token ref resolution (async, cached) ─────────────────────────────────────
@@ -131,6 +135,7 @@ async function collectTokenRefs(
 export async function scanComponents(fileKey: string): Promise<ComponentEntry[]> {
   const entries: ComponentEntry[] = [];
   const now = new Date().toISOString();
+  const fileName = figma.root.name;
   // Shared caches across all components to minimise API calls
   const styleCache = new Map<string, string>();
   const varCache = new Map<string, string>();
@@ -149,7 +154,7 @@ export async function scanComponents(fileKey: string): Promise<ComponentEntry[]>
       name: set.name,
       figmaNodeId: set.id,
       figmaFileKey: fileKey,
-      figmaUrl: buildFigmaUrl(fileKey, set.id),
+      figmaUrl: buildFigmaUrl(fileKey, set.id, fileName),
       category: inferCategory(set),
       description: set.description ?? '',
       props: parseProps(set),
@@ -169,7 +174,7 @@ export async function scanComponents(fileKey: string): Promise<ComponentEntry[]>
       name: comp.name,
       figmaNodeId: comp.id,
       figmaFileKey: fileKey,
-      figmaUrl: buildFigmaUrl(fileKey, comp.id),
+      figmaUrl: buildFigmaUrl(fileKey, comp.id, fileName),
       category: inferCategory(comp),
       description: comp.description ?? '',
       props: [],

@@ -388,8 +388,9 @@ export async function POST(request: NextRequest) {
     const fileData = await figmaGet(
       `https://api.figma.com/v1/files/${fileKey}`,
       FIGMA_TOKEN
-    ) as { err?: string; document?: { children: unknown[] } };
+    ) as { err?: string; name?: string; document?: { children: unknown[] } };
     if (fileData.err) throw new Error(`Figma file API error: ${fileData.err}`);
+    const figmaFileName = fileData.name ?? 'file';
 
     // 2. Fetch published styles list
     const stylesData = await figmaGet(
@@ -481,7 +482,7 @@ export async function POST(request: NextRequest) {
         name: raw.name,
         figmaNodeId: raw.figmaNodeId,
         figmaFileKey: fileKey,
-        figmaUrl: `https://www.figma.com/design/${fileKey}?node-id=${raw.figmaNodeId.replace(':', '-')}`,
+        figmaUrl: `https://www.figma.com/design/${fileKey}/${encodeURIComponent(figmaFileName.replace(/\s+/g, '-'))}?node-id=${raw.figmaNodeId.replace(':', '-')}`,
         category: guessCategory(raw.name),
         description: raw.description,
         props: currentProps,
