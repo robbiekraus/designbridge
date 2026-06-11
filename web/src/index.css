@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body { @apply bg-white text-zinc-900 antialiased; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-zinc-900 text-white text-sm font-medium
+           shadow-sm transition-opacity hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-outline {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-zinc-200 bg-white
+           text-sm font-medium shadow-sm hover:bg-zinc-50 transition-colors;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-zinc-500
+           hover:bg-zinc-100 hover:text-zinc-900 transition-colors;
+  }
+  .conf-high  { @apply text-xs font-semibold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700; }
+  .conf-med   { @apply text-xs font-semibold px-1.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700; }
+  .conf-low   { @apply text-xs font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner { animation: spin .7s linear infinite; }
