@@ -1,22 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import SourceScanner from './pages/SourceScanner.jsx';
+import ImportModal from './components/ImportModal/ImportModal.jsx';
 
-const NAV = ['Dashboard', 'Source Scanner', 'Tokens', 'Atomics', 'Components', 'Patterns'];
+const NAV = ['Dashboard', 'Tokens', 'Atomics', 'Components', 'Patterns'];
 
 export default function App() {
-  const [page, setPage] = useState('Source Scanner');
+  const [page, setPage] = useState('Dashboard');
   const [serverOk, setServerOk] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/health')
       .then(r => r.json())
       .then(d => setServerOk(d.anthropic_key_configured))
       .catch(() => setServerOk(false));
+
+    try {
+      if (localStorage.getItem('designbridge.hasImported') !== '1') {
+        setModalOpen(true);
+      }
+    } catch {}
   }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Topbar */}
       <header className="h-12 border-b border-zinc-200 flex items-center px-5 gap-0 flex-shrink-0">
         <a href="#" className="flex items-center gap-2 text-sm font-semibold tracking-tight mr-6">
           <div className="w-5 h-5 bg-zinc-900 rounded flex items-center justify-center">
@@ -38,13 +44,16 @@ export default function App() {
           {serverOk === false && (
             <span className="text-xs text-red-600 font-medium">⚠ API key missing</span>
           )}
+          <button onClick={() => setModalOpen(true)}
+            className="text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors">
+            New Import
+          </button>
           <button className="btn-ghost text-xs">Settings</button>
           <button className="btn-outline text-xs">Connect Figma</button>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
           <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-2 pb-1">Library</div>
           {[
@@ -61,13 +70,12 @@ export default function App() {
           ))}
         </aside>
 
-        {/* Main content */}
         <main className="flex-1 overflow-y-auto">
-          {page === 'Source Scanner' ? <SourceScanner /> : (
-            <div className="p-8 text-zinc-400 text-sm">{page} — coming soon</div>
-          )}
+          <div className="p-8 text-zinc-400 text-sm">{page} — coming soon</div>
         </main>
       </div>
+
+      <ImportModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }
