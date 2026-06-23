@@ -1,18 +1,5 @@
 import React from 'react';
-
-function ConfidencePill({ value }) {
-  if (!value) return null;
-  const styles = {
-    high: 'bg-green-100 text-green-800',
-    med: 'bg-amber-100 text-amber-800',
-    low: 'bg-red-100 text-red-800',
-  };
-  return (
-    <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${styles[value] ?? 'bg-zinc-100 text-zinc-700'}`}>
-      {value}
-    </span>
-  );
-}
+import ConfidencePill from '../library/ConfidencePill.jsx';
 
 function InventoryDetail({ extra }) {
   if (!extra) return null;
