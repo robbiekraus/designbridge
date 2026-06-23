@@ -39,7 +39,7 @@ Das gespeicherte Objekt ist das bereits existierende Import-Result aus `scanResu
 - `web/src/pages/Dashboard.jsx` — Steckbrief + Zähler + Warnungen.
 - `web/src/pages/Tokens.jsx` — die fünf Token-Gruppen.
 - `web/src/pages/Atomics.jsx`, `Components.jsx`, `Patterns.jsx` — Textkarten.
-- Anzeige-Teilchen (klein, präsentational): `ColorSwatch`, `TypographyRow`, `SpacingRow`, `RadiusRow`, `ShadowRow`, `InventoryCard`, `EmptyState`, `ConfidencePill` (Pill ggf. aus `ImportSuccess` extrahieren und teilen).
+- Anzeige-Teilchen (klein, präsentational): `ColorSwatch`, `TypographyRow`, `SpacingRow`, `RadiusRow`, `ShadowRow`, `InventoryCard`, `PreviewPlaceholder` (reservierte Vorschau-Fläche in den Inventar-Karten), `EmptyState`, `ConfidencePill` (Pill ggf. aus `ImportSuccess` extrahieren und teilen).
 
 ### Verdrahtung in `App.jsx`
 - Bestehender `page`-State (Dashboard/Tokens/Atomics/Components/Patterns) steuert, welche Seite `<main>` rendert (ersetzt das „coming soon").
@@ -57,12 +57,15 @@ Das gespeicherte Objekt ist das bereits existierende Import-Result aus `scanResu
 - **Shadows**: kleine Box mit echtem `box-shadow` (aus `css`) + `description` + Pill.
 - Leere Gruppen werden ausgeblendet (oder dezent „keine erkannt").
 
-## Inventar-Seiten (Textkarten)
+## Inventar-Seiten (Textkarten mit reservierter Vorschau-Fläche)
 
-- **Atomics**: Karte mit `name`, `variants` als Chips, `ConfidencePill`, `notes`.
-- **Components**: Karte mit `name`, Pill, `notes`.
-- **Patterns**: Karte mit `name`, Pill.
-- Über den Karten ein Hinweis, dass visuelle Nachbauten in einer späteren Phase kommen.
+Jede Karte hat oben eine **leere Platzhalter-Fläche**, die den Slot für den späteren visuellen Nachbau (Phase 3) schon reserviert — damit das Layout später nicht umgebaut werden muss. Darunter die Textinfos.
+
+- **Platzhalter-Fläche** (`PreviewPlaceholder`): feste Höhe / fixes Seitenverhältnis, gestrichelter Rahmen, dezentes Label „Vorschau folgt". Visuell ruhig, soll die Textinfos nicht erschlagen. In Phase 3 wird genau dieser Bereich durch den gerenderten Nachbau ersetzt.
+- **Atomics**: Platzhalter + `name`, `variants` als Chips, `ConfidencePill`, `notes`.
+- **Components**: Platzhalter + `name`, Pill, `notes`.
+- **Patterns**: Platzhalter + `name`, Pill.
+- Über den Karten ein kurzer Hinweis, dass die visuellen Nachbauten in einer späteren Phase kommen.
 
 ## Sonderfälle / Fehler
 
