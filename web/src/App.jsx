@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import ImportModal from './components/ImportModal/ImportModal.jsx';
+import { loadLastImport, saveLastImport } from './lib/libraryStore.js';
+import Dashboard from './pages/Dashboard.jsx';
+import Tokens from './pages/Tokens.jsx';
+import Atomics from './pages/Atomics.jsx';
+import Components from './pages/Components.jsx';
+import Patterns from './pages/Patterns.jsx';
+import EmptyState from './components/library/EmptyState.jsx';
 
 const NAV = ['Dashboard', 'Tokens', 'Atomics', 'Components', 'Patterns'];
 
@@ -7,6 +14,7 @@ export default function App() {
   const [page, setPage] = useState('Dashboard');
   const [serverOk, setServerOk] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [lastImport, setLastImport] = useState(null);
 
   useEffect(() => {
     fetch('/api/health')
@@ -19,7 +27,25 @@ export default function App() {
         setModalOpen(true);
       }
     } catch {}
+    setLastImport(loadLastImport());
   }, []);
+
+  const handleImported = (result) => {
+    saveLastImport(result);
+    setLastImport(result);
+  };
+
+  const renderPage = () => {
+    if (!lastImport) return <EmptyState onNewImport={() => setModalOpen(true)} />;
+    switch (page) {
+      case 'Tokens': return <Tokens result={lastImport} />;
+      case 'Atomics': return <Atomics result={lastImport} />;
+      case 'Components': return <Components result={lastImport} />;
+      case 'Patterns': return <Patterns result={lastImport} />;
+      case 'Dashboard':
+      default: return <Dashboard result={lastImport} />;
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -56,26 +82,25 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
           <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-2 pb-1">Library</div>
-          {[
-            { label: 'Tokens', badge: null },
-            { label: 'Atomics', badge: null },
-            { label: 'Components', badge: null },
-            { label: 'Patterns', badge: null },
-          ].map(({ label, badge }) => (
-            <button key={label}
-              className="flex items-center gap-2 px-2 py-1.5 rounded text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-colors w-full text-left">
+          {['Tokens', 'Atomics', 'Components', 'Patterns'].map((label) => (
+            <button key={label} onClick={() => setPage(label)}
+              className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-zinc-100 text-zinc-900 font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
               {label}
-              {badge && <span className="ml-auto text-xs bg-zinc-900 text-white rounded-full min-w-4 h-4 flex items-center justify-center px-1">{badge}</span>}
             </button>
           ))}
         </aside>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="p-8 text-zinc-400 text-sm">{page} — coming soon</div>
+          <div className="p-8">{renderPage()}</div>
         </main>
       </div>
 
-      <ImportModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <ImportModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onImported={handleImported}
+        onOpenLibrary={() => { setModalOpen(false); setPage('Dashboard'); }}
+      />
     </div>
   );
 }
