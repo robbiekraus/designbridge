@@ -1,33 +1,44 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Alle Befehle, die du brauchst, um hier weiterzumachen. Einfach jeweils kopieren und ins Terminal einfügen.
+Stand: **24.06.2026** — Phase 2 (Code Emitter v1) **Design fertig, Bau steht noch aus.**
+Einfach jeweils kopieren und ins Terminal einfügen.
 
-## Claude wieder reinholen
+## Morgen frisch weitermachen (der wichtige Befehl)
 
-Terminal öffnen (Spotlight → „Terminal"). Dann:
-
-```
-claude --resume
-```
-
-→ Eine Liste deiner Sessions erscheint. Mit Pfeiltasten die letzte Designbridge-Session auswählen, Enter. Voller Kontext ist zurück.
-
-**Oder** einfach neu starten und in den Chat schreiben: *"Weiter mit dem Designbridge Import Modal."* Claude liest dann automatisch deine Memory und weiß Bescheid.
-
-## Ins Projekt wechseln
+Terminal öffnen, dann ins Projekt:
 
 ```
 cd "/Volumes/4TB Shield/Vibe Coding Bootcamp/Projekte/Designbridge"
+claude
 ```
+
+Und als **erste Nachricht** in den Chat schreiben (das ist der Bau-Befehl):
+
+```
+Implementiere Plan docs/superpowers/plans/2026-06-24-code-emitter-v1.md mit subagent-driven-development. Branch ist feat/code-emitter.
+```
+
+→ Claude liest dann den Plan und baut Task für Task (Test zuerst, dann Code, dann Commit), mit Review zwischendrin.
+
+## Wo wir stehen
+
+- **Branch: `feat/code-emitter`** (von `main` abgezweigt, Phase 1 ist auf `main`).
+- **Design-Session abgeschlossen.** Es wurde NOCH KEIN Code gebaut — nur Spec + Plan geschrieben und committed.
+- Spec: `docs/superpowers/specs/2026-06-24-code-emitter-v1-design.md`
+- Plan: `docs/superpowers/plans/2026-06-24-code-emitter-v1.md` (8 Tasks)
+
+## Was Phase 2 baut
+
+Ein neuer **Export-Tab** in der Library: Du wählst ein Format (CSS-Variablen / Tailwind-Config / tokens.json), siehst eine Live-Vorschau und kannst kopieren oder herunterladen. Alle Tokens kommen mit, unsichere sind markiert. Komponenten kommen erst in Phase 3.
 
 ## Aktuellen Stand prüfen
 
 ```
 git status
-git log --oneline -12
+git log --oneline -5
 ```
 
-→ Du solltest auf Branch `feat/import-modal` sein, mit 12 Commits.
+→ Branch `feat/code-emitter`, oben zwei Commits: „docs(plan)…" und „docs(spec)…".
 
 ## App starten (Server + Web)
 
@@ -35,7 +46,7 @@ git log --oneline -12
 npm run dev
 ```
 
-→ Backend auf http://localhost:3047, Frontend auf **http://localhost:5173** — letzteren im Browser öffnen.
+→ Backend http://localhost:3047, Frontend **http://localhost:5173** im Browser öffnen.
 
 ## Tests laufen lassen
 
@@ -44,25 +55,15 @@ cd web
 npm test
 ```
 
-→ Sollte 14 Tests, alle grün, durchlaufen.
-
-## Modal-Empty-State zurücksetzen
-
-In Safari mit aktiviertem Entwickler-Menü:
-
-1. `⌥ + ⌘ + C` → Konsole öffnen
-2. Eingeben: `localStorage.removeItem('designbridge.hasImported')`
-3. Enter, dann Seite neu laden (`⌘ + R`)
-
 ## Branch / wichtige Dateien
 
-- Branch: **`feat/import-modal`** (lokal, ungemergt)
-- Spec: `docs/superpowers/specs/2026-06-11-import-modal-design.md`
-- Plan: `docs/superpowers/plans/2026-06-11-import-modal-plan.md`
-- Arbeitsregeln für Claude: `CLAUDE.md` (im Projekt-Root)
+- Branch: **`feat/code-emitter`**
+- Spec: `docs/superpowers/specs/2026-06-24-code-emitter-v1-design.md`
+- Plan: `docs/superpowers/plans/2026-06-24-code-emitter-v1.md`
+- Arbeitsregeln für Claude: `CLAUDE.md` (Projekt-Root)
 
-## Nächste Schritte (wenn du Lust hast)
+## Danach (nach dem Bau)
 
-1. URL-Tab smoke-testen (`https://acme.com` eingeben → Import → Mock-Success)
-2. Die ~30 fremden uncommitted Changes außerhalb von `web/` einordnen (was sind die? mergen oder verwerfen?)
-3. Branch mergen oder PR machen (Claude kennt das Skill `superpowers:finishing-a-development-branch`)
+1. Export-Tab im Browser smoke-testen (Bild importieren → Export → alle 3 Formate prüfen).
+2. `npm run build` muss sauber durchlaufen.
+3. Branch mergen oder PR (Skill `superpowers:finishing-a-development-branch`).
