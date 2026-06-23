@@ -46,4 +46,12 @@ describe('ImportSuccess', () => {
     await userEvent.click(screen.getByRole('button', { name: /new import/i }));
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  it('calls onOpenLibrary when "Open library" is clicked', async () => {
+    const onOpenLibrary = vi.fn();
+    const result = { source: 'image', mocked: false, categories: [], raw: {} };
+    render(<ImportSuccess result={result} onNewImport={() => {}} onOpenLibrary={onOpenLibrary} />);
+    await userEvent.click(screen.getByRole('button', { name: /open library/i }));
+    expect(onOpenLibrary).toHaveBeenCalledOnce();
+  });
 });

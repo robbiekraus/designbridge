@@ -10,7 +10,7 @@ function InventoryDetail({ extra }) {
   );
 }
 
-export default function ImportSuccess({ result, onNewImport }) {
+export default function ImportSuccess({ result, onNewImport, onOpenLibrary }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="text-center">
@@ -45,8 +45,8 @@ export default function ImportSuccess({ result, onNewImport }) {
           className="text-xs px-3 py-1.5 border border-zinc-200 rounded text-zinc-900 hover:bg-zinc-50 transition-colors">
           New import
         </button>
-        <button disabled title="Coming soon"
-          className="text-xs px-3 py-1.5 bg-zinc-900 text-white rounded opacity-60 cursor-not-allowed">
+        <button onClick={onOpenLibrary}
+          className="text-xs px-3 py-1.5 bg-zinc-900 text-white rounded hover:bg-zinc-700 transition-colors">
           Open library
         </button>
       </div>

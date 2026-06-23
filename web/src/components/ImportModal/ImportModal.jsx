@@ -15,15 +15,16 @@ const TABS = [
   { id: 'figma', label: 'Figma', disabled: true },
 ];
 
-export default function ImportModal({ open, onClose }) {
+export default function ImportModal({ open, onClose, onImported, onOpenLibrary }) {
   const [activeTab, setActiveTab] = useState('image');
   const { stage, result, error, submit, reset } = useImportSession();
 
   useEffect(() => {
-    if (stage === 'success') {
+    if (stage === 'success' && result) {
       try { localStorage.setItem('designbridge.hasImported', '1'); } catch {}
+      onImported?.(result);
     }
-  }, [stage]);
+  }, [stage, result, onImported]);
 
   const handleClose = () => {
     reset();
@@ -38,7 +39,7 @@ export default function ImportModal({ open, onClose }) {
     body = <ImportProgress source={activeTab} />;
     title = 'Importing…';
   } else if (stage === 'success' && result) {
-    body = <ImportSuccess result={result} onNewImport={reset} />;
+    body = <ImportSuccess result={result} onNewImport={reset} onOpenLibrary={onOpenLibrary} />;
     title = 'Import complete';
   } else if (stage === 'error') {
     body = (
