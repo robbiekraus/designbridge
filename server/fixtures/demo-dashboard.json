@@ -1,0 +1,82 @@
+{
+  "summary": {
+    "source_description": "Analytics SaaS dashboard with sales metrics, charts and an events table",
+    "app_type": "SaaS dashboard",
+    "color_mode": "light",
+    "design_style": "minimal, card-based"
+  },
+  "tokens": {
+    "colors": [
+      { "hex": "#4263EB", "role": "brand-primary", "confidence": "high" },
+      { "hex": "#5C7CFA", "role": "brand-primary-hover", "confidence": "medium" },
+      { "hex": "#51CF66", "role": "success", "confidence": "high" },
+      { "hex": "#69DB7C", "role": "success-soft", "confidence": "medium" },
+      { "hex": "#FCC419", "role": "warning", "confidence": "high" },
+      { "hex": "#FF6B6B", "role": "danger", "confidence": "high" },
+      { "hex": "#1A1B1E", "role": "foreground-strong", "confidence": "high" },
+      { "hex": "#212529", "role": "foreground-default", "confidence": "high" },
+      { "hex": "#495057", "role": "foreground-muted", "confidence": "medium" },
+      { "hex": "#868E96", "role": "foreground-subtle", "confidence": "high" },
+      { "hex": "#ADB5BD", "role": "foreground-disabled", "confidence": "medium" },
+      { "hex": "#F8F9FA", "role": "background-app", "confidence": "high" },
+      { "hex": "#FFFFFF", "role": "surface-card", "confidence": "high" },
+      { "hex": "#E9ECEF", "role": "border-default", "confidence": "high" },
+      { "hex": "#F1F3F5", "role": "border-subtle", "confidence": "medium" },
+      { "hex": "#EDF2FF", "role": "accent-surface", "confidence": "low" }
+    ],
+    "typography": [
+      { "size": 32, "weight": "700", "role": "display-xl", "sample": "$142.000", "confidence": "high" },
+      { "size": 18, "weight": "600", "role": "heading-md", "sample": "Your Sales", "confidence": "high" },
+      { "size": 14, "weight": "600", "role": "label-strong", "sample": "1.345", "confidence": "medium" },
+      { "size": 14, "weight": "400", "role": "body-default", "sample": "Total income", "confidence": "high" },
+      { "size": 12, "weight": "500", "role": "caption", "sample": "Explore most popular product categories", "confidence": "medium" }
+    ],
+    "spacing": [
+      { "value": 24, "usage": "card padding", "confidence": "high" },
+      { "value": 16, "usage": "stack gap", "confidence": "high" },
+      { "value": 8, "usage": "inline gap", "confidence": "medium" },
+      { "value": 32, "usage": "section gap", "confidence": "medium" },
+      { "value": 12, "usage": "icon tile padding", "confidence": "low" }
+    ],
+    "border_radius": [
+      { "value": "16px", "usage": "card", "confidence": "high" },
+      { "value": "8px", "usage": "button / control", "confidence": "high" },
+      { "value": "12px", "usage": "icon tile", "confidence": "medium" },
+      { "value": "50%", "usage": "avatar / donut", "confidence": "medium" }
+    ],
+    "shadows": [
+      { "description": "card-shadow", "css": "0 1px 3px rgba(0,0,0,0.05)", "confidence": "high" },
+      { "description": "card-shadow-hover", "css": "0 4px 12px rgba(0,0,0,0.08)", "confidence": "medium" },
+      { "description": "tooltip-shadow", "css": "0 8px 24px rgba(0,0,0,0.12)", "confidence": "low" }
+    ]
+  },
+  "atomics": [
+    { "name": "Button", "variants": ["primary", "ghost", "segmented"], "confidence": "high", "notes": "Day/Week/Month toggles and View all" },
+    { "name": "Icon Button", "variants": ["search", "add"], "confidence": "high", "notes": "" },
+    { "name": "Avatar", "variants": ["user"], "confidence": "high", "notes": "bottom-left of sidebar" },
+    { "name": "Status Dot", "variants": ["online", "alert"], "confidence": "medium", "notes": "sidebar indicators" },
+    { "name": "Search Input", "variants": [], "confidence": "medium", "notes": "topbar" }
+  ],
+  "components": [
+    { "name": "Sidebar Navigation", "confidence": "high", "notes": "icon rail with active state" },
+    { "name": "Stat Card", "confidence": "high", "notes": "category counts with icon tile" },
+    { "name": "Line Chart Card", "confidence": "high", "notes": "Your Sales / Income Details" },
+    { "name": "Donut Chart", "confidence": "high", "notes": "Income Breakdown with center label" },
+    { "name": "Bar Chart", "confidence": "medium", "notes": "Conversion history" },
+    { "name": "Data Table", "confidence": "high", "notes": "Latest Events with row icons" },
+    { "name": "Tooltip", "confidence": "medium", "notes": "March $48.200 on charts" },
+    { "name": "Segmented Control", "confidence": "high", "notes": "Day/Week/Month" },
+    { "name": "Category List Item", "confidence": "high", "notes": "Popular categories rows" }
+  ],
+  "patterns": [
+    { "name": "Dashboard Grid Layout", "confidence": "high" },
+    { "name": "Metrics Overview", "confidence": "high" },
+    { "name": "Sidebar + Content Shell", "confidence": "medium" }
+  ],
+  "warnings": [
+    "Exact hex values are estimated from a static image — verify against the source file.",
+    "Spacing values snapped to a 4px grid; confirm in code.",
+    "Chart series colors sampled from the rendered image; gradients not captured."
+  ],
+  "meta": { "model": "demo-fallback", "elapsed_ms": 0 }
+}

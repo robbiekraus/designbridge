@@ -9,8 +9,6 @@ import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 
-const NAV = ['Dashboard', 'Tokens', 'Atomics', 'Components', 'Patterns', 'Export'];
-
 export default function App() {
   const [page, setPage] = useState('Dashboard');
   const [serverOk, setServerOk] = useState(null);
@@ -49,6 +47,16 @@ export default function App() {
     }
   };
 
+  const navCategories = lastImport?.categories ?? [];
+  const catCount = key => navCategories.find(c => c.key === key)?.count ?? 0;
+  const invExtra = navCategories.find(c => c.key === 'inventory')?.extra ?? {};
+  const navCounts = {
+    Tokens: catCount('colors') + catCount('typography') + catCount('spacing') + catCount('radius') + catCount('shadows'),
+    Atomics: invExtra.atomics ?? 0,
+    Components: invExtra.components ?? 0,
+    Patterns: invExtra.patterns ?? 0,
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="h-12 border-b border-zinc-200 flex items-center px-5 gap-0 flex-shrink-0">
@@ -60,22 +68,17 @@ export default function App() {
           </div>
           Designbridge
         </a>
-        <nav className="flex items-center gap-0.5 flex-1">
-          {NAV.map(n => (
-            <button key={n} onClick={() => setPage(n)}
-              className={`text-sm px-2.5 py-1 rounded transition-colors ${page === n ? 'text-zinc-900 bg-zinc-100 font-medium' : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50'}`}>
-              {n}
-            </button>
-          ))}
-        </nav>
+        <div className="flex-1" />
         <div className="flex items-center gap-2">
           {serverOk === false && (
             <span className="text-xs text-red-600 font-medium">⚠ API key missing</span>
           )}
-          <button onClick={() => setModalOpen(true)}
-            className="text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors">
-            New Import
-          </button>
+          {lastImport && (
+            <button onClick={() => setModalOpen(true)}
+              className="text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors">
+              Neuer Import
+            </button>
+          )}
           <button className="btn-ghost text-xs">Settings</button>
           <button className="btn-outline text-xs">Connect Figma</button>
         </div>
@@ -83,11 +86,18 @@ export default function App() {
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
-          <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-2 pb-1">Library</div>
+          <button onClick={() => setPage('Dashboard')}
+            className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === 'Dashboard' ? 'bg-zinc-100 text-zinc-900 font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
+            Dashboard
+          </button>
+          <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-3 pb-1">Library</div>
           {['Tokens', 'Atomics', 'Components', 'Patterns', 'Export'].map((label) => (
             <button key={label} onClick={() => setPage(label)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-zinc-100 text-zinc-900 font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
-              {label}
+              <span>{label}</span>
+              {navCounts[label] > 0 && (
+                <span className="ml-auto text-[10px] tabular-nums text-zinc-400">{navCounts[label]}</span>
+              )}
             </button>
           ))}
         </aside>
