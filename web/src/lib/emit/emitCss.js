@@ -9,7 +9,7 @@ function linesForToken(tk) {
   if (tk.group === 'font') {
     return [
       `  --font-${tk.name}-size: ${tk.value.fontSize};${flag}`,
-      `  --font-${tk.name}-weight: ${tk.value.fontWeight};`,
+      `  --font-${tk.name}-weight: ${tk.value.fontWeight};${flag}`,
     ];
   }
   const prefix = { color: 'color', spacing: 'spacing', radius: 'radius', shadow: 'shadow' }[tk.group];

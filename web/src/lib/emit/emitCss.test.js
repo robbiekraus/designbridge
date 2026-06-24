@@ -30,4 +30,12 @@ describe('emitCss', () => {
     expect(css).not.toContain('/* spacing */');
     expect(css).not.toContain('/* typography */');
   });
+
+  it('flags BOTH font lines when font token is low-confidence', () => {
+    const css = emitCss([
+      { group: 'font', name: 'body', value: { fontSize: '14px', fontWeight: '400' }, confidence: 'low' },
+    ]);
+    expect(css).toContain('--font-body-size: 14px; /* unsicher erkannt — bitte prüfen */');
+    expect(css).toContain('--font-body-weight: 400; /* unsicher erkannt — bitte prüfen */');
+  });
 });
