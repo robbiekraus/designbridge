@@ -6,9 +6,10 @@ import Tokens from './pages/Tokens.jsx';
 import Atomics from './pages/Atomics.jsx';
 import Components from './pages/Components.jsx';
 import Patterns from './pages/Patterns.jsx';
+import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 
-const NAV = ['Dashboard', 'Tokens', 'Atomics', 'Components', 'Patterns'];
+const NAV = ['Dashboard', 'Tokens', 'Atomics', 'Components', 'Patterns', 'Export'];
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -42,6 +43,7 @@ export default function App() {
       case 'Atomics': return <Atomics result={lastImport} />;
       case 'Components': return <Components result={lastImport} />;
       case 'Patterns': return <Patterns result={lastImport} />;
+      case 'Export': return <Export result={lastImport} />;
       case 'Dashboard':
       default: return <Dashboard result={lastImport} />;
     }
@@ -82,7 +84,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
           <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-2 pb-1">Library</div>
-          {['Tokens', 'Atomics', 'Components', 'Patterns'].map((label) => (
+          {['Tokens', 'Atomics', 'Components', 'Patterns', 'Export'].map((label) => (
             <button key={label} onClick={() => setPage(label)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-zinc-100 text-zinc-900 font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
               {label}
