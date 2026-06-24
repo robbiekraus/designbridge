@@ -68,6 +68,6 @@ npm test
 
 ## Offene Punkte
 
-1. **Push** nach `origin` (main ~27 Commits voraus) — braucht dein OK.
+1. ✅ **Push** nach `origin/main` erledigt (24.06.2026, in Sync).
 2. Optionaler **Browser-Smoke-Test** des Export-Tabs (Bild importieren → Export → alle 3 Formate prüfen).
 3. Danach: **Phase 3** (Code Emitter v2) als neue Design-Session.
