@@ -25,7 +25,8 @@ export function emitTailwind(tokens) {
     blocks.push(block('fontSize',
       fonts.map(t => entryLine(t.name, `var(--font-${t.name}-size)`, t.confidence === 'low'))));
     blocks.push(block('fontWeight',
-      fonts.map(t => entryLine(t.name, `var(--font-${t.name}-weight)`, false))));
+      fonts.map(t => entryLine(t.name, `var(--font-${t.name}-weight)`, t.confidence === 'low'))));
+
   }
   if (spacing.length) {
     blocks.push(block('spacing',

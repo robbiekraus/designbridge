@@ -37,4 +37,12 @@ describe('emitTailwind', () => {
     expect(out).not.toContain('spacing:');
     expect(out).not.toContain('boxShadow:');
   });
+
+  it('flags fontWeight for low-confidence font tokens', () => {
+    const out = emitTailwind([
+      { group: 'font', name: 'body', value: { fontSize: '14px', fontWeight: '400' }, confidence: 'low' },
+    ]);
+    expect(out).toContain("    'body': 'var(--font-body-size)', // unsicher erkannt — bitte prüfen");
+    expect(out).toContain("    'body': 'var(--font-body-weight)', // unsicher erkannt — bitte prüfen");
+  });
 });
