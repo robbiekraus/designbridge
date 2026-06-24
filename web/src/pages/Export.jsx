@@ -26,7 +26,7 @@ export default function Export({ result }) {
     );
   }
 
-  const current = EXPORT_FORMATS.find(f => f.id === activeId);
+  const current = EXPORT_FORMATS.find(f => f.id === activeId) ?? EXPORT_FORMATS[0];
   const code = exports[activeId];
 
   const handleCopy = async () => {
