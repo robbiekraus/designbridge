@@ -33,8 +33,12 @@ export default function Export({ result }) {
   };
 
   const handleExportLibrary = async () => {
-    const blob = await buildLibraryZip(result);
-    downloadBlob('designbridge-library.zip', blob);
+    try {
+      const blob = await buildLibraryZip(result);
+      downloadBlob('designbridge-library.zip', blob);
+    } catch (err) {
+      console.error('Library-Export fehlgeschlagen:', err);
+    }
   };
 
   return (
