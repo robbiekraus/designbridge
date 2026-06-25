@@ -10,3 +10,14 @@ out/
 *.log
 *.tsbuildinfo
 .superpowers/
+
+# Local-only / generated / not for VCS
+designbridge-dev/
+Testdaten/
+Artefakte/
+.claude/
+exports/
+**/public/data/generated/
+# stale root orchestrator manifests (real ones live in designbridge-web/ etc.)
+/package.json
+/package-lock.json

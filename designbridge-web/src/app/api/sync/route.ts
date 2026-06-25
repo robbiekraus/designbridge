@@ -508,7 +508,7 @@ export async function POST(request: NextRequest) {
         name: raw.name,
         figmaNodeId: raw.figmaNodeId,
         figmaFileKey: fileKey,
-        figmaUrl: `https://www.figma.com/design/${fileKey}/${encodeURIComponent(figmaFileName.replace(/\s+/g, '-'))}?node-id=${raw.figmaNodeId.replace(':', '-')}`,
+        figmaUrl: `https://www.figma.com/design/${fileKey}/${slugify(figmaFileName)}?node-id=${encodeURIComponent(raw.figmaNodeId)}`,
         category: guessCategory(raw.name),
         description: raw.description,
         props: currentProps,
