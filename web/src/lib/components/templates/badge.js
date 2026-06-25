@@ -1,10 +1,10 @@
-const LOW = '// unsicher erkannt — bitte prüfen\n';
+import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
 
 export const badgeTemplate = {
   key: 'badge',
   label: 'Badge',
   variants: ['default', 'secondary'],
-  match: (n) => /badge|tag|chip|pill|label/.test(n),
+  match: (n) => /badge|tag|chip|pill/.test(n),
   emit(p, item) {
     const flag = item?.confidence === 'low' ? LOW : '';
     return (

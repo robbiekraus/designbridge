@@ -1,4 +1,4 @@
-const LOW = '// unsicher erkannt — bitte prüfen\n';
+import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
 
 export const inputTemplate = {
   key: 'input',

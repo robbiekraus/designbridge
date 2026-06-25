@@ -6,10 +6,10 @@ export function pickTokens(tokens = []) {
   const font = tokens.find((t) => t.group === 'font')?.value;
   return {
     primary: byRole(/primary|brand|accent/i) ?? colors[0]?.value ?? '#18181b',
-    onPrimary: '#ffffff',
+    onPrimary: byRole(/on.?primary|on.?brand|button text/i) ?? '#ffffff',
     text: byRole(/text|foreground|body/i) ?? '#18181b',
     surface: byRole(/background|surface|card/i) ?? '#ffffff',
-    surfaceMuted: '#f4f4f5',
+    surfaceMuted: byRole(/muted|subtle|secondary background|secondary-bg/i) ?? '#f4f4f5',
     border: byRole(/border|outline|divider/i) ?? '#e4e4e7',
     radius: radius ?? '6px',
     fontSize: font?.fontSize ?? '14px',

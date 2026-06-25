@@ -31,4 +31,18 @@ describe('pickTokens', () => {
     expect(p.fontSize).toBe('16px');
     expect(p.fontWeight).toBe('600');
   });
+
+  it('resolves onPrimary and surfaceMuted from token roles when present', () => {
+    const tokens = normalizeTokens({
+      colors: [
+        { hex: '#022d2c', role: 'primary', confidence: 'high' },
+        { hex: '#e8fff9', role: 'on primary', confidence: 'high' },
+        { hex: '#f0f0f0', role: 'muted background', confidence: 'med' },
+      ],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    });
+    const p = pickTokens(tokens);
+    expect(p.onPrimary).toBe('#e8fff9');
+    expect(p.surfaceMuted).toBe('#f0f0f0');
+  });
 });

@@ -1,4 +1,5 @@
 import { matchTemplate } from '../components/templates/registry.js';
+import { LOW_CONFIDENCE_COMMENT } from '../components/templates/constants.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokens } from './pickTokens.js';
 import { slugify } from './slugify.js';
@@ -18,7 +19,7 @@ function toPascal(slug) {
 }
 
 function genericStub(pascal, item) {
-  const flag = item?.confidence === 'low' ? '// unsicher erkannt — bitte prüfen\n' : '';
+  const flag = item?.confidence === 'low' ? LOW_CONFIDENCE_COMMENT : '';
   return (
     flag +
     [

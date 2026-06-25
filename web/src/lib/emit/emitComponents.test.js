@@ -34,11 +34,19 @@ describe('emitComponents', () => {
     expect(hero.hasPreview).toBe(false);
     expect(hero.code).toContain('export function HeroSection');
     expect(hero.code).toContain('TODO');
+    expect(hero.code).toContain('unsicher erkannt');
   });
 
   it('filters by kind when asked', () => {
     const atomics = emitComponents(result, 'atomic');
     expect(atomics).toHaveLength(1);
     expect(atomics[0].name).toBe('Button');
+  });
+
+  it('still emits components when the tokens key is absent', () => {
+    const partial = { raw: { components: [{ name: 'Button', variants: [], confidence: 'high' }] } };
+    const out = emitComponents(partial);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('Button');
   });
 });
