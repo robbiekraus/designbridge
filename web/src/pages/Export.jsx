@@ -1,17 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { buildExports, EXPORT_FORMATS } from '../lib/emit/index.js';
-
-function downloadFile(filename, content, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+import { downloadFile } from '../lib/download.js';
 
 export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
