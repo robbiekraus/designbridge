@@ -1,17 +1,14 @@
 import React from 'react';
-import InventoryCard from '../components/library/InventoryCard.jsx';
+import LibraryObjectList from '../components/library/LibraryObjectList.jsx';
+import { emitComponents } from '../lib/emit/emitComponents.js';
+import { normalizeTokens } from '../lib/emit/normalizeTokens.js';
+import { pickTokens } from '../lib/emit/pickTokens.js';
 
 export default function Components({ result }) {
   if (!result?.raw) {
-    return <div className="text-sm text-zinc-500">Preview-Import — keine Detaildaten. Importiere ein Bild, um das UI-Inventar zu sehen.</div>;
+    return <div className="text-sm text-zinc-500">Preview-Import — keine Detaildaten. Importiere ein Bild, um Komponenten als Code zu sehen.</div>;
   }
-  const items = result.raw.components ?? [];
-  return (
-    <div className="max-w-3xl">
-      <p className="text-xs text-zinc-400 mb-4">Visuelle Nachbauten folgen in einer späteren Phase.</p>
-      <div className="grid grid-cols-3 gap-3">
-        {items.map((item, i) => <InventoryCard key={i} item={item} />)}
-      </div>
-    </div>
-  );
+  const items = emitComponents(result, 'component');
+  const picks = pickTokens(normalizeTokens(result.raw.tokens));
+  return <LibraryObjectList items={items} picks={picks} />;
 }
