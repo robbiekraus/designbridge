@@ -1,7 +1,7 @@
 # Component Emitter v1 (Phase 3) — Design
 
 **Date:** 2026-06-25
-**Status:** Proposed — awaiting review
+**Status:** Approved 2026-06-25 (decisions resolved) — ready for implementation plan
 **Phase:** Roadmap Phase 3 ("Weg 2", der strategische Kern)
 **Builds on:** Phase 2 Code Emitter v1 (`web/src/lib/emit/`), Library scaffold (Phase 1)
 
@@ -50,7 +50,8 @@ A small registry mapping a canonical key → `{ match, variants, emit, Preview }
 - `variants` — the variant names the template knows (e.g. `['primary','secondary','ghost']`).
 - `emit(tokens, item)` — pure function returning the component's `.jsx` source string,
   with extracted tokens woven into the Tailwind classes (reuses `normalizeTokens` output).
-- `Preview` — a real React component rendering the template's variants, styled from tokens.
+- `Preview` — a real React component that accepts a `variant` prop and renders that one
+  variant, styled from tokens. The accordion drives it with a variant switcher.
 
 v1 templates: `button`, `card`, `badge`, `input`. Adding a template later = one new file.
 
@@ -76,8 +77,10 @@ This mirrors the Phase 2 split: a pure normalizer feeds pure emitters; UI stays 
 One component used by all three content pages. Props: the emitted-component slice for that
 page. Renders an accordion; each row:
 - collapsed: name, `ConfidencePill` (reuse), generic-stub pill if `!hasPreview`, filename chip.
-- expanded: `Preview` (or `PreviewPlaceholder`), code `<pre>` (reuse Export's styling),
-  action row with Kopieren + Herunterladen (reuse Export's `downloadFile` + copy logic).
+- expanded: a **variant switcher** (small pills for the template's variants, drives the
+  active `variant`), `Preview` (or `PreviewPlaceholder` if `!hasPreview`), code `<pre>`
+  (reuse Export's styling), action row with Kopieren + Herunterladen (reuse Export's
+  `downloadFile` + copy logic).
 
 `Atomics.jsx` / `Components.jsx` / `Patterns.jsx` each become a thin wrapper that passes
 its slice to `LibraryObjectList`. Today's `InventoryCard` grid is replaced by the accordion.
@@ -85,13 +88,12 @@ its slice to `LibraryObjectList`. Today's `InventoryCard` grid is replaced by th
 ### Export tab additions (`web/src/pages/Export.jsx`)
 
 - Keep the three token formats untouched.
-- Add **"Ganze Library exportieren"** that bundles tokens (css/tailwind/json) + every
-  emitted component file.
-- **Open decision — bundle mechanism:**
-  - *Recommended for v1:* reuse the existing "Alle herunterladen" pattern (loop
-    `downloadFile` over all files). **No new dependency.** Downside: many browser downloads.
-  - *Alternative:* a real `.zip` via `jszip` — cleaner UX but adds a dependency
-    (CLAUDE.md rule 6 → needs explicit OK). Defer to v2 unless Rob wants the zip now.
+- Add **"Ganze Library exportieren"** → one **`library.zip`** containing
+  `/tokens` (css/tailwind/json) + `/components/<Name>.jsx` for every emitted component,
+  plus an `index` / README listing contents.
+- **Bundle mechanism (decided 2026-06-25):** real `.zip` via **`jszip`**. Rob approved the
+  new dependency (satisfies CLAUDE.md rule 6 — what: `jszip`; why: single clean archive with
+  a folder structure instead of N loose browser downloads). Add to `web/` deps.
 
 ## Confidence & generic handling
 
@@ -107,15 +109,15 @@ its slice to `LibraryObjectList`. Today's `InventoryCard` grid is replaced by th
 - `emitComponents` + generic stub fallback.
 - `LibraryObjectList` accordion on Atomics / Components / Patterns.
 - Per-object Kopieren / Herunterladen.
-- "Ganze Library exportieren" in Export tab (multi-file download, no new dep).
+- **Variant switcher** in the preview (click through a template's variants/states;
+  defaults to the first variant). Templates that own a single variant render it statically.
+- "Ganze Library exportieren" in Export tab → **`library.zip`** via `jszip`.
 - Confidence + generic pills/comments.
 - Output format: shadcn-style **`.jsx`** only.
 
 **Later (v2+, explicitly out of scope now):**
-- Variant switcher in the preview (click through primary/secondary/ghost).
 - Multi-select export via checkboxes ("export selected").
 - TSX / plain-HTML output formats.
-- Real `.zip` bundle.
 - Live preview for patterns / non-template components.
 - More templates beyond the initial four.
 
@@ -125,9 +127,11 @@ Follow the Phase 2 pattern (Vitest, co-located `*.test.*`):
 - `emitComponents.test.js` — matched vs unmatched, slug/filename, low-confidence comment.
 - Per-template `emit` snapshot-ish assertions (token values appear in classes).
 - `templates/registry.test.js` — `match()` fuzzy cases.
-- `LibraryObjectList.test.jsx` — expand reveals preview+code+actions; generic item shows
-  placeholder; copy/download wired.
-- Export tab test extended for the library-bundle action.
+- `LibraryObjectList.test.jsx` — expand reveals preview+code+actions; variant switcher
+  changes the active variant; generic item shows placeholder; copy/download wired.
+- `buildLibraryZip` test — zip contains `/tokens/*` and `/components/*.jsx` entries
+  (assert on `jszip` file list, not bytes).
+- Export tab test extended for the "Ganze Library exportieren" action.
 
 ## Files
 
@@ -146,9 +150,9 @@ web/src/pages/
   Export.jsx             # + "Ganze Library exportieren"
 ```
 
-## Open decisions for review
+## Decisions (resolved 2026-06-25)
 
-1. **Bundle mechanism** — multi-file download (no dep, recommended for v1) vs. `.zip`
-   via jszip (needs dependency OK). Default: multi-file.
-2. **Output format** — `.jsx` only for v1 (TSX later)? Default: yes.
-3. Anything in "Later" you'd want pulled into v1?
+1. **Bundle mechanism** — real `.zip` via `jszip` (dependency approved by Rob).
+2. **Output format** — `.jsx` only for v1; TSX later.
+3. **Variant switcher** — pulled into v1 (was "later").
+4. Surface model — two surfaces (inspect on content pages, bundle in Export tab).
