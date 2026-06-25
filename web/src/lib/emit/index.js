@@ -3,6 +3,9 @@ import { emitCss } from './emitCss.js';
 import { emitTailwind } from './emitTailwind.js';
 import { emitTokensJson } from './emitTokensJson.js';
 
+export { emitComponents } from './emitComponents.js';
+export { buildLibraryZip } from './buildLibraryZip.js';
+
 export const EXPORT_FORMATS = [
   { id: 'css', label: 'CSS-Variablen', filename: 'tokens.css', mime: 'text/css' },
   { id: 'tailwind', label: 'Tailwind-Config', filename: 'tailwind.config.tokens.js', mime: 'text/javascript' },
