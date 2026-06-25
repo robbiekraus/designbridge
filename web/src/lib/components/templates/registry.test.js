@@ -33,4 +33,19 @@ describe('template registry', () => {
     expect(btn.styleFor('primary', picks).background).toBe('#022d2c');
     expect(btn.styleFor('secondary', picks).borderColor).toBe('#e4e4e7');
   });
+
+  it('matches card / badge / input names', () => {
+    expect(matchTemplate('Card')?.key).toBe('card');
+    expect(matchTemplate('tag pill')?.key).toBe('badge');
+    expect(matchTemplate('text field')?.key).toBe('input');
+  });
+
+  it('each new template emits its own component name', () => {
+    const picks = { primary: '#022d2c', onPrimary: '#fff', text: '#18181b',
+      surface: '#fff', surfaceMuted: '#f4f4f5', border: '#e4e4e7', radius: '8px',
+      fontSize: '16px', fontWeight: '600' };
+    expect(TEMPLATES.find((t) => t.key === 'card').emit(picks, {})).toContain('export function Card');
+    expect(TEMPLATES.find((t) => t.key === 'badge').emit(picks, {})).toContain('export function Badge');
+    expect(TEMPLATES.find((t) => t.key === 'input').emit(picks, {})).toContain('export function Input');
+  });
 });
