@@ -1,0 +1,48 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import LibraryObjectList from './LibraryObjectList.jsx';
+
+const picks = { primary: '#022d2c', onPrimary: '#ffffff', text: '#18181b',
+  surface: '#ffffff', surfaceMuted: '#f4f4f5', border: '#e4e4e7', radius: '8px',
+  fontSize: '16px', fontWeight: '600' };
+
+const items = [
+  { name: 'Button', slug: 'button', filename: 'Button.jsx', kind: 'atomic',
+    templateKey: 'button', variants: ['primary', 'secondary', 'ghost'],
+    code: 'export function Button() {}', confidence: 'high', hasPreview: true },
+  { name: 'Hero section', slug: 'hero-section', filename: 'HeroSection.jsx', kind: 'component',
+    templateKey: null, variants: [], code: 'export function HeroSection() {}',
+    confidence: 'low', hasPreview: false },
+];
+
+describe('LibraryObjectList', () => {
+  it('shows a row per item and expands to reveal code on click', () => {
+    render(<LibraryObjectList items={items} picks={picks} />);
+    expect(screen.getByText('Button')).toBeInTheDocument();
+    expect(screen.queryByText('export function Button() {}')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByText('export function Button() {}')).toBeInTheDocument();
+  });
+
+  it('renders a variant switcher for template-backed items', () => {
+    render(<LibraryObjectList items={items} picks={picks} />);
+    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ghost' })).toBeInTheDocument();
+  });
+
+  it('shows the placeholder (no preview) for generic items', () => {
+    render(<LibraryObjectList items={items} picks={picks} />);
+    fireEvent.click(screen.getByText('Hero section'));
+    expect(screen.getByText(/keine vorschau/i)).toBeInTheDocument();
+  });
+
+  it('copies code to the clipboard', () => {
+    const writeText = vi.fn().mockResolvedValue();
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<LibraryObjectList items={items} picks={picks} />);
+    fireEvent.click(screen.getByText('Button'));
+    fireEvent.click(screen.getByRole('button', { name: /kopieren/i }));
+    expect(writeText).toHaveBeenCalledWith('export function Button() {}');
+  });
+});
