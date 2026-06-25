@@ -1,23 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import Atomics from './Atomics.jsx';
 
-const result = {
-  source: 'image', mocked: false, categories: [],
-  raw: { atomics: [{ name: 'Button', variants: ['primary', 'ghost'], confidence: 'high', notes: 'rounded' }] },
-};
-
 describe('Atomics page', () => {
-  it('renders a card with name, variants and a reserved preview area', () => {
-    render(<Atomics result={result} />);
-    expect(screen.getByText('Button')).toBeInTheDocument();
-    expect(screen.getByText('primary')).toBeInTheDocument();
-    expect(screen.getByText('ghost')).toBeInTheDocument();
-    expect(screen.getByText(/vorschau folgt/i)).toBeInTheDocument();
+  it('shows the preview-import notice when there is no detail', () => {
+    render(<Atomics result={{ raw: null }} />);
+    expect(screen.getByText(/preview-import/i)).toBeInTheDocument();
   });
 
-  it('shows a preview notice for a mock import', () => {
-    render(<Atomics result={{ source: 'url', mocked: true, categories: [], raw: null }} />);
-    expect(screen.getByText(/preview-import/i)).toBeInTheDocument();
+  it('lists recognized atomics and expands to show the variant switcher', () => {
+    const result = { raw: {
+      tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+      components: [], patterns: [],
+      atomics: [{ name: 'Button', variants: ['primary'], confidence: 'high' }],
+    } };
+    render(<Atomics result={result} />);
+    expect(screen.getByText('Button')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
   });
 });
