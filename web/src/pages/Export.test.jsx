@@ -31,4 +31,9 @@ describe('Export page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'tokens.json' }));
     expect(screen.getByTestId('export-preview').textContent).toContain('"$value": "#022d2c"');
   });
+
+  it('offers a whole-library export action', () => {
+    render(<Export result={imageResult} />);
+    expect(screen.getByRole('button', { name: /ganze library exportieren/i })).toBeInTheDocument();
+  });
 });

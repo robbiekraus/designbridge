@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { buildExports, EXPORT_FORMATS } from '../lib/emit/index.js';
-import { downloadFile } from '../lib/download.js';
+import { buildExports, EXPORT_FORMATS, buildLibraryZip } from '../lib/emit/index.js';
+import { downloadFile, downloadBlob } from '../lib/download.js';
 
 export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
@@ -32,6 +32,11 @@ export default function Export({ result }) {
     EXPORT_FORMATS.forEach(f => downloadFile(f.filename, exports[f.id], f.mime));
   };
 
+  const handleExportLibrary = async () => {
+    const blob = await buildLibraryZip(result);
+    downloadBlob('designbridge-library.zip', blob);
+  };
+
   return (
     <div className="flex gap-6 max-w-5xl">
       <aside className="w-48 flex-shrink-0">
@@ -56,6 +61,12 @@ export default function Export({ result }) {
           className="mt-4 w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
         >
           Alle herunterladen
+        </button>
+        <button
+          onClick={handleExportLibrary}
+          className="mt-2 w-full text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+        >
+          Ganze Library exportieren
         </button>
       </aside>
 
