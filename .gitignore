@@ -21,3 +21,4 @@ exports/
 # stale root orchestrator manifests (real ones live in designbridge-web/ etc.)
 /package.json
 /package-lock.json
+.worktrees/
