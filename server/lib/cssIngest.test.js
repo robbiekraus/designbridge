@@ -47,3 +47,30 @@ test('extracts shadows verbatim with role + source', () => {
     { description: 'card', css: '0 1px 3px rgba(0,0,0,.1)', confidence: 'high', source: '--shadow-card' },
   ]);
 });
+
+test('falls back to declarations when no variables, with low confidence + selector source', () => {
+  const css = '.cta { background: #3b82f6; border-radius: 6px; } h1 { font-size: 2rem; }';
+  const { tokens, warnings } = ingestCss(css);
+  assert.deepEqual(tokens.colors, [
+    { hex: '#3b82f6', role: 'gefunden', confidence: 'low', source: '.cta { background: … }' },
+  ]);
+  assert.equal(tokens.border_radius[0].value, '6px');
+  assert.equal(tokens.border_radius[0].confidence, 'low');
+  assert.equal(tokens.typography[0].size, 32);
+  assert.ok(warnings.some((w) => w.includes('niedrige Confidence')));
+});
+
+test('declaration fallback does not duplicate values already found as variables', () => {
+  const css = ':root { --color-primary: #022d2c; } .btn { background: #022d2c; color: #ffffff; }';
+  const { tokens } = ingestCss(css);
+  const primaries = tokens.colors.filter((c) => c.hex === '#022d2c');
+  assert.equal(primaries.length, 1);
+  assert.equal(primaries[0].source, '--color-primary');
+  assert.ok(tokens.colors.some((c) => c.hex === '#ffffff' && c.confidence === 'low'));
+});
+
+test('empty / blank CSS yields empty token arrays, no throw', () => {
+  const { tokens } = ingestCss('');
+  assert.deepEqual(tokens.colors, []);
+  assert.deepEqual(tokens.typography, []);
+});

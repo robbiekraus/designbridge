@@ -87,9 +87,59 @@ function buildTypography(vars) {
   }));
 }
 
+function collectDeclarations(root, vars) {
+  const seen = {
+    colors: new Set(vars.colors.map((c) => c.hex)),
+    fontSize: new Set(vars.fontSize.map((f) => f.size)),
+    radius: new Set(vars.radius.map((r) => String(r.value))),
+    shadows: new Set(vars.shadows.map((s) => s.css)),
+  };
+  const out = { colors: [], typography: [], radius: [], shadows: [] };
+  root.walkRules((rule) => {
+    rule.walkDecls((decl) => {
+      const prop = decl.prop.toLowerCase();
+      if (prop.startsWith('--')) return;
+      const source = `${rule.selector} { ${decl.prop}: … }`;
+      if (prop === 'color' || prop === 'background-color' || prop === 'background') {
+        const hex = normalizeColor(decl.value);
+        if (hex && !seen.colors.has(hex)) {
+          seen.colors.add(hex);
+          out.colors.push({ hex, role: 'gefunden', confidence: 'low', source });
+        }
+      } else if (prop === 'font-size') {
+        const px = pxNumber(decl.value);
+        if (px != null && !seen.fontSize.has(px)) {
+          seen.fontSize.add(px);
+          out.typography.push({ size: px, weight: '400', role: 'gefunden', sample: 'Aa', confidence: 'low', source });
+        }
+      } else if (prop === 'border-radius') {
+        const val = decl.value.trim().endsWith('%') ? decl.value.trim() : remToPx(decl.value);
+        if (!seen.radius.has(String(val))) {
+          seen.radius.add(String(val));
+          out.radius.push({ value: val, usage: 'gefunden', confidence: 'low', source });
+        }
+      } else if (prop === 'box-shadow') {
+        const css = decl.value.trim();
+        if (css !== 'none' && !seen.shadows.has(css)) {
+          seen.shadows.add(css);
+          out.shadows.push({ description: 'gefunden', css, confidence: 'low', source });
+        }
+      }
+    });
+  });
+  return out;
+}
+
 export function ingestCss(cssText, { sourceUrl = null } = {}) {
   const root = postcss.parse(cssText || '');
   const vars = collectVariables(root);
+  const decls = collectDeclarations(root, vars);
+  const usedFallback =
+    decls.colors.length + decls.typography.length + decls.radius.length + decls.shadows.length > 0;
+  const warnings = ['Nur Tokens — Komponenten werden aus CSS nicht erkannt.'];
+  if (usedFallback) {
+    warnings.push('Einige Werte stammen aus CSS-Deklarationen (niedrige Confidence) — bitte prüfen.');
+  }
   return {
     summary: {
       source_description: 'Tokens aus CSS extrahiert',
@@ -98,16 +148,16 @@ export function ingestCss(cssText, { sourceUrl = null } = {}) {
       design_style: 'aus Stylesheet abgeleitet',
     },
     tokens: {
-      colors: vars.colors,
-      typography: buildTypography(vars),
+      colors: [...vars.colors, ...decls.colors],
+      typography: [...buildTypography(vars), ...decls.typography],
       spacing: [...vars.spacing].sort((a, b) => a.value - b.value),
-      border_radius: vars.radius,
-      shadows: vars.shadows,
+      border_radius: [...vars.radius, ...decls.radius],
+      shadows: [...vars.shadows, ...decls.shadows],
     },
     atomics: [],
     components: [],
     patterns: [],
-    warnings: ['Nur Tokens — Komponenten werden aus CSS nicht erkannt.'],
+    warnings,
     meta: { model: 'css-ingest', source_url: sourceUrl, elapsed_ms: 0 },
   };
 }
