@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 export default function UrlTab({ onSubmit, disabled }) {
   const [url, setUrl] = useState('');
-  const valid = /^https?:\/\/\S+\.\S+/.test(url);
+  const valid = /^https?:\/\/\S+/.test(url);
 
   return (
     <div className="flex flex-col gap-4">
