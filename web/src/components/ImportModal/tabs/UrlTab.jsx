@@ -12,8 +12,15 @@ export default function UrlTab({ onSubmit, disabled }) {
           placeholder="https://example.com"
           className="mt-1 w-full px-3 py-2 text-sm border border-zinc-200 rounded text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900" />
       </label>
-      <div className="text-[10px] text-zinc-500">
-        URL scanning is mocked in this preview — submitting returns a sample token set after ~1.5 s.
+      <div className="flex items-center gap-2 text-[10px] text-zinc-500">
+        <button
+          type="button"
+          onClick={() => setUrl('http://localhost:3047/demo')}
+          className="px-2 py-1 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+        >
+          Demo-Seite verwenden
+        </button>
+        <span>Liest Farben, Schriften, Abstände, Radius & Schatten aus dem CSS der Seite.</span>
       </div>
       <div className="flex justify-end">
         <button onClick={() => onSubmit({ source: 'url', payload: { url } })}
