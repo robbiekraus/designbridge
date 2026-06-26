@@ -18,8 +18,10 @@ claude
 Dann als ersten Satz an Claude (Wiedereinstieg):
 
 ```
-Lies RESUME.md und das Memory (project_designbridge_roadmap). Phase 3 v1 ist fertig auf main. Lass uns den nächsten Schritt brainstormen — entweder Phase 3 v2 (mehr Templates, TSX/HTML-Output, Mehrfach-Export, Pattern-Vorschau) oder Phase 4 (echte Ingester statt Mocks). Frag mich zuerst, wohin.
+Lies RESUME.md und das Memory (project_designbridge_roadmap). Spec + Plan für den URL-Ingester v1 (Phase 4) sind fertig und committet auf main. Führe den Plan docs/superpowers/plans/2026-06-25-url-ingester-v1.md subagent-getrieben aus (Skill: superpowers:subagent-driven-development) — frischer Subagent pro Task, Zwei-Stufen-Review zwischen den Tasks. Bau nur lokal, nicht pushen ohne mich zu fragen.
 ```
+
+**Übergabe-Kontext (Stand 26.06.2026):** Wir haben Phase 4 durchgebrainstormt und entschieden: erster Ingester = **URL/Live-Website**; Extraktion = **deterministisches CSS-Parsen** (kein Claude/keine Credits/kein Headless-Browser); Inventory bleibt **leer** (nur Tokens, Option A); **Token-Herkunft** (`source`-Feld + „↳ aus --…"-Zeile) IST in v1 drin (Robs Schwerpunkt: „Designer muss sehen, was er bekommt"). Ausführungsmodus gewählt = **Option 1 subagent-getrieben**. Noch NICHTS implementiert — Baseline 81/81 Vitest grün, keine Server-Tests bisher (neuer Runner `node --test`). Rob ist Designer, kein Coder → bei Rückfragen laienverständlich erklären.
 
 ## App starten (Server + Web)
 
@@ -39,22 +41,26 @@ npm run dev
 
 ## Nächste Schritte (priorisiert)
 
-- 🟢 **Phase 3 v2 ODER Phase 4** — als nächsten brainstorm→spec→plan→build-Zyklus. Erst Richtung mit Rob klären.
-- 🟠 **Folge-Punkte aus dem Final-Review (nicht blockierend):** (1) doppelte Token-Normalisierung in den 3 Pages → `emitComponents` könnte `picks` mitgeben/annehmen; (2) Import-Pfad-Inkonsistenz (Pages umgehen die `emit/index.js`-Barrel).
-- 🟠 **Tokens-Anzeige gegen doppeltes „px" härten** (alter Task, betrifft echten Scan-Pfad in `server/lib/claude.js`, nicht das Fixture).
-- ⚪ **API-Credits** aufladen für echten Vision-Scan (extern) · Roadmap Phase 5/6 (Figma-Emitter, Round-Trip).
+- 🟢 **JETZT: URL-Ingester v1 bauen** — Plan `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` subagent-getrieben ausführen (12 TDD-Tasks: postcss-Setup → cssIngest → fetchSite → Endpoint → Demo-Seite → Adapter → useImportSession → UrlTab → tokenViews-Herkunft → Verify+Smoke).
+- 🟠 **Nach dem Bau:** mit Rob über Push nach `origin/main` sprechen (3 Doku-Commits + Code).
+- ⚪ **Später Phase 4:** Repo-Ingester, dann Figma-Ingester (Figma-MCP ist installiert). Komponenten-/Pattern-Erkennung für URL (Inventory ist bewusst leer in v1).
+- ⚪ **Alte Folge-Punkte (Phase 3, nicht blockierend):** doppelte Token-Normalisierung in den 3 Pages; Import-Pfad über `emit/index.js`-Barrel; Tokens-Anzeige gegen doppeltes „px" härten (`server/lib/claude.js`). · API-Credits für echten Vision-Scan (extern) · Roadmap Phase 5/6 (Figma-Emitter, Round-Trip).
 
 ## Tests laufen lassen
 
 ```
-cd web && npx vitest run
+node --test server/        # Server (cssIngest, fetchSite) — NEU ab Phase 4
+cd web && npx vitest run   # Web — aktuell 81/81 grün (Baseline vor Phase-4-Bau)
 ```
-→ aktuell **81/81 grün**.
 
-## Wichtige Dateien (Phase 3)
+## Wichtige Dateien
 
-- Templates: `web/src/lib/components/templates/{registry,button,card,badge,input,constants}.js` + `Previews.jsx`
-- Emit: `web/src/lib/emit/{pickTokens,emitComponents,buildLibraryZip,index}.js` · Download: `web/src/lib/download.js`
-- UI: `web/src/components/library/LibraryObjectList.jsx`, `web/src/pages/{Atomics,Components,Patterns,Export}.jsx`
-- Spec/Plan: `docs/superpowers/specs/2026-06-25-component-emitter-v1-design.md`, `docs/superpowers/plans/2026-06-25-component-emitter-v1.md`
+**Phase 4 (URL-Ingester, NEU zu bauen lt. Plan):**
+- Server: `server/lib/cssIngest.js` (+`.test.js`), `server/lib/fetchSite.js` (+`.test.js`), `server/routes/scan.js` (Endpoint `/url`), `server/index.js` (`/demo` static)
+- Demo: `demo-site/{index.html,styles.css}`
+- Web: `web/src/lib/{scanResultAdapter,useImportSession}.js`, `web/src/components/ImportModal/tabs/UrlTab.jsx`, `web/src/components/library/tokenViews.jsx`
+- Spec/Plan: `docs/superpowers/specs/2026-06-25-url-ingester-v1-design.md`, `docs/superpowers/plans/2026-06-25-url-ingester-v1.md`
+
+**Phase 3 (Bestand):**
+- Templates: `web/src/lib/components/templates/*` · Emit: `web/src/lib/emit/*` · UI: `web/src/components/library/LibraryObjectList.jsx`, `web/src/pages/{Atomics,Components,Patterns,Export}.jsx`
 - Arbeitsregeln: `CLAUDE.md`
