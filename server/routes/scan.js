@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { analyzeScreenshot } from '../lib/claude.js';
+import { fetchSite } from '../lib/fetchSite.js';
+import { ingestCss } from '../lib/cssIngest.js';
 
 const router = express.Router();
 
@@ -67,6 +69,23 @@ router.post('/image', upload.single('image'), async (req, res) => {
   } finally {
     // Clean up temp file
     fs.unlink(req.file.path, () => {});
+  }
+});
+
+// POST /api/scan/url
+router.post('/url', async (req, res) => {
+  const url = req.body?.url;
+  if (!url || !/^https?:\/\/\S+$/i.test(url)) {
+    return res.status(400).json({ error: 'Bitte eine gültige http(s)-URL angeben.' });
+  }
+  try {
+    console.log(`[scan/url] Fetching ${url}`);
+    const { css } = await fetchSite(url);
+    const result = ingestCss(css, { sourceUrl: url });
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/url] Error:', err.message);
+    res.status(502).json({ error: `Seite konnte nicht gelesen werden: ${err.message}` });
   }
 });
 

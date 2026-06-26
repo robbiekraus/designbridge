@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { adaptImageScanResponse } from './scanResultAdapter.js';
+import { adaptScanResponse, adaptImageScanResponse } from './scanResultAdapter.js';
 
 const fixture = {
   tokens: {
@@ -13,6 +13,11 @@ const fixture = {
   components: [{ name: 'Card', confidence: 'med' }, { name: 'Modal', confidence: 'low' }],
   patterns: [],
   warnings: [],
+};
+
+const raw = {
+  tokens: { colors: [{ hex: '#022d2c', role: 'primary', confidence: 'high', source: '--color-primary' }] },
+  atomics: [], components: [], patterns: [],
 };
 
 describe('adaptImageScanResponse', () => {
@@ -38,5 +43,19 @@ describe('adaptImageScanResponse', () => {
     const colors = result.categories.find(c => c.key === 'colors');
     expect(colors.count).toBe(0);
     expect(colors.confidence).toBeNull();
+  });
+});
+
+describe('adaptScanResponse', () => {
+  it('tags the source and is not mocked', () => {
+    const out = adaptScanResponse(raw, 'url');
+    expect(out.source).toBe('url');
+    expect(out.mocked).toBe(false);
+    expect(out.categories.find((c) => c.key === 'colors').count).toBe(1);
+    expect(out.raw).toBe(raw);
+  });
+
+  it('image alias keeps source "image"', () => {
+    expect(adaptImageScanResponse(raw).source).toBe('image');
   });
 });

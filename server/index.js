@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import scanRouter from './routes/scan.js';
 
 const app = express();
@@ -8,6 +10,9 @@ const PORT = process.env.PORT || 3047;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use('/demo', express.static(path.join(__dirname, '../demo-site')));
 
 // Health check
 app.get('/api/health', (req, res) => {
