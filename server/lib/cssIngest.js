@@ -1,7 +1,12 @@
 import postcss from 'postcss';
 
 const VAR_RULES = [
-  { cat: 'colors', re: /^--(?:color|colour|c|brand|clr)-(.+)$/ },
+  { cat: 'colors',     re: /^--(?:color|colour|c|brand|clr)-(.+)$/ },
+  { cat: 'fontSize',   re: /^--(?:font-size|text|fs)-(.+)$/ },
+  { cat: 'fontWeight', re: /^--(?:font-weight|fw)-(.+)$/ },
+  { cat: 'spacing',    re: /^--(?:space|spacing|gap|sp)-(.+)$/ },
+  { cat: 'radius',     re: /^--(?:radius|rounded|br|rad)-(.+)$/ },
+  { cat: 'shadows',    re: /^--(?:shadow|elevation|shd)-(.+)$/ },
 ];
 
 function classifyVar(name) {
@@ -10,6 +15,17 @@ function classifyVar(name) {
     if (m) return { cat: rule.cat, role: m[1] };
   }
   return null;
+}
+
+function remToPx(value) {
+  const m = /^(-?[\d.]+)rem$/.exec(value.trim());
+  if (m) return `${Math.round(parseFloat(m[1]) * 16)}px`;
+  return value.trim();
+}
+
+function pxNumber(value) {
+  const m = /^(-?[\d.]+)px$/.exec(remToPx(value));
+  return m ? parseFloat(m[1]) : null;
 }
 
 function rgbToHex(value) {
@@ -31,17 +47,44 @@ function normalizeColor(value) {
 }
 
 function collectVariables(root) {
-  const acc = { colors: [] };
+  const acc = { colors: [], fontSize: [], fontWeight: [], spacing: [], radius: [], shadows: [] };
   root.walkDecls((decl) => {
     if (!decl.prop.startsWith('--')) return;
     const hit = classifyVar(decl.prop);
     if (!hit) return;
+    const raw = decl.value.trim();
+    const source = decl.prop;
     if (hit.cat === 'colors') {
-      const hex = normalizeColor(decl.value);
-      if (hex) acc.colors.push({ hex, role: hit.role, confidence: 'high', source: decl.prop });
+      const hex = normalizeColor(raw);
+      if (hex) acc.colors.push({ hex, role: hit.role, confidence: 'high', source });
+    } else if (hit.cat === 'fontSize') {
+      const px = pxNumber(raw);
+      if (px != null) acc.fontSize.push({ role: hit.role, size: px, source });
+    } else if (hit.cat === 'fontWeight') {
+      acc.fontWeight.push({ role: hit.role, weight: raw });
+    } else if (hit.cat === 'spacing') {
+      const px = pxNumber(raw);
+      if (px != null) acc.spacing.push({ value: px, usage: hit.role, confidence: 'high', source });
+    } else if (hit.cat === 'radius') {
+      const val = raw.endsWith('%') ? raw : remToPx(raw);
+      acc.radius.push({ value: val, usage: hit.role, confidence: 'high', source });
+    } else if (hit.cat === 'shadows') {
+      acc.shadows.push({ description: hit.role, css: raw, confidence: 'high', source });
     }
   });
   return acc;
+}
+
+function buildTypography(vars) {
+  const weightByRole = new Map(vars.fontWeight.map((w) => [w.role, w.weight]));
+  return vars.fontSize.map((f) => ({
+    size: f.size,
+    weight: weightByRole.get(f.role) ?? '400',
+    role: f.role,
+    sample: 'Aa',
+    confidence: 'high',
+    source: f.source,
+  }));
 }
 
 export function ingestCss(cssText, { sourceUrl = null } = {}) {
@@ -54,7 +97,13 @@ export function ingestCss(cssText, { sourceUrl = null } = {}) {
       color_mode: 'unknown',
       design_style: 'aus Stylesheet abgeleitet',
     },
-    tokens: { colors: vars.colors, typography: [], spacing: [], border_radius: [], shadows: [] },
+    tokens: {
+      colors: vars.colors,
+      typography: buildTypography(vars),
+      spacing: [...vars.spacing].sort((a, b) => a.value - b.value),
+      border_radius: vars.radius,
+      shadows: vars.shadows,
+    },
     atomics: [],
     components: [],
     patterns: [],
