@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { ingestCss } from './cssIngest.js';
 
 test('extracts colors from :root custom properties with role + source', () => {
@@ -73,4 +75,16 @@ test('empty / blank CSS yields empty token arrays, no throw', () => {
   const { tokens } = ingestCss('');
   assert.deepEqual(tokens.colors, []);
   assert.deepEqual(tokens.typography, []);
+});
+
+test('ingests the bundled demo stylesheet into a full token set', () => {
+  const cssPath = fileURLToPath(new URL('../../demo-site/styles.css', import.meta.url));
+  const css = readFileSync(cssPath, 'utf8');
+  const { tokens } = ingestCss(css, { sourceUrl: 'http://localhost:3047/demo' });
+  assert.ok(tokens.colors.length >= 8, 'expected the named colors');
+  assert.ok(tokens.colors.every((c) => c.source.startsWith('--color') || c.confidence === 'low'));
+  assert.ok(tokens.typography.some((t) => t.role === 'xl' && t.weight === '700'));
+  assert.deepEqual(tokens.spacing.map((s) => s.value), [8, 16, 24]);
+  assert.ok(tokens.border_radius.some((r) => r.value === '999px' && r.usage === 'full'));
+  assert.ok(tokens.shadows.some((s) => s.description === 'card'));
 });
