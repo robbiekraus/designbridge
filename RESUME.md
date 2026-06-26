@@ -1,6 +1,12 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **25.06.2026** — **Phase 3 v1 (Component Emitter) FERTIG, gemergt & gepusht** auf `main` (Commit `f252cd3`, `origin/main` in sync). 81/81 Tests grün, Build sauber, browser-smoke-getestet.
+Stand: **26.06.2026** — **Phase 4 (URL-Ingester v1) GEPLANT, Bau steht an.** Spec (`d5be504`) + Plan (`86e43b4`) lokal auf `main`, NICHT gepusht. Baseline 81/81 grün. Davor: Phase 3 v1 fertig/gepusht (`f252cd3`).
+
+## Phase 4 — was als Nächstes zu tun ist
+- **Plan ausführen:** `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` (12 TDD-Tasks), subagent-driven empfohlen.
+- Echter URL-Ingester statt Mock: URL einfügen → Server parst CSS deterministisch (postcss) → gleiche Datenform wie Image-Scan → Dashboard/Tokens/Emitter greifen unverändert.
+- Kern: `server/lib/cssIngest.js` (rein, testbar) + `server/lib/fetchSite.js` (Netzwerk) + `POST /api/scan/url` + Demo-Seite unter `GET /demo`. Token-**Herkunft** (`source`) wird in den Kacheln gezeigt. Inventory bleibt leer (nur Tokens).
+- Server-Tests laufen über `node --test server/` (neu), Web weiter `cd web && npx vitest run`.
 
 ## Frisch weitermachen
 
