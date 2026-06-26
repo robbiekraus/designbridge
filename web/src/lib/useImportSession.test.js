@@ -45,21 +45,23 @@ describe('useImportSession', () => {
     expect(result.current.error).toBe('boom');
   });
 
-  it('resolves mocked url import to success', async () => {
-    vi.useFakeTimers();
+  it('resolves url import to success', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tokens: { colors: [{ hex: '#fff', confidence: 'high' }] },
+        atomics: [], components: [], patterns: [],
+      }),
+    });
+
     const { result } = renderHook(() => useImportSession());
-    let pending;
-    act(() => {
-      pending = result.current.submit({ source: 'url', payload: { url: 'https://x' } });
-    });
-    expect(result.current.stage).toBe('submitting');
     await act(async () => {
-      vi.advanceTimersByTime(1600);
-      await pending;
+      await result.current.submit({ source: 'url', payload: { url: 'https://example.com' } });
     });
+
     expect(result.current.stage).toBe('success');
-    expect(result.current.result.mocked).toBe(true);
-    vi.useRealTimers();
+    expect(result.current.result.source).toBe('url');
+    expect(result.current.result.categories.find(c => c.key === 'colors').count).toBe(1);
   });
 
   it('reset returns to idle', async () => {
