@@ -16,7 +16,7 @@ function categoryRow(key, label, items) {
   return { key, label, count: arr.length, confidence: arr.length ? worstConfidence(arr) : null };
 }
 
-export function adaptImageScanResponse(raw) {
+export function adaptScanResponse(raw, source = 'image') {
   const tokens = raw?.tokens ?? {};
   const atomics = raw?.atomics ?? [];
   const components = raw?.components ?? [];
@@ -24,7 +24,7 @@ export function adaptImageScanResponse(raw) {
   const inventoryItems = [...atomics, ...components, ...patterns];
 
   return {
-    source: 'image',
+    source,
     mocked: false,
     categories: [
       categoryRow('colors', 'Colors', tokens.colors),
@@ -47,3 +47,5 @@ export function adaptImageScanResponse(raw) {
     raw,
   };
 }
+
+export const adaptImageScanResponse = (raw) => adaptScanResponse(raw, 'image');
