@@ -1,66 +1,66 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **26.06.2026** — **Phase 4 (URL-Ingester v1) GEPLANT, Bau steht an.** Spec (`d5be504`) + Plan (`86e43b4`) lokal auf `main`, NICHT gepusht. Baseline 81/81 grün. Davor: Phase 3 v1 fertig/gepusht (`f252cd3`).
+Stand: **29.06.2026** — **Planung „Komponenten aus URL erkennen" FERTIG.** Spec + Plan geschrieben, committet (`385b576` auf `main`, NICHT gepusht). Worktree + Branch stehen. **Bau hat noch NICHT begonnen** — startet in neuer Session, subagent-getrieben.
 
-## Phase 4 — was als Nächstes zu tun ist
-- **Plan ausführen:** `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` (12 TDD-Tasks), subagent-driven empfohlen.
-- Echter URL-Ingester statt Mock: URL einfügen → Server parst CSS deterministisch (postcss) → gleiche Datenform wie Image-Scan → Dashboard/Tokens/Emitter greifen unverändert.
-- Kern: `server/lib/cssIngest.js` (rein, testbar) + `server/lib/fetchSite.js` (Netzwerk) + `POST /api/scan/url` + Demo-Seite unter `GET /demo`. Token-**Herkunft** (`source`) wird in den Kacheln gezeigt. Inventory bleibt leer (nur Tokens).
-- Server-Tests laufen über `node --test server/` (neu), Web weiter `cd web && npx vitest run`.
+## Was als Nächstes dran ist — BAU starten (subagent-driven)
 
-## Frisch weitermachen
+Brainstorming + Plan sind durch. Alle Design-Fragen entschieden:
+- **Umfang:** alle drei Ebenen (Atomics/Components/Patterns), gestaffelt nach Sicherheit.
+- **Wann Claude:** auf Knopfdruck (Button „Mit KI vertiefen"), nicht automatisch.
+- **Zusammenführen:** Claude als Redakteur → eine saubere Liste mit Herkunfts-Etiketten.
+- **UI:** Banner oben in der Library + Herkunfts-Pille (grün „Regeln + KI" / gelb „von KI" / grau „nur Regeln") an jedem Baustein.
+- **Roadmap:** danach Repo → Figma lesen → Figma schreiben → Sync (A→B).
+
+**Spec:** `docs/superpowers/specs/2026-06-29-url-component-recognition-v1-design.md`
+**Plan:** `docs/superpowers/plans/2026-06-29-url-component-recognition-v1.md` (13 Tasks, 0–12, TDD, vollständiger Code je Schritt)
+
+**Worktree (isoliert, schon angelegt):**
+`.worktrees/feat-url-component-recognition` · Branch `feat/url-component-recognition`
+
+## Frisch weitermachen (NEUE Session — diese ist am Kontext-Limit)
 
 ```
-cd "/Volumes/4TB Shield/Vibe Coding Bootcamp/Projekte/Designbridge"
+cd "/Volumes/4TB Shield/Vibe Coding Bootcamp/Projekte/Designbridge/.worktrees/feat-url-component-recognition"
 claude
 ```
 
-Dann als ersten Satz an Claude (Wiedereinstieg):
+Erster Satz an Claude:
 
 ```
-Lies RESUME.md und das Memory (project_designbridge_roadmap). Spec + Plan für den URL-Ingester v1 (Phase 4) sind fertig und committet auf main. Führe den Plan docs/superpowers/plans/2026-06-25-url-ingester-v1.md subagent-getrieben aus (Skill: superpowers:subagent-driven-development) — frischer Subagent pro Task, Zwei-Stufen-Review zwischen den Tasks. Bau nur lokal, nicht pushen ohne mich zu fragen.
+Lies RESUME.md und das Memory (project_designbridge_roadmap). Plan & Spec für „URL-Komponenten-Erkennung v1" sind fertig und committet. Wir sind im Worktree feat/url-component-recognition und wollen den Plan docs/superpowers/plans/2026-06-29-url-component-recognition-v1.md jetzt SUBAGENT-GETRIEBEN bauen (Skill superpowers:subagent-driven-development): pro Task ein frischer Implementer-Subagent, danach Spec-Review + Code-Quality-Review, dann nächster Task. Erst aber: in DIESEM Worktree `npm install` (postcss + node-html-parser müssen rein — Task 0 installiert node-html-parser) und Baseline prüfen (`npm run test:server`, `cd web && npx vitest run` = 86 grün erwartet). Ich bin Designer, kein Coder — Zwischenstände laienverständlich, visuell wo es hilft. Nur EINE Server-Instanz, vorher Ports 3047/5173 prüfen.
 ```
 
-**Übergabe-Kontext (Stand 26.06.2026):** Wir haben Phase 4 durchgebrainstormt und entschieden: erster Ingester = **URL/Live-Website**; Extraktion = **deterministisches CSS-Parsen** (kein Claude/keine Credits/kein Headless-Browser); Inventory bleibt **leer** (nur Tokens, Option A); **Token-Herkunft** (`source`-Feld + „↳ aus --…"-Zeile) IST in v1 drin (Robs Schwerpunkt: „Designer muss sehen, was er bekommt"). Ausführungsmodus gewählt = **Option 1 subagent-getrieben**. Noch NICHTS implementiert — Baseline 81/81 Vitest grün, keine Server-Tests bisher (neuer Runner `node --test`). Rob ist Designer, kein Coder → bei Rückfragen laienverständlich erklären.
+**WICHTIG vor dem ersten Lauf im Worktree:**
+1. `npm install` im Worktree-Root (Abhängigkeiten sind nicht automatisch da; Task 0 ergänzt `node-html-parser`).
+2. Baseline: `npm run test:server` + `cd web && npx vitest run` (Erwartung: Web 86 grün). Erst dann Task 1 starten.
+3. Bei Task 12 echter Claude-Lauf braucht API-Credits; ohne Credits gilt der Fehlerpfad (gratis Regel-Liste bleibt) als bestanden.
+
+## Plan-Tasks im Überblick (Reihenfolge strikt 0→12)
+- **0** `node-html-parser` installieren (Root-Dep, CLAUDE.md-Regel 6 — von Rob freigegeben)
+- **1** `fetchSite` gibt zusätzlich `html` zurück
+- **2–4** `server/lib/recognizeComponents.js` (Atomics → Patterns → Components, je TDD)
+- **5** `/api/scan/url` füllt Inventory + Demo-Seite anreichern (`<nav>/<header>/<footer>` + Cards/Form/Suche)
+- **6** `server/lib/recognizeWithAi.js` (Claude-Merge, injizierbarer Fake-Client, keine Credits in Tests)
+- **7** neuer Endpoint `POST /api/scan/url/ai`
+- **8** `emitComponents` reicht `source`+`notes` durch
+- **9** `SourcePill` + Anzeige in `LibraryObjectList`
+- **10** `web/src/lib/aiDeepen.js` (`deepenWithAi`)
+- **11** `AiDeepenBanner` + Verdrahtung in `App.jsx`
+- **12** Voll-Verifikation + Browser-Smoke (preview_*-Workflow)
+
+## Nach dem Bau
+- `superpowers:finishing-a-development-branch` (Merge/PR/Cleanup).
+- **Push:** vorher Rob fragen (Regel 5). Branch `feat/url-component-recognition` → ggf. PR auf `robbiekraus/designbridge` (wie zuletzt PR #2).
 
 ## App starten (Server + Web)
-
 ```
 npm run dev
 ```
-→ Backend http://localhost:3047, Frontend **http://localhost:5173** (am besten Inkognito-Fenster).
-⚠️ Nur EINE Instanz starten. Vorher prüfen, dass nichts auf :3047/:5173 läuft (`lsof -ti:3047`).
-ℹ️ Für UI-Smoke-Tests ohne echten Scan: einen Image-Import-Datensatz nach `localStorage["designbridge.lastImport"]` + `designbridge.hasImported="1"` seeden (Shape siehe `web/src/lib/libraryStore.js`).
-
-## Was zuletzt passiert ist (25.06.2026)
-
-1. **Repo aufgeräumt:** `.gitignore` erweitert (designbridge-dev/ 5,4 GB, Testdaten/, Artefakte/, .claude/, exports/, stale Root-Manifeste), `README.md` + `.env.example` getrackt, `DEMO_FALLBACK` zurück auf `0`.
-2. **Phase 3 v1 gebaut** (subagent-driven, Spec + 10-Task-TDD-Plan):
-   erkannte Komponenten → **Accordion** auf Atomics/Components/Patterns mit token-gefärbter **Vorschau** (4 Templates: Button/Card/Badge/Input) bzw. **generischem Stub**, **Varianten-Umschalter**, generiertem **shadcn-Code**, **Einzel-Export** (Kopieren/Herunterladen) — und **„Ganze Library exportieren"** im Export-Tab → `designbridge-library.zip` via jszip.
-3. Reviewt (Gruppe + final), Fixes drin, gemergt, gepusht, Branch gelöscht.
-
-## Nächste Schritte (priorisiert)
-
-- 🟢 **JETZT: URL-Ingester v1 bauen** — Plan `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` subagent-getrieben ausführen (12 TDD-Tasks: postcss-Setup → cssIngest → fetchSite → Endpoint → Demo-Seite → Adapter → useImportSession → UrlTab → tokenViews-Herkunft → Verify+Smoke).
-- 🟠 **Nach dem Bau:** mit Rob über Push nach `origin/main` sprechen (3 Doku-Commits + Code).
-- ⚪ **Später Phase 4:** Repo-Ingester, dann Figma-Ingester (Figma-MCP ist installiert). Komponenten-/Pattern-Erkennung für URL (Inventory ist bewusst leer in v1).
-- ⚪ **Alte Folge-Punkte (Phase 3, nicht blockierend):** doppelte Token-Normalisierung in den 3 Pages; Import-Pfad über `emit/index.js`-Barrel; Tokens-Anzeige gegen doppeltes „px" härten (`server/lib/claude.js`). · API-Credits für echten Vision-Scan (extern) · Roadmap Phase 5/6 (Figma-Emitter, Round-Trip).
-
-## Tests laufen lassen
-
-```
-node --test server/        # Server (cssIngest, fetchSite) — NEU ab Phase 4
-cd web && npx vitest run   # Web — aktuell 81/81 grün (Baseline vor Phase-4-Bau)
-```
+→ Backend http://localhost:3047, Frontend http://localhost:5173 (Inkognito). ⚠️ Nur EINE Instanz; vorher `lsof -ti:3047` / `:5173` prüfen.
+ℹ️ UI-Smoke ohne echten Scan: Import-Datensatz nach `localStorage["designbridge.lastImport"]` + `designbridge.hasImported="1"` seeden (Shape: `web/src/lib/libraryStore.js`).
 
 ## Wichtige Dateien
-
-**Phase 4 (URL-Ingester, NEU zu bauen lt. Plan):**
-- Server: `server/lib/cssIngest.js` (+`.test.js`), `server/lib/fetchSite.js` (+`.test.js`), `server/routes/scan.js` (Endpoint `/url`), `server/index.js` (`/demo` static)
-- Demo: `demo-site/{index.html,styles.css}`
-- Web: `web/src/lib/{scanResultAdapter,useImportSession}.js`, `web/src/components/ImportModal/tabs/UrlTab.jsx`, `web/src/components/library/tokenViews.jsx`
-- Spec/Plan: `docs/superpowers/specs/2026-06-25-url-ingester-v1-design.md`, `docs/superpowers/plans/2026-06-25-url-ingester-v1.md`
-
-**Phase 3 (Bestand):**
-- Templates: `web/src/lib/components/templates/*` · Emit: `web/src/lib/emit/*` · UI: `web/src/components/library/LibraryObjectList.jsx`, `web/src/pages/{Atomics,Components,Patterns,Export}.jsx`
+- Neu zu bauen lt. Plan: `server/lib/recognizeComponents.js`(+`.test.js`), `server/lib/recognizeWithAi.js`(+`.test.js`), `web/src/lib/aiDeepen.js`(+test), `web/src/components/library/{SourcePill,AiDeepenBanner}.jsx`(+tests)
+- Zu ändern: `server/lib/fetchSite.js`, `server/routes/scan.js`, `demo-site/index.html`, `web/src/lib/emit/emitComponents.js`, `web/src/components/library/LibraryObjectList.jsx`, `web/src/App.jsx`
+- Tests: Server `npm run test:server` (`node --test 'server/lib/*.test.js'`) · Web `cd web && npx vitest run`
 - Arbeitsregeln: `CLAUDE.md`
