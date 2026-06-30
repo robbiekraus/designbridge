@@ -7,6 +7,7 @@ import { analyzeScreenshot } from '../lib/claude.js';
 import { fetchSite } from '../lib/fetchSite.js';
 import { ingestCss } from '../lib/cssIngest.js';
 import { recognizeComponents } from '../lib/recognizeComponents.js';
+import { recognizeWithAi } from '../lib/recognizeWithAi.js';
 
 const router = express.Router();
 
@@ -92,6 +93,30 @@ router.post('/url', async (req, res) => {
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
     res.status(502).json({ error: `Seite konnte nicht gelesen werden: ${err.message}` });
+  }
+});
+
+// POST /api/scan/url/ai — optional Claude pass over the rule list
+router.post('/url/ai', async (req, res) => {
+  const url = req.body?.url;
+  if (!url || !/^https?:\/\/\S+$/i.test(url)) {
+    return res.status(400).json({ error: 'Bitte eine gültige http(s)-URL angeben.' });
+  }
+  try {
+    console.log(`[scan/url/ai] Deepening ${url}`);
+    const { html, css } = await fetchSite(url);
+    const result = ingestCss(css, { sourceUrl: url });
+    const baseline = recognizeComponents(html, css);
+    const merged = await recognizeWithAi(html, css, baseline);
+    result.atomics = merged.atomics;
+    result.components = merged.components;
+    result.patterns = merged.patterns;
+    result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
+    result.meta = { ...result.meta, source_url: url, ai_deepened: true };
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/url/ai] Error:', err.message);
+    res.status(502).json({ error: `KI-Analyse fehlgeschlagen: ${err.message}` });
   }
 });
 
