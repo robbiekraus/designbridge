@@ -68,3 +68,11 @@ test('ignores a form without fields and a short list', () => {
   const { components } = recognizeComponents(html, '');
   assert.equal(components.length, 0);
 });
+
+test('returns the empty shape instead of throwing on pathological input', () => {
+  // pass values that are not well-formed html strings; must not throw
+  for (const bad of [undefined, null, 12345, { weird: true }, []]) {
+    const out = recognizeComponents(bad, '');
+    assert.deepEqual(out, { atomics: [], components: [], patterns: [] });
+  }
+});

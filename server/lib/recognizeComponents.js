@@ -101,12 +101,16 @@ function recognizeComposed(els) {
 }
 
 export function recognizeComponents(html, css) {
-  const root = parse(html || '');
-  const els = [];
-  walk(root, (el) => els.push(el));
-  return {
-    atomics: recognizeAtomics(els),
-    components: recognizeComposed(els),
-    patterns: recognizePatterns(els),
-  };
+  try {
+    const root = parse(typeof html === 'string' ? html : '');
+    const els = [];
+    walk(root, (el) => els.push(el));
+    return {
+      atomics: recognizeAtomics(els),
+      components: recognizeComposed(els),
+      patterns: recognizePatterns(els),
+    };
+  } catch {
+    return { atomics: [], components: [], patterns: [] };
+  }
 }
