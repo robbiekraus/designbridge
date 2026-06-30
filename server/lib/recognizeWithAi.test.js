@@ -40,3 +40,16 @@ test('adds a truncation warning when html was capped', async () => {
   const out = await recognizeWithAi(big, '', { atomics: [], components: [], patterns: [] }, { client });
   assert.ok(out.warnings.some((w) => /gekürzt/.test(w)));
 });
+
+test('trimHtml strips an unclosed <script> opening tag', () => {
+  const { html } = trimHtml('<script src="https://evil.example/x.js"><div>ok</div>');
+  assert.ok(!/<script/i.test(html));
+  assert.match(html, /ok/);
+});
+
+test('adds a warning when css is large and truncated', async () => {
+  const client = fakeClient({ atomics: [], components: [], patterns: [], warnings: [] });
+  const bigCss = '.a{color:red}'.repeat(5000); // well over the css cap
+  const out = await recognizeWithAi('<button>x</button>', bigCss, { atomics: [], components: [], patterns: [] }, { client });
+  assert.ok(out.warnings.some((w) => /CSS/.test(w) && /gekürzt/.test(w)));
+});
