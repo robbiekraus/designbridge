@@ -34,3 +34,20 @@ test('detects Badge from class with low confidence', () => {
   assert.ok(badge);
   assert.equal(badge.confidence, 'low');
 });
+
+test('detects patterns from HTML landmarks with med confidence', () => {
+  const html = '<nav>n</nav><header><h1>t</h1></header><footer>f</footer><aside>a</aside>';
+  const { patterns } = recognizeComponents(html, '');
+  const names = patterns.map((p) => p.name);
+  assert.deepEqual(names.sort(), ['Footer', 'Hero', 'Navbar', 'Sidebar']);
+  for (const p of patterns) {
+    assert.equal(p.confidence, 'med');
+    assert.equal(p.source, 'rules');
+    assert.match(p.notes, /Landmarke/);
+  }
+});
+
+test('detects navbar from role=navigation', () => {
+  const { patterns } = recognizeComponents('<div role="navigation">x</div>', '');
+  assert.ok(patterns.some((p) => p.name === 'Navbar'));
+});

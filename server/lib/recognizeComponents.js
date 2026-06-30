@@ -60,6 +60,18 @@ function recognizeAtomics(els) {
   return out;
 }
 
+function recognizePatterns(els) {
+  const out = [];
+  const add = (pred, name, note) => {
+    if (els.some(pred)) out.push({ name, variants: [], confidence: 'med', source: 'rules', notes: note });
+  };
+  add((el) => el.tagName === 'NAV' || roleOf(el) === 'navigation', 'Navbar', 'aus <nav>-Landmarke');
+  add((el) => el.tagName === 'HEADER' || roleOf(el) === 'banner', 'Hero', 'aus <header>-Landmarke');
+  add((el) => el.tagName === 'FOOTER' || roleOf(el) === 'contentinfo', 'Footer', 'aus <footer>-Landmarke');
+  add((el) => el.tagName === 'ASIDE' || roleOf(el) === 'complementary', 'Sidebar', 'aus <aside>-Landmarke');
+  return out;
+}
+
 export function recognizeComponents(html, css) {
   const root = parse(html || '');
   const els = [];
@@ -67,6 +79,6 @@ export function recognizeComponents(html, css) {
   return {
     atomics: recognizeAtomics(els),
     components: [],
-    patterns: [],
+    patterns: recognizePatterns(els),
   };
 }
