@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import ConfidencePill from './ConfidencePill.jsx';
+import SourcePill from './SourcePill.jsx';
 import PreviewPlaceholder from './PreviewPlaceholder.jsx';
 import { PREVIEWS } from '../../lib/components/templates/Previews.jsx';
 import { downloadFile } from '../../lib/download.js';
@@ -29,6 +30,7 @@ function Row({ item, picks }) {
         <span className={`text-zinc-400 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
         <span className="font-medium text-zinc-900">{item.name}</span>
         <ConfidencePill value={item.confidence} />
+        <SourcePill value={item.source} />
         {!item.hasPreview && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
             generischer Stub
@@ -53,6 +55,9 @@ function Row({ item, picks }) {
                 </button>
               ))}
             </div>
+          )}
+          {item.notes && (
+            <div className="text-[11px] text-amber-700 pt-1">{item.notes}</div>
           )}
 
           <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-1 pb-1.5">Vorschau</div>
