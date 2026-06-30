@@ -8,6 +8,7 @@ import Components from './pages/Components.jsx';
 import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
+import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -30,6 +31,11 @@ export default function App() {
   }, []);
 
   const handleImported = (result) => {
+    saveLastImport(result);
+    setLastImport(result);
+  };
+
+  const handleDeepened = (result) => {
     saveLastImport(result);
     setLastImport(result);
   };
@@ -103,7 +109,10 @@ export default function App() {
         </aside>
 
         <main className="flex-1 overflow-y-auto">
-          <div className="p-8">{renderPage()}</div>
+          <div className="p-8">
+            {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
+            {renderPage()}
+          </div>
         </main>
       </div>
 
