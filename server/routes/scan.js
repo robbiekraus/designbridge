@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { analyzeScreenshot } from '../lib/claude.js';
 import { fetchSite } from '../lib/fetchSite.js';
 import { ingestCss } from '../lib/cssIngest.js';
+import { recognizeComponents } from '../lib/recognizeComponents.js';
 
 const router = express.Router();
 
@@ -80,8 +81,13 @@ router.post('/url', async (req, res) => {
   }
   try {
     console.log(`[scan/url] Fetching ${url}`);
-    const { css } = await fetchSite(url);
+    const { html, css } = await fetchSite(url);
     const result = ingestCss(css, { sourceUrl: url });
+    const rec = recognizeComponents(html, css);
+    result.atomics = rec.atomics;
+    result.components = rec.components;
+    result.patterns = rec.patterns;
+    result.meta = { ...result.meta, source_url: url, ai_deepened: false };
     res.json(result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
