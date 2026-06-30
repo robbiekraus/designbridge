@@ -51,3 +51,20 @@ test('detects navbar from role=navigation', () => {
   const { patterns } = recognizeComponents('<div role="navigation">x</div>', '');
   assert.ok(patterns.some((p) => p.name === 'Navbar'));
 });
+
+test('detects composed components: form, table, list, card', () => {
+  const html = `
+    <form><input type="text"></form>
+    <table><tr><td>x</td></tr></table>
+    <ul><li>1</li><li>2</li><li>3</li></ul>
+    <div class="card">A</div><div class="card">B</div>`;
+  const { components } = recognizeComponents(html, '');
+  const names = components.map((c) => c.name).sort();
+  assert.deepEqual(names, ['Card', 'Formular', 'Liste', 'Tabelle']);
+});
+
+test('ignores a form without fields and a short list', () => {
+  const html = '<form></form><ul><li>1</li><li>2</li></ul>';
+  const { components } = recognizeComponents(html, '');
+  assert.equal(components.length, 0);
+});

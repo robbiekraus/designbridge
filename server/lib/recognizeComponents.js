@@ -72,13 +72,41 @@ function recognizePatterns(els) {
   return out;
 }
 
+function recognizeComposed(els) {
+  const out = [];
+
+  const forms = els.filter(
+    (el) => el.tagName === 'FORM' && el.querySelectorAll('input, textarea, select').length > 0
+  );
+  if (forms.length) out.push({ name: 'Formular', variants: [], confidence: 'med', source: 'rules', notes: '' });
+
+  if (els.some((el) => el.tagName === 'TABLE'))
+    out.push({ name: 'Tabelle', variants: [], confidence: 'med', source: 'rules', notes: '' });
+
+  const lists = els.filter(
+    (el) => (el.tagName === 'UL' || el.tagName === 'OL') && el.querySelectorAll('li').length >= 3
+  );
+  if (lists.length) out.push({ name: 'Liste', variants: [], confidence: 'med', source: 'rules', notes: '' });
+
+  const classCounts = new Map();
+  for (const el of els) {
+    for (const c of classOf(el).split(/\s+/).filter(Boolean)) {
+      classCounts.set(c, (classCounts.get(c) || 0) + 1);
+    }
+  }
+  const card = [...classCounts.entries()].find(([c, n]) => /card|tile/.test(c) && n >= 2);
+  if (card) out.push({ name: 'Card', variants: [], confidence: 'low', source: 'rules', notes: '' });
+
+  return out;
+}
+
 export function recognizeComponents(html, css) {
   const root = parse(html || '');
   const els = [];
   walk(root, (el) => els.push(el));
   return {
     atomics: recognizeAtomics(els),
-    components: [],
+    components: recognizeComposed(els),
     patterns: recognizePatterns(els),
   };
 }
