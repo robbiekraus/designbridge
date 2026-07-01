@@ -17,6 +17,23 @@ export function trimHtml(html) {
   return { html: out, truncated };
 }
 
+function trimRuleList(ruleList, maxChars) {
+  const full = JSON.stringify(ruleList ?? {});
+  if (full.length <= maxChars) return { json: full, trimmed: false };
+  const out = {
+    atomics: [...(ruleList.atomics ?? [])],
+    components: [...(ruleList.components ?? [])],
+    patterns: [...(ruleList.patterns ?? [])],
+  };
+  // drop entries from the back of each list until it fits (or nothing left to drop)
+  for (const key of ['patterns', 'components', 'atomics']) {
+    while (out[key].length && JSON.stringify(out).length > maxChars) {
+      out[key].pop();
+    }
+  }
+  return { json: JSON.stringify(out), trimmed: true };
+}
+
 function buildPrompt(html, css, rulesJson) {
   return `You are a UI component recognition engine. You are given the HTML and CSS of a web page plus a draft list of components found by deterministic rules. Confirm correct entries, fix wrong ones, and add ones the rules missed.
 
@@ -48,8 +65,7 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
   const { html: trimmed, truncated } = trimHtml(html);
   const cssTruncated = (css || '').length > MAX_CSS;
   const safeCss = (css || '').slice(0, MAX_CSS);
-  const rulesJson = JSON.stringify(ruleList);
-  const safeRules = rulesJson.length > MAX_RULES ? rulesJson.slice(0, MAX_RULES) : rulesJson;
+  const { json: safeRules, trimmed: rulesTrimmed } = trimRuleList(ruleList, MAX_RULES);
   const response = await c.messages.create({
     model: MODEL,
     max_tokens: 4096,
@@ -66,6 +82,7 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
   const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
   if (truncated) warnings.push('HTML war groß und wurde für die KI-Analyse gekürzt.');
   if (cssTruncated) warnings.push('CSS war groß und wurde für die KI-Analyse gekürzt.');
+  if (rulesTrimmed) warnings.push('Die Regel-Liste war groß und wurde für die KI-Analyse gekürzt.');
   return {
     atomics: parsed.atomics ?? [],
     components: parsed.components ?? [],

@@ -53,3 +53,19 @@ test('adds a warning when css is large and truncated', async () => {
   const out = await recognizeWithAi('<button>x</button>', bigCss, { atomics: [], components: [], patterns: [] }, { client });
   assert.ok(out.warnings.some((w) => /CSS/.test(w) && /gekürzt/.test(w)));
 });
+
+test('trims the rule list to valid JSON when it is very large', async () => {
+  const client = fakeClient({ atomics: [], components: [], patterns: [], warnings: [] });
+  // build a rule list far larger than MAX_RULES so it must be trimmed
+  const many = Array.from({ length: 500 }, (_, i) => ({ name: 'Comp' + i, variants: [], confidence: 'low', source: 'rules', notes: '' }));
+  const ruleList = { atomics: many, components: many, patterns: many };
+  // capture the prompt text sent to the model
+  let sentText = '';
+  const spyClient = { messages: { create: async (args) => { sentText = args.messages[0].content[0].text; return { content: [{ text: JSON.stringify({ atomics: [], components: [], patterns: [], warnings: [] }) }] }; } } };
+  const out = await recognizeWithAi('<button>x</button>', '', ruleList, { client: spyClient });
+  // the DRAFT LIST block embedded in the prompt must be valid JSON (extract between the markers)
+  const m = sentText.match(/DRAFT LIST \(from rules\):\n([\s\S]*?)\n\nCSS:/);
+  assert.ok(m, 'draft list block found in prompt');
+  assert.doesNotThrow(() => JSON.parse(m[1]), 'embedded rule list is valid JSON');
+  assert.ok(out.warnings.some((w) => /Regel-?Liste|Liste/.test(w) && /gekürzt/.test(w)));
+});
