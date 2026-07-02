@@ -1,0 +1,7 @@
+:root {
+  --color-ink: #111827;
+  --space-lg: 24px;
+  --radius-pill: 999px;
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.cta { background: #7c3aed; }
