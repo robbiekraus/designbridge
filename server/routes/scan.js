@@ -8,6 +8,10 @@ import { fetchSite } from '../lib/fetchSite.js';
 import { ingestCss } from '../lib/cssIngest.js';
 import { recognizeComponents } from '../lib/recognizeComponents.js';
 import { recognizeWithAi } from '../lib/recognizeWithAi.js';
+import { parseRepoUrl } from '../lib/repoUrl.js';
+import { downloadRepoTarball } from '../lib/fetchRepoTarball.js';
+import { extractRepoFiles } from '../lib/extractRepoFiles.js';
+import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
 
 const router = express.Router();
 
@@ -117,6 +121,35 @@ router.post('/url/ai', async (req, res) => {
   } catch (err) {
     console.error('[scan/url/ai] Error:', err.message);
     res.status(502).json({ error: `Seite oder KI-Analyse fehlgeschlagen: ${err.message}` });
+  }
+});
+
+function statusForRepoError(err) {
+  const m = err?.message || '';
+  if (/nicht gefunden/i.test(m)) return 404;
+  if (/zu groß/i.test(m)) return 413;
+  if (/rate-limit/i.test(m)) return 429;
+  return 502;
+}
+
+// POST /api/scan/repo — deterministisches Repo-Inventar (0 Credits)
+router.post('/repo', async (req, res) => {
+  let parsed;
+  try {
+    parsed = parseRepoUrl(req.body?.url);
+  } catch {
+    return res.status(400).json({ error: 'Bitte eine öffentliche GitHub-URL angeben (github.com/owner/repo).' });
+  }
+  const branch = (req.body?.branch || '').trim() || parsed.branch || null;
+  try {
+    console.log(`[scan/repo] Loading ${parsed.owner}/${parsed.repo}${branch ? `@${branch}` : ''}`);
+    const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
+    const files = await extractRepoFiles(buffer);
+    const result = ingestRepoFiles(files, { sourceUrl: req.body.url, branch: usedBranch });
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/repo] Error:', err.message);
+    res.status(statusForRepoError(err)).json({ error: err.message });
   }
 });
 
