@@ -7,8 +7,9 @@ URL-Import erkennt Bausteine — gratis per HTML/CSS-Regeln, optional per Claude
 - **Server:** `fetchSite` gibt `html` zurück · `recognizeComponents(html)` (Atomics Button/Suche/Input/Badge · Patterns Navbar/Hero/Footer/Sidebar · Components Formular/Tabelle/Liste/Card; canonical `{name,variants,confidence,source,notes}`) · `recognizeWithAi` (injizierbarer Anthropic-Client) · Endpoints `POST /api/scan/url` (Regel-Inventar) + `POST /api/scan/url/ai` (Claude-Merge). Dep: **node-html-parser**.
 - **Web:** `SourcePill` (Herkunfts-Pille grau/grün/gelb) · `aiDeepen.js` · `AiDeepenBanner` („Mit KI vertiefen") · `emitComponents` reicht `source`+`notes` durch. Korrekturnotizen jetzt kursiver, gedämpfter Zinc-Text mit Stift-Glyph statt Amber-Ton — nicht mehr mit der gelben Pille verwechselbar.
 
-## NÄCHSTES: Repo-Ingester (Phase-4-Fortsetzung)
-Startet in eigener Folge-Session. Ziel: Code-Repos (nicht nur URLs) als Quelle für Komponenten-Erkennung einlesen — Teil der Roadmap „bidirektionale Brücke Figma↔Code" (siehe Memory `project_designbridge_roadmap`).
+## NÄCHSTES: Repo-Ingester v1 — Spec+Plan FERTIG, Bau startklar
+ADR-001 (`docs/superpowers/adr/ADR-001-repo-ingester-quelle.md`): öffentliche GitHub-URL → Tarball via codeload → deterministisches Parsen (statisches Tailwind-Theme-Parsing ohne Codeausführung, `:root`-Vars via `cssIngest`, shadcn-Inventar-Heuristik) → „Mit KI vertiefen"-Knopf. Spec: `docs/superpowers/specs/2026-07-02-repo-ingester-v1-design.md` · Plan (13 TDD-Tasks): `docs/superpowers/plans/2026-07-02-repo-ingester-v1.md`.
+**Worktree bereit:** `.worktrees/feat-repo-ingester-v1` (Branch `feat/repo-ingester-v1`). Vor Task 0 dort `npm install` + `cd web && npm install`, Baseline: Server 29/29, Web 96/96. Einzige neue Dependency: `tar` (Task 0). Nächster Schritt: Plan subagent-getrieben abarbeiten.
 
 ## App starten (Server + Web)
 ```
