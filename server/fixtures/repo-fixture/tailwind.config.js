@@ -14,6 +14,7 @@ module.exports = {
       borderRadius: { card: '12px' },
       boxShadow: { card: '0 1px 3px rgba(0,0,0,.1)' },
       fontSize: { base: '1rem', xl: ['1.25rem', { lineHeight: '1.75rem' }] },
+      width: { logo: calcWidth() },
     },
   },
   plugins: [plugin(() => {})],
