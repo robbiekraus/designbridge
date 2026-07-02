@@ -33,5 +33,5 @@ export async function fetchSite(url, { fetchImpl = fetch, timeoutMs = 10000 } = 
     }
   }
 
-  return { css, baseUrl: base.href };
+  return { html, css, baseUrl: base.href };
 }

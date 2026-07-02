@@ -6,6 +6,8 @@ import { fileURLToPath } from 'url';
 import { analyzeScreenshot } from '../lib/claude.js';
 import { fetchSite } from '../lib/fetchSite.js';
 import { ingestCss } from '../lib/cssIngest.js';
+import { recognizeComponents } from '../lib/recognizeComponents.js';
+import { recognizeWithAi } from '../lib/recognizeWithAi.js';
 
 const router = express.Router();
 
@@ -80,12 +82,41 @@ router.post('/url', async (req, res) => {
   }
   try {
     console.log(`[scan/url] Fetching ${url}`);
-    const { css } = await fetchSite(url);
+    const { html, css } = await fetchSite(url);
     const result = ingestCss(css, { sourceUrl: url });
+    const rec = recognizeComponents(html);
+    result.atomics = rec.atomics;
+    result.components = rec.components;
+    result.patterns = rec.patterns;
+    result.meta = { ...result.meta, ai_deepened: false };
     res.json(result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
     res.status(502).json({ error: `Seite konnte nicht gelesen werden: ${err.message}` });
+  }
+});
+
+// POST /api/scan/url/ai — optional Claude pass over the rule list
+router.post('/url/ai', async (req, res) => {
+  const url = req.body?.url;
+  if (!url || !/^https?:\/\/\S+$/i.test(url)) {
+    return res.status(400).json({ error: 'Bitte eine gültige http(s)-URL angeben.' });
+  }
+  try {
+    console.log(`[scan/url/ai] Deepening ${url}`);
+    const { html, css } = await fetchSite(url);
+    const result = ingestCss(css, { sourceUrl: url });
+    const baseline = recognizeComponents(html);
+    const merged = await recognizeWithAi(html, css, baseline);
+    result.atomics = merged.atomics;
+    result.components = merged.components;
+    result.patterns = merged.patterns;
+    result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
+    result.meta = { ...result.meta, ai_deepened: true };
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/url/ai] Error:', err.message);
+    res.status(502).json({ error: `Seite oder KI-Analyse fehlgeschlagen: ${err.message}` });
   }
 });
 

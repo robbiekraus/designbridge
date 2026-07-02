@@ -54,6 +54,8 @@ export function emitComponents(result, kind) {
         variants: tpl?.variants ?? [],
         code: tpl ? tpl.emit(picks, item) : genericStub(pascal, item),
         confidence: item.confidence ?? null,
+        source: item.source ?? null,
+        notes: item.notes ?? null,
         hasPreview: Boolean(tpl),
       });
     }

@@ -7,11 +7,22 @@
   <link rel="stylesheet" href="/demo/styles.css" />
 </head>
 <body>
-  <h1>ACME Analytics</h1>
-  <div class="card">
+  <nav>
+    <a href="#">Home</a>
+    <form role="search"><input type="search" placeholder="Suchen…"></form>
+  </nav>
+  <header>
+    <h1>ACME Analytics</h1>
     <p>Eine kleine Demo-Seite mit echten CSS-Variablen.</p>
-    <span class="badge">Neu</span>
-    <p><button class="btn">Jetzt starten</button></p>
-  </div>
+    <button class="btn btn-primary">Jetzt starten</button>
+    <button class="btn btn-secondary">Mehr</button>
+  </header>
+  <main>
+    <div class="card"><h2>Karte A</h2><p>Text</p><span class="badge">Neu</span></div>
+    <div class="card"><h2>Karte B</h2><p>Text</p></div>
+    <ul><li>Punkt 1</li><li>Punkt 2</li><li>Punkt 3</li></ul>
+    <form><input type="email" placeholder="E-Mail"><button class="btn">Abonnieren</button></form>
+  </main>
+  <footer><p>© ACME</p></footer>
 </body>
 </html>

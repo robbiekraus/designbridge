@@ -35,3 +35,12 @@ test('throws a clear error when the page itself is unreachable', async () => {
   const fetchImpl = mockFetch({});
   await assert.rejects(() => fetchSite('http://x/', { fetchImpl }), /HTTP 404/);
 });
+
+test('fetchSite returns the raw html alongside css', async () => {
+  const html = '<html><head><style>.a{color:red}</style></head><body><button>x</button></body></html>';
+  const fakeFetch = async () => ({ ok: true, status: 200, text: async () => html });
+  const result = await fetchSite('http://x/', { fetchImpl: fakeFetch });
+  assert.equal(result.html, html);
+  assert.match(result.css, /color:red/);
+  assert.equal(result.baseUrl, 'http://x/');
+});
