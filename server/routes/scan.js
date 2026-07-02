@@ -88,7 +88,7 @@ router.post('/url', async (req, res) => {
     result.atomics = rec.atomics;
     result.components = rec.components;
     result.patterns = rec.patterns;
-    result.meta = { ...result.meta, source_url: url, ai_deepened: false };
+    result.meta = { ...result.meta, ai_deepened: false };
     res.json(result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
@@ -112,7 +112,7 @@ router.post('/url/ai', async (req, res) => {
     result.components = merged.components;
     result.patterns = merged.patterns;
     result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
-    result.meta = { ...result.meta, source_url: url, ai_deepened: true };
+    result.meta = { ...result.meta, ai_deepened: true };
     res.json(result);
   } catch (err) {
     console.error('[scan/url/ai] Error:', err.message);
