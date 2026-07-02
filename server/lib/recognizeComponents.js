@@ -100,7 +100,7 @@ function recognizeComposed(els) {
   return out;
 }
 
-export function recognizeComponents(html, css) {
+export function recognizeComponents(html) {
   try {
     const root = parse(typeof html === 'string' ? html : '');
     const els = [];

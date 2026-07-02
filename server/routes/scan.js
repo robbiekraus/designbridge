@@ -84,7 +84,7 @@ router.post('/url', async (req, res) => {
     console.log(`[scan/url] Fetching ${url}`);
     const { html, css } = await fetchSite(url);
     const result = ingestCss(css, { sourceUrl: url });
-    const rec = recognizeComponents(html, css);
+    const rec = recognizeComponents(html);
     result.atomics = rec.atomics;
     result.components = rec.components;
     result.patterns = rec.patterns;
@@ -106,7 +106,7 @@ router.post('/url/ai', async (req, res) => {
     console.log(`[scan/url/ai] Deepening ${url}`);
     const { html, css } = await fetchSite(url);
     const result = ingestCss(css, { sourceUrl: url });
-    const baseline = recognizeComponents(html, css);
+    const baseline = recognizeComponents(html);
     const merged = await recognizeWithAi(html, css, baseline);
     result.atomics = merged.atomics;
     result.components = merged.components;
