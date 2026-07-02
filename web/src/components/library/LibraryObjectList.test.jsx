@@ -45,4 +45,17 @@ describe('LibraryObjectList', () => {
     fireEvent.click(screen.getByRole('button', { name: /kopieren/i }));
     expect(writeText).toHaveBeenCalledWith('export function Button() {}');
   });
+
+  it('renders a correction note as muted italic text, not a pill', () => {
+    const withNote = [
+      { ...items[0], source: 'ai', notes: 'Variante manuell korrigiert' },
+    ];
+    render(<LibraryObjectList items={withNote} picks={picks} />);
+    fireEvent.click(screen.getByText('Button'));
+    const note = screen.getByText('Variante manuell korrigiert');
+    expect(note).toBeInTheDocument();
+    expect(note.className).not.toMatch(/amber/);
+    expect(note.parentElement.className).toMatch(/italic/);
+    expect(note.parentElement.className).not.toMatch(/amber/);
+  });
 });

@@ -57,7 +57,10 @@ function Row({ item, picks }) {
             </div>
           )}
           {item.notes && (
-            <div className="text-[11px] text-amber-700 pt-1">{item.notes}</div>
+            <div className="flex items-start gap-1 text-[11px] italic text-zinc-500 pt-1">
+              <span aria-hidden="true">✎</span>
+              <span>{item.notes}</span>
+            </div>
           )}
 
           <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-1 pb-1.5">Vorschau</div>
