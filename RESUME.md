@@ -1,66 +1,42 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **26.06.2026** — **Phase 4 (URL-Ingester v1) GEPLANT, Bau steht an.** Spec (`d5be504`) + Plan (`86e43b4`) lokal auf `main`, NICHT gepusht. Baseline 81/81 grün. Davor: Phase 3 v1 fertig/gepusht (`f252cd3`).
+Stand: **01.07.2026** — **„URL-Komponenten-Erkennung v1" FERTIG gebaut, reviewt & verifiziert.** Branch `feat/url-component-recognition` (Worktree `.worktrees/feat-url-component-recognition`), HEAD `bb5eaed`, ~19 Commits vor `origin/main`, **LOKAL / NICHT GEPUSHT**. Server 29/29 · Web 95/95 · `vite build` sauber · Browser-Smoke bestanden.
 
-## Phase 4 — was als Nächstes zu tun ist
-- **Plan ausführen:** `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` (12 TDD-Tasks), subagent-driven empfohlen.
-- Echter URL-Ingester statt Mock: URL einfügen → Server parst CSS deterministisch (postcss) → gleiche Datenform wie Image-Scan → Dashboard/Tokens/Emitter greifen unverändert.
-- Kern: `server/lib/cssIngest.js` (rein, testbar) + `server/lib/fetchSite.js` (Netzwerk) + `POST /api/scan/url` + Demo-Seite unter `GET /demo`. Token-**Herkunft** (`source`) wird in den Kacheln gezeigt. Inventory bleibt leer (nur Tokens).
-- Server-Tests laufen über `node --test server/` (neu), Web weiter `cd web && npx vitest run`.
+## Was gebaut wurde (Phase-4-Feature „Weg 1")
+URL-Import erkennt jetzt Bausteine — gratis per HTML/CSS-Regeln, optional per Claude veredelt — und füllt die bestehende Library-UI.
+- **Server:** `fetchSite` gibt `html` zurück · `recognizeComponents(html,css)` (Atomics Button/Suche/Input/Badge · Patterns Navbar/Hero/Footer/Sidebar · Components Formular/Tabelle/Liste/Card; canonical `{name,variants,confidence,source,notes}`) · `recognizeWithAi` (injizierbarer Anthropic-Client) · Endpoints `POST /api/scan/url` (Regel-Inventar) + neu `POST /api/scan/url/ai` (Claude-Merge). Dep: **node-html-parser**.
+- **Web:** `SourcePill` (Herkunfts-Pille grau/grün/gelb) · `aiDeepen.js` · `AiDeepenBanner` („Mit KI vertiefen") · `emitComponents` reicht `source`+`notes` durch. Verdrahtet in `LibraryObjectList`/`App.jsx`.
+- **Härtungen** (`4b57403`,`0efac59`,`bb5eaed`): `trimHtml` strippt ungeschlossene Tags; Prompt-Größenlimits (Regel-Liste entry-weise → valides JSON); `recognizeComponents` wirft nicht mehr; klarere `/url/ai`-Fehlermeldung.
 
-## Frisch weitermachen
+## NÄCHSTES (neue Session)
+🟢 **Branch abschließen** — Wahl treffen: (a) lokal nach `main` mergen, (b) pushen + **PR** gegen `origin/main` (wie zuletzt PR #2), (c) erst noch offene Punkte. **Push braucht Robs OK (CLAUDE.md Regel 5).**
+🟠 **Design-Frage für Rob:** gelbe „von KI"-Pille vs. gelbe Korrektur-Notiz optisch trennen? (nicht ohne seine Richtung ändern.)
+⚪ Kosmetische Non-blocker: unbenutzter `css`-Param in `recognizeComponents`; `source_url` doppelt in `/url`.
 
+Möglicher erster Satz an Claude:
 ```
-cd "/Volumes/4TB Shield/Vibe Coding Bootcamp/Projekte/Designbridge"
-claude
-```
-
-Dann als ersten Satz an Claude (Wiedereinstieg):
-
-```
-Lies RESUME.md und das Memory (project_designbridge_roadmap). Spec + Plan für den URL-Ingester v1 (Phase 4) sind fertig und committet auf main. Führe den Plan docs/superpowers/plans/2026-06-25-url-ingester-v1.md subagent-getrieben aus (Skill: superpowers:subagent-driven-development) — frischer Subagent pro Task, Zwei-Stufen-Review zwischen den Tasks. Bau nur lokal, nicht pushen ohne mich zu fragen.
+Lies RESUME.md + Memory (project_designbridge_roadmap). Die Branch feat/url-component-recognition ist fertig & verifiziert (bb5eaed, lokal). Lass uns [pushen + PR öffnen | lokal nach main mergen]. Danach ggf. die Design-Frage (KI-Pille vs. Notiz) klären.
 ```
 
-**Übergabe-Kontext (Stand 26.06.2026):** Wir haben Phase 4 durchgebrainstormt und entschieden: erster Ingester = **URL/Live-Website**; Extraktion = **deterministisches CSS-Parsen** (kein Claude/keine Credits/kein Headless-Browser); Inventory bleibt **leer** (nur Tokens, Option A); **Token-Herkunft** (`source`-Feld + „↳ aus --…"-Zeile) IST in v1 drin (Robs Schwerpunkt: „Designer muss sehen, was er bekommt"). Ausführungsmodus gewählt = **Option 1 subagent-getrieben**. Noch NICHTS implementiert — Baseline 81/81 Vitest grün, keine Server-Tests bisher (neuer Runner `node --test`). Rob ist Designer, kein Coder → bei Rückfragen laienverständlich erklären.
-
-## App starten (Server + Web)
-
+## App starten (Achtung Worktree!)
+`preview_start` startet Vite aus dem HAUPT-Repo (nicht dem Worktree) und injiziert `PORT` an `npm run dev` → bricht das Backend. Für einen Browser-Test aus dem Worktree:
 ```
-npm run dev
+# Backend (Worktree) auf 3047:
+cd "<worktree>" && PORT=3047 node server/index.js &
+# Frontend (Worktree) auf 5173:
+cd "<worktree>/web" && npm run dev
 ```
-→ Backend http://localhost:3047, Frontend **http://localhost:5173** (am besten Inkognito-Fenster).
-⚠️ Nur EINE Instanz starten. Vorher prüfen, dass nichts auf :3047/:5173 läuft (`lsof -ti:3047`).
-ℹ️ Für UI-Smoke-Tests ohne echten Scan: einen Image-Import-Datensatz nach `localStorage["designbridge.lastImport"]` + `designbridge.hasImported="1"` seeden (Shape siehe `web/src/lib/libraryStore.js`).
+Vite proxyt `/api` → `:3047`. Danach Preview-Browser auf http://localhost:5173.
+ℹ️ Kein API-Key → „Mit KI vertiefen" liefert 502 (erwarteter, sauber abgefangener Fehlerpfad; Regel-Liste bleibt).
 
-## Was zuletzt passiert ist (25.06.2026)
-
-1. **Repo aufgeräumt:** `.gitignore` erweitert (designbridge-dev/ 5,4 GB, Testdaten/, Artefakte/, .claude/, exports/, stale Root-Manifeste), `README.md` + `.env.example` getrackt, `DEMO_FALLBACK` zurück auf `0`.
-2. **Phase 3 v1 gebaut** (subagent-driven, Spec + 10-Task-TDD-Plan):
-   erkannte Komponenten → **Accordion** auf Atomics/Components/Patterns mit token-gefärbter **Vorschau** (4 Templates: Button/Card/Badge/Input) bzw. **generischem Stub**, **Varianten-Umschalter**, generiertem **shadcn-Code**, **Einzel-Export** (Kopieren/Herunterladen) — und **„Ganze Library exportieren"** im Export-Tab → `designbridge-library.zip` via jszip.
-3. Reviewt (Gruppe + final), Fixes drin, gemergt, gepusht, Branch gelöscht.
-
-## Nächste Schritte (priorisiert)
-
-- 🟢 **JETZT: URL-Ingester v1 bauen** — Plan `docs/superpowers/plans/2026-06-25-url-ingester-v1.md` subagent-getrieben ausführen (12 TDD-Tasks: postcss-Setup → cssIngest → fetchSite → Endpoint → Demo-Seite → Adapter → useImportSession → UrlTab → tokenViews-Herkunft → Verify+Smoke).
-- 🟠 **Nach dem Bau:** mit Rob über Push nach `origin/main` sprechen (3 Doku-Commits + Code).
-- ⚪ **Später Phase 4:** Repo-Ingester, dann Figma-Ingester (Figma-MCP ist installiert). Komponenten-/Pattern-Erkennung für URL (Inventory ist bewusst leer in v1).
-- ⚪ **Alte Folge-Punkte (Phase 3, nicht blockierend):** doppelte Token-Normalisierung in den 3 Pages; Import-Pfad über `emit/index.js`-Barrel; Tokens-Anzeige gegen doppeltes „px" härten (`server/lib/claude.js`). · API-Credits für echten Vision-Scan (extern) · Roadmap Phase 5/6 (Figma-Emitter, Round-Trip).
-
-## Tests laufen lassen
-
+## Tests
 ```
-node --test server/        # Server (cssIngest, fetchSite) — NEU ab Phase 4
-cd web && npx vitest run   # Web — aktuell 81/81 grün (Baseline vor Phase-4-Bau)
+npm run test:server        # 29/29
+cd web && npx vitest run    # 95/95
 ```
 
-## Wichtige Dateien
-
-**Phase 4 (URL-Ingester, NEU zu bauen lt. Plan):**
-- Server: `server/lib/cssIngest.js` (+`.test.js`), `server/lib/fetchSite.js` (+`.test.js`), `server/routes/scan.js` (Endpoint `/url`), `server/index.js` (`/demo` static)
-- Demo: `demo-site/{index.html,styles.css}`
-- Web: `web/src/lib/{scanResultAdapter,useImportSession}.js`, `web/src/components/ImportModal/tabs/UrlTab.jsx`, `web/src/components/library/tokenViews.jsx`
-- Spec/Plan: `docs/superpowers/specs/2026-06-25-url-ingester-v1-design.md`, `docs/superpowers/plans/2026-06-25-url-ingester-v1.md`
-
-**Phase 3 (Bestand):**
-- Templates: `web/src/lib/components/templates/*` · Emit: `web/src/lib/emit/*` · UI: `web/src/components/library/LibraryObjectList.jsx`, `web/src/pages/{Atomics,Components,Patterns,Export}.jsx`
+## Wichtige neue Dateien
+- Server: `server/lib/recognizeComponents.js` (+`.test.js`), `server/lib/recognizeWithAi.js` (+`.test.js`), `server/lib/fetchSite.js`, `server/routes/scan.js`, `demo-site/index.html`
+- Web: `web/src/lib/aiDeepen.js`, `web/src/components/library/{SourcePill,AiDeepenBanner}.jsx`, `web/src/lib/emit/emitComponents.js`, `web/src/components/library/LibraryObjectList.jsx`, `web/src/App.jsx`
+- Spec/Plan: `docs/superpowers/specs/2026-06-29-url-component-recognition-v1-design.md`, `docs/superpowers/plans/2026-06-29-url-component-recognition-v1.md`
 - Arbeitsregeln: `CLAUDE.md`
