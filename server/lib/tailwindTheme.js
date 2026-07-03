@@ -1,5 +1,7 @@
 const COMPUTED_WARNING =
   'Berechnete Werte in tailwind.config konnten statisch nicht gelesen werden.';
+const UNREADABLE_WARNING =
+  'tailwind.config konnte nicht vollständig gelesen werden.';
 
 const SECTIONS = [
   ['colors', 'colors'],
@@ -8,6 +10,41 @@ const SECTIONS = [
   ['boxShadow', 'shadows'],
   ['fontSize', 'fontSize'],
 ];
+
+// //- und /*…*/-Kommentare String-bewusst durch Leerzeichen ersetzen (Zeilenumbrüche
+// bleiben erhalten, damit keine Tokens verschmelzen und Offsets zeilenstabil bleiben).
+// Ein Apostroph in "// don't edit" würde sonst den String-Status der Scanner kippen.
+function stripComments(src) {
+  let out = '';
+  let inStr = null;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (inStr) {
+      out += ch;
+      if (ch === '\\') out += src[++i] ?? '';
+      else if (ch === inStr) inStr = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { inStr = ch; out += ch; continue; }
+    if (ch === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') { out += ' '; i++; }
+      if (i < src.length) out += '\n';
+      continue;
+    }
+    if (ch === '/' && src[i + 1] === '*') {
+      out += '  ';
+      i += 2;
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) {
+        out += src[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      if (i < src.length) { out += '  '; i++; } // schließendes */ konsumieren
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
 
 // Balancierte {…}-Klammer ab startIdx ausschneiden (String-bewusst).
 function readBalanced(src, startIdx) {
@@ -30,11 +67,17 @@ function readBalanced(src, startIdx) {
   return null;
 }
 
-export function extractObjectSource(src, key) {
+function findObjectStart(src, key) {
   const re = new RegExp(`(?:^|[\\s{,])${key}\\s*:\\s*\\{`);
   const m = re.exec(src);
-  if (!m) return null;
-  return readBalanced(src, src.indexOf('{', m.index + m[0].length - 1));
+  if (!m) return -1;
+  return src.indexOf('{', m.index + m[0].length - 1);
+}
+
+export function extractObjectSource(src, key) {
+  const start = findObjectStart(src, key);
+  if (start < 0) return null;
+  return readBalanced(src, start);
 }
 
 // Top-Level-Kommas splitten (Klammern & Strings respektieren).
@@ -123,8 +166,14 @@ function scanComputed(objSrc, warnings, depth = 0) {
 export function parseTailwindTheme(configSource) {
   const warnings = new Set();
   const entries = { colors: [], spacing: [], radius: [], shadows: [], fontSize: [] };
-  const themeSrc = extractObjectSource(configSource || '', 'theme');
-  if (!themeSrc) return { entries, warnings: [] };
+  const src = stripComments(configSource || '');
+  const themeStart = findObjectStart(src, 'theme');
+  if (themeStart < 0) return { entries, warnings: [] }; // kein theme-Block: sauberes Leerergebnis
+  const themeSrc = readBalanced(src, themeStart);
+  if (!themeSrc) {
+    // theme: { … existiert, ließ sich aber nicht balancieren → sichtbar machen statt No-op
+    return { entries, warnings: [UNREADABLE_WARNING] };
+  }
 
   scanComputed(themeSrc, warnings);
   const extendSrc = extractObjectSource(themeSrc, 'extend');

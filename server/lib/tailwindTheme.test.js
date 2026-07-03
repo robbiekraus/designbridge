@@ -59,6 +59,56 @@ test('returns empty entries without a theme block', () => {
   assert.deepEqual(warnings, []);
 });
 
+test('line comment with apostrophe does not derail the theme scan', () => {
+  const cfg = `module.exports = {
+  theme: {
+    // don't edit these colors
+    extend: { colors: { primary: '#022d2c' } },
+  },
+};`;
+  const { entries, warnings } = parseTailwindTheme(cfg);
+  assert.deepEqual(entries.colors.find((c) => c.name === 'primary'), {
+    name: 'primary', value: '#022d2c', path: 'theme.extend.colors.primary',
+  });
+  assert.deepEqual(warnings, []);
+});
+
+test('block comment containing braces and quotes inside theme is ignored', () => {
+  const cfg = `module.exports = {
+  theme: {
+    /* { legacy: 'x' } */
+    extend: {
+      colors: { primary: '#022d2c' /* was '#000' } */ },
+      spacing: { sm: '0.5rem' },
+    },
+  },
+};`;
+  const { entries, warnings } = parseTailwindTheme(cfg);
+  assert.equal(entries.colors.find((c) => c.name === 'primary').value, '#022d2c');
+  assert.equal(entries.spacing.find((s) => s.name === 'sm').value, '0.5rem');
+  assert.deepEqual(warnings, []);
+});
+
+test('slashes inside string literals are not treated as comments', () => {
+  const cfg = `module.exports = {
+  content: ['./app//*.js', './src/**/*.jsx'],
+  theme: {
+    extend: { colors: { hero: 'https://example.com/x.png', primary: '#022d2c' } },
+  },
+};`;
+  const { entries } = parseTailwindTheme(cfg);
+  assert.equal(entries.colors.find((c) => c.name === 'hero').value, 'https://example.com/x.png');
+  assert.equal(entries.colors.find((c) => c.name === 'primary').value, '#022d2c');
+});
+
+test('unbalanced theme block yields empty entries plus a warning', () => {
+  const cfg = 'module.exports = { theme: { colors: {';
+  const { entries, warnings } = parseTailwindTheme(cfg);
+  assert.equal(entries.colors.length, 0);
+  assert.ok(warnings.length > 0);
+  assert.ok(warnings.some((w) => /nicht vollständig gelesen/.test(w)));
+});
+
 test('handles typescript configs with satisfies', () => {
   const ts = `import type { Config } from 'tailwindcss';
 export default { theme: { extend: { colors: { ink: '#111827' } } } } satisfies Config;`;

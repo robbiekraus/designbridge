@@ -46,7 +46,12 @@ export async function downloadRepoTarball(
   }
 
   for (const cand of candidates) {
-    const ref = cand.split('/').map(encodeURIComponent).join('/');
+    const segments = cand.split('/');
+    // encodeURIComponent lässt '.' und '..' durch → Pfad-Ausbruch aus der codeload-URL
+    if (segments.some((s) => !s || s === '.' || s === '..')) {
+      throw new Error('Ungültiger Branch-Name.');
+    }
+    const ref = segments.map(encodeURIComponent).join('/');
     const url = `${CODELOAD}/${owner}/${repo}/tar.gz/refs/heads/${ref}`;
     const res = await fetchWithTimeout(url, fetchImpl, timeoutMs);
     if (res.status === 404) continue;

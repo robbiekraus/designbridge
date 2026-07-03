@@ -58,6 +58,18 @@ test('404 on the api means repo not found', async () => {
   await assert.rejects(() => downloadRepoTarball({ owner: 'a', repo: 'b' }, { fetchImpl }), /nicht gefunden/);
 });
 
+test('rejects branch names with dot-dot, dot or empty segments', async () => {
+  let fetched = false;
+  const fetchImpl = async () => { fetched = true; return { ok: true, status: 200, headers: { get: () => null }, arrayBuffer: async () => TAR }; };
+  for (const branch of ['../evil', '../../evil/repo/tar.gz/refs/heads/main', 'a/./b', 'a//b']) {
+    await assert.rejects(
+      () => downloadRepoTarball({ owner: 'a', repo: 'b', branch }, { fetchImpl }),
+      /Ungültig/
+    );
+  }
+  assert.equal(fetched, false);
+});
+
 test('rejects oversized repos via content-length and via buffer size', async () => {
   const big = fakeFetch([{ match: '/tar.gz/', length: String(99 * 1024 * 1024) }]);
   await assert.rejects(

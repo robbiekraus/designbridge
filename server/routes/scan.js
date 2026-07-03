@@ -141,7 +141,7 @@ router.post('/repo', async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'Bitte eine öffentliche GitHub-URL angeben (github.com/owner/repo).' });
   }
-  const branch = (req.body?.branch || '').trim() || parsed.branch || null;
+  const branch = String(req.body?.branch ?? '').trim() || parsed.branch || null;
   try {
     console.log(`[scan/repo] Loading ${parsed.owner}/${parsed.repo}${branch ? `@${branch}` : ''}`);
     const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
@@ -162,7 +162,7 @@ router.post('/repo/ai', async (req, res) => {
   } catch {
     return res.status(400).json({ error: 'Bitte eine öffentliche GitHub-URL angeben (github.com/owner/repo).' });
   }
-  const branch = (req.body?.branch || '').trim() || parsed.branch || null;
+  const branch = String(req.body?.branch ?? '').trim() || parsed.branch || null;
   try {
     console.log(`[scan/repo/ai] Deepening ${parsed.owner}/${parsed.repo}${branch ? `@${branch}` : ''}`);
     // Stateless: Repo erneut laden — der Client bleibt dumm, keine client-gesendete Liste.
