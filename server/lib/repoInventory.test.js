@@ -39,6 +39,31 @@ test('layout and pages become patterns with tiered confidence', () => {
   assert.ok(byName['Seite: Pricing']);
 });
 
+test('route-group directories lose their parens in page labels', () => {
+  const { patterns } = recognizeRepoInventory([f('app/(marketing)/page.tsx')]);
+  assert.deepEqual(patterns.map((p) => p.name), ['Seite: Marketing']);
+});
+
+test('catch-all dynamic segments produce readable labels without brackets', () => {
+  const { patterns } = recognizeRepoInventory([f('app/blog/[...slug]/page.tsx')]);
+  assert.deepEqual(patterns.map((p) => p.name), ['Seite: Slug']);
+  assert.doesNotMatch(patterns[0].name, /[[\]()]/);
+});
+
+test('optional catch-all segments produce readable labels without brackets', () => {
+  const { patterns } = recognizeRepoInventory([f('app/docs/[[...slug]]/page.tsx')]);
+  assert.deepEqual(patterns.map((p) => p.name), ['Seite: Slug']);
+  assert.doesNotMatch(patterns[0].name, /[[\]()]/);
+});
+
+test('dynamic pages that clean to the same label collapse into one pattern', () => {
+  const { patterns } = recognizeRepoInventory([
+    f('app/blog/[...slug]/page.tsx'),
+    f('app/docs/[[...slug]]/page.tsx'),
+  ]);
+  assert.deepEqual(patterns.map((p) => p.name), ['Seite: Slug']);
+});
+
 test('dedupes by name per level and returns empty arrays when nothing matches', () => {
   const twice = recognizeRepoInventory([f('components/ui/button.tsx'), f('src/components/ui/button.jsx')]);
   assert.equal(twice.atomics.length, 1);

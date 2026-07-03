@@ -24,9 +24,20 @@ export function recognizeRepoInventory(files) {
     } else if (isLayoutFile(path)) {
       put(patterns, { name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}` });
     } else if (isPageFile(path)) {
+      // Next.js route groups `(marketing)` and dynamic segments `[slug]`,
+      // `[...slug]`, `[[...slug]]` → strip parens/brackets and leading dots.
+      const cleanSegment = (s) => s.replace(/[()[\]]/g, '').replace(/^\.+/, '');
       const segs = path.split('/');
       let label = base.replace(/\.[^.]+$/, '');
-      if (label === 'page' || label === 'index') label = segs[segs.length - 2] ?? '';
+      let i = segs.length - 2;
+      if (label === 'page' || label === 'index') label = '';
+      else label = cleanSegment(label);
+      while (!label && i >= 0) {
+        const seg = segs[i];
+        if (seg === 'app' || seg === 'pages' || seg === 'src') break;
+        label = cleanSegment(seg);
+        i -= 1;
+      }
       if (!label || label === 'app' || label === 'pages' || label === 'src') label = 'Start';
       put(patterns, {
         name: `Seite: ${pascal(label)}`, confidence: 'low', source: 'rules', notes: `aus ${path}`,
