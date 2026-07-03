@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { deepenWithAi } from '../../lib/aiDeepen.js';
 
 export function shouldShowDeepenBanner(result) {
-  return result?.source === 'url' && !result?.raw?.meta?.ai_deepened;
+  return (result?.source === 'url' || result?.source === 'repo') && !result?.raw?.meta?.ai_deepened;
 }
 
 export default function AiDeepenBanner({ result, onDeepened }) {

@@ -11,4 +11,9 @@ describe('shouldShowDeepenBanner', () => {
   it('hides for non-url sources', () => {
     expect(shouldShowDeepenBanner({ source: 'image', raw: { meta: {} } })).toBe(false);
   });
+
+  it('shows for a fresh repo import and hides once deepened', () => {
+    expect(shouldShowDeepenBanner({ source: 'repo', raw: { meta: { ai_deepened: false } } })).toBe(true);
+    expect(shouldShowDeepenBanner({ source: 'repo', raw: { meta: { ai_deepened: true } } })).toBe(false);
+  });
 });

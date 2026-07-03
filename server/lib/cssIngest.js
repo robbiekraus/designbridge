@@ -17,13 +17,13 @@ function classifyVar(name) {
   return null;
 }
 
-function remToPx(value) {
+export function remToPx(value) {
   const m = /^(-?[\d.]+)rem$/.exec(value.trim());
   if (m) return `${Math.round(parseFloat(m[1]) * 16)}px`;
   return value.trim();
 }
 
-function pxNumber(value) {
+export function pxNumber(value) {
   const m = /^(-?[\d.]+)px$/.exec(remToPx(value));
   return m ? parseFloat(m[1]) : null;
 }
@@ -37,7 +37,7 @@ function rgbToHex(value) {
   return `#${hex}`;
 }
 
-function normalizeColor(value) {
+export function normalizeColor(value) {
   const v = value.trim();
   if (/^#[0-9a-f]{3,8}$/i.test(v)) {
     if (v.length === 4) return ('#' + v.slice(1).split('').map((c) => c + c).join('')).toLowerCase();

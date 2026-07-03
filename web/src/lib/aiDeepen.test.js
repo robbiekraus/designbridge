@@ -28,4 +28,21 @@ describe('deepenWithAi', () => {
   it('throws when no source url is present', async () => {
     await expect(deepenWithAi({ source: 'url', raw: { meta: {} } })).rejects.toThrow(/URL/);
   });
+
+  it('routes repo results to /api/scan/repo/ai with url and branch', async () => {
+    const repoResult = {
+      source: 'repo',
+      raw: { meta: { source_url: 'https://github.com/a/b', branch: 'main' } },
+    };
+    const serverShape = {
+      tokens: {}, atomics: [], components: [], patterns: [],
+      meta: { model: 'repo-ingest+ai', ai_deepened: true },
+    };
+    global.fetch = vi.fn(async () => ({ ok: true, json: async () => serverShape }));
+    const next = await deepenWithAi(repoResult);
+    expect(global.fetch).toHaveBeenCalledWith('/api/scan/repo/ai', expect.objectContaining({ method: 'POST' }));
+    expect(JSON.parse(global.fetch.mock.calls[0][1].body)).toEqual({ url: 'https://github.com/a/b', branch: 'main' });
+    expect(next.source).toBe('repo');
+    expect(next.raw.meta.ai_deepened).toBe(true);
+  });
 });

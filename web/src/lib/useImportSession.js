@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { adaptScanResponse, adaptImageScanResponse } from './scanResultAdapter.js';
-import { mockUrlImport, mockRepoImport } from './importMocks.js';
 
 async function submitImage(file) {
   const formData = new FormData();
@@ -22,6 +21,17 @@ async function submitUrl(url) {
   return adaptScanResponse(data, 'url');
 }
 
+async function submitRepo({ url, branch }) {
+  const res = await fetch('/api/scan/repo', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, branch: branch || undefined }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Repo-Scan fehlgeschlagen');
+  return adaptScanResponse(data, 'repo');
+}
+
 export function useImportSession() {
   const [stage, setStage] = useState('idle');
   const [result, setResult] = useState(null);
@@ -35,7 +45,7 @@ export function useImportSession() {
       let next;
       if (source === 'image') next = await submitImage(payload.file);
       else if (source === 'url') next = await submitUrl(payload.url);
-      else if (source === 'repo') next = await mockRepoImport(payload);
+      else if (source === 'repo') next = await submitRepo(payload);
       else throw new Error(`Unsupported source: ${source}`);
       setResult(next);
       setStage('success');
