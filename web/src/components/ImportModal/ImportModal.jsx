@@ -10,8 +10,8 @@ import { useImportSession } from '../../lib/useImportSession.js';
 
 const TABS = [
   { id: 'image', label: 'Image' },
-  { id: 'url', label: 'URL', badge: 'Preview' },
-  { id: 'repo', label: 'Repo', badge: 'Preview' },
+  { id: 'url', label: 'URL' },
+  { id: 'repo', label: 'Repo' },
   { id: 'figma', label: 'Figma', disabled: true },
 ];
 
