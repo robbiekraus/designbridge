@@ -12,6 +12,7 @@ import { parseRepoUrl } from '../lib/repoUrl.js';
 import { downloadRepoTarball } from '../lib/fetchRepoTarball.js';
 import { extractRepoFiles } from '../lib/extractRepoFiles.js';
 import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
+import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
 
 const router = express.Router();
 
@@ -150,6 +151,35 @@ router.post('/repo', async (req, res) => {
   } catch (err) {
     console.error('[scan/repo] Error:', err.message);
     res.status(statusForRepoError(err)).json({ error: err.message });
+  }
+});
+
+// POST /api/scan/repo/ai — optional Claude pass over the repo rule list
+router.post('/repo/ai', async (req, res) => {
+  let parsed;
+  try {
+    parsed = parseRepoUrl(req.body?.url);
+  } catch {
+    return res.status(400).json({ error: 'Bitte eine öffentliche GitHub-URL angeben (github.com/owner/repo).' });
+  }
+  const branch = (req.body?.branch || '').trim() || parsed.branch || null;
+  try {
+    console.log(`[scan/repo/ai] Deepening ${parsed.owner}/${parsed.repo}${branch ? `@${branch}` : ''}`);
+    // Stateless: Repo erneut laden — der Client bleibt dumm, keine client-gesendete Liste.
+    const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
+    const files = await extractRepoFiles(buffer);
+    const result = ingestRepoFiles(files, { sourceUrl: req.body.url, branch: usedBranch });
+    const baseline = { atomics: result.atomics, components: result.components, patterns: result.patterns };
+    const merged = await deepenRepoWithAi(files, baseline);
+    result.atomics = merged.atomics;
+    result.components = merged.components;
+    result.patterns = merged.patterns;
+    result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
+    result.meta = { ...result.meta, model: 'repo-ingest+ai', ai_deepened: true };
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/repo/ai] Error:', err.message);
+    res.status(statusForRepoError(err)).json({ error: `Repo- oder KI-Analyse fehlgeschlagen: ${err.message}` });
   }
 });
 
