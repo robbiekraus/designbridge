@@ -130,8 +130,9 @@ export default function Export({ result }) {
             <p className="text-xs text-zinc-500 leading-relaxed">
               Schnellster Weg: <strong>An Figma senden</strong> → in Figma das DesignBridge-Plugin öffnen →
               <strong> Aus DesignBridge übernehmen</strong>. Alternativ JSON <strong>Kopieren</strong> und im
-              Plugin unter „Code → Figma" einfügen. Legt Paint- und Text-Styles an (Gruppe „DesignBridge/…").
-              v1: Farben + Typografie.
+              Plugin unter „Code → Figma" einfügen. Legt Paint- und Text-Styles an (Gruppe „DesignBridge/…")
+              und baut jetzt auch die erkannten Komponenten als Figma-Komponenten auf einer eigenen Seite
+              „🌉 DesignBridge". v2: Farben + Typografie + Komponenten.
             </p>
           </div>
         )}
