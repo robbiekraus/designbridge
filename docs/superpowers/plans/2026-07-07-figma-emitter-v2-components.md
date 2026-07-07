@@ -979,6 +979,8 @@ git add designbridge-plugin/src/writer/buildComponents.ts
 git commit -m "feat(plugin): buildComponents — Component Sets, Platzhalter, Upsert per Name"
 ```
 
+**NACHTRAG (Task-9-Quality-Review, per Fix-Commit umgesetzt — bei Wiederverwendung dieses Code-Blocks beachten):** Der Block oben hat zwei Lücken: (1) **Waisen-Cleanup** — bereits erzeugte Variant-ComponentNodes bzw. der halbe Platzhalter-Frame der aktuellen Komponente müssen im `catch` per `.remove()` entfernt werden (`variantComponents` vors try ziehen), sonst bleiben publishable Waisen im Assets-Panel; (2) **Positions-Erhalt beim Strukturwechsel** Platzhalter→Set: Index vor `existing.remove()` merken und das neue Set per `insertChild(idx, set)` an die alte Position setzen.
+
 ---
 
 ### Task 10: Plugin — `upsertPage.ts` (Sticker-Sheet-Seite)
