@@ -1,4 +1,5 @@
 import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
+import { colorRef, px, textEl, box } from './planHelpers.js';
 
 export const buttonTemplate = {
   key: 'button',
@@ -37,5 +38,13 @@ export const buttonTemplate = {
     if (variant === 'ghost')
       return { ...base, background: 'transparent', color: p.text };
     return { ...base, background: p.primary, color: p.onPrimary };
+  },
+  planFor(variant, r) {
+    const base = box({ padding: [8, 16, 8, 16], radius: px(r.radius, 6) });
+    if (variant === 'secondary')
+      return { ...base, stroke: colorRef(r.border), children: [textEl('Button', r, r.text)] };
+    if (variant === 'ghost')
+      return { ...base, children: [textEl('Button', r, r.text)] };
+    return { ...base, fill: colorRef(r.primary), children: [textEl('Button', r, r.onPrimary)] };
   },
 };
