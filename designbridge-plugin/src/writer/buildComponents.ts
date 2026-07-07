@@ -128,10 +128,16 @@ export async function buildComponents(
           result.skipped.push(`${comp.name}/${v.name}: ungültiger Bauplan`);
           continue;
         }
-        const frame = await renderPlan(v.plan, paintByName, result.skipped);
-        const c = figma.createComponentFromNode(frame);
+        // pending trackt den je aktuellen, noch nicht in variantComponents
+        // aufgenommenen Node, damit der catch ihn abräumt: renderPlan gibt seinen
+        // Frame lebend zurück; wirft createComponentFromNode oder c.name danach,
+        // wäre er sonst eine Waise (weder in pending noch in variantComponents).
+        pending = await renderPlan(v.plan, paintByName, result.skipped);
+        const c = figma.createComponentFromNode(pending);
+        pending = c; // Frame konsumiert → jetzt die Komponente tracken (falls c.name wirft)
         c.name = `Variant=${v.name}`;
         variantComponents.push(c);
+        pending = null; // gepusht → ab hier vom variantComponents-Cleanup-Loop abgedeckt
       }
       if (variantComponents.length === 0) {
         result.skipped.push(`${comp.name}: keine gültigen Varianten`);
