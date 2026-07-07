@@ -1,3 +1,7 @@
+// Bauplan-Bausteine für die planFor-Methoden der Templates (Figma-Emitter v2).
+// Format: box = {type:'box', layout:'row'|'column', padding:[t,r,b,l], radius, fill, stroke, children}
+//         text = {type:'text', content, fontSize, fontWeight, color} · ColorRef = {token|null, hex}
+
 export const colorRef = (slot) => ({ token: slot.token, hex: slot.value });
 
 export const px = (v, fallback) => {

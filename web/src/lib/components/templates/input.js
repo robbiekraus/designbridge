@@ -1,4 +1,5 @@
 import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
+import { colorRef, px, textEl, box } from './planHelpers.js';
 
 export const inputTemplate = {
   key: 'input',
@@ -27,5 +28,13 @@ export const inputTemplate = {
       fontSize: p.fontSize, color: p.text,
       opacity: variant === 'disabled' ? 0.5 : 1,
     };
+  },
+  planFor(variant, r) {
+    const fill = variant === 'disabled' ? r.surfaceMuted : r.surface;
+    return box({
+      padding: [8, 12, 8, 12], radius: px(r.radius, 6),
+      fill: colorRef(fill), stroke: colorRef(r.border),
+      children: [textEl('Wert eingeben…', r, r.text)],
+    });
   },
 };

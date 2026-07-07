@@ -1,4 +1,5 @@
 import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
+import { colorRef, px, textEl, box } from './planHelpers.js';
 
 export const cardTemplate = {
   key: 'card',
@@ -26,5 +27,15 @@ export const cardTemplate = {
       borderRadius: p.radius, padding: '16px', color: p.text,
       fontSize: p.fontSize, minWidth: '160px',
     };
+  },
+  planFor(_variant, r) {
+    return box({
+      layout: 'column', padding: [16, 16, 16, 16], radius: px(r.radius, 6),
+      fill: colorRef(r.surface), stroke: colorRef(r.border),
+      children: [
+        textEl('Card-Titel', r, r.text, { fontWeight: 600 }),
+        textEl('Beschreibender Text der Karte.', r, r.text),
+      ],
+    });
   },
 };

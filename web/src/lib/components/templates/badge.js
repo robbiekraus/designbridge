@@ -1,4 +1,5 @@
 import { LOW_CONFIDENCE_COMMENT as LOW } from './constants.js';
+import { colorRef, textEl, box } from './planHelpers.js';
 
 export const badgeTemplate = {
   key: 'badge',
@@ -31,5 +32,13 @@ export const badgeTemplate = {
     if (variant === 'secondary')
       return { ...base, background: p.surfaceMuted, color: p.text };
     return { ...base, background: p.primary, color: p.onPrimary };
+  },
+  planFor(variant, r) {
+    const fill = variant === 'secondary' ? r.surfaceMuted : r.primary;
+    const color = variant === 'secondary' ? r.text : r.onPrimary;
+    return box({
+      padding: [2, 8, 2, 8], radius: 9999, fill: colorRef(fill),
+      children: [textEl('Badge', r, color, { fontSize: 12, fontWeight: 500 })],
+    });
   },
 };
