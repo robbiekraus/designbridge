@@ -5,6 +5,7 @@
   "scripts": {
     "build": "node esbuild.config.js",
     "watch": "node esbuild.config.js --watch",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "codegen": "node dist/codegen.js",
     "export": "node scripts/sync-exports.js"
   },

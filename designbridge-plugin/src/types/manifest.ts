@@ -88,6 +88,7 @@ export interface ExportReadyPayload {
   tokens: TokensFile;
   components: ComponentsManifest;
   stats: DiffStats;
+  fileName?: string;
 }
 
 export interface ExportReadyMessage {

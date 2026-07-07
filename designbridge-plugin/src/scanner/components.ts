@@ -43,7 +43,7 @@ function parseProps(node: ComponentSetNode): ComponentProp[] {
   for (const [propName, propDef] of Object.entries(node.componentPropertyDefinitions)) {
     const cleanName = propName.replace(/#\d+$/, '').trim();
     if (propDef.type === 'VARIANT') {
-      const values = (propDef as ComponentPropertyDefinition & { variantOptions: string[] }).variantOptions ?? [];
+      const values = (propDef as typeof propDef & { variantOptions: string[] }).variantOptions ?? [];
       props.push({ name: cleanName, type: inferPropType(values), values, default: propDef.defaultValue as string });
     } else if (propDef.type === 'BOOLEAN') {
       props.push({ name: cleanName, type: 'boolean', values: ['true', 'false'], default: propDef.defaultValue as boolean });

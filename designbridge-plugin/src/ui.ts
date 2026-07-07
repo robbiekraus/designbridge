@@ -135,13 +135,13 @@ function fileSlug(name: string): string {
 
 downloadTokensBtn.addEventListener('click', () => {
   if (!lastPayload) return;
-  const slug = fileSlug((lastPayload as typeof lastPayload & { fileName?: string }).fileName ?? 'export');
+  const slug = fileSlug(lastPayload.fileName ?? 'export');
   downloadJSON(`${slug}-tokens.json`, lastPayload.tokens);
 });
 
 downloadComponentsBtn.addEventListener('click', () => {
   if (!lastPayload) return;
-  const slug = fileSlug((lastPayload as typeof lastPayload & { fileName?: string }).fileName ?? 'export');
+  const slug = fileSlug(lastPayload.fileName ?? 'export');
   downloadJSON(`${slug}-components.manifest.json`, lastPayload.components);
 });
 

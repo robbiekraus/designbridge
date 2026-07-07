@@ -289,7 +289,7 @@ function collectRawTypography(node: BaseNode, tokens: TokenGroup): void {
         const token: TypographyToken = {
           $value: {
             fontFamily: t.fontName.family,
-            fontSize: `${t.fontSize}px`,
+            fontSize: `${t.fontSize as number}px`,
             fontWeight: t.fontName.style,
             lineHeight:
               (t.lineHeight as LineHeight).unit === 'PERCENT'
