@@ -49,25 +49,36 @@ export async function renderPlan(
   warnings: string[]
 ): Promise<FrameNode> {
   const frame = figma.createFrame();
-  frame.layoutMode = plan.layout === 'column' ? 'VERTICAL' : 'HORIZONTAL';
-  frame.primaryAxisSizingMode = 'AUTO';
-  frame.counterAxisSizingMode = 'AUTO';
-  frame.counterAxisAlignItems = 'CENTER';
-  frame.itemSpacing = 8;
-  const [pt, pr, pb, pl] = plan.padding;
-  frame.paddingTop = pt; frame.paddingRight = pr; frame.paddingBottom = pb; frame.paddingLeft = pl;
-  frame.cornerRadius = plan.radius;
-  frame.fills = [];
-  if (plan.fill) await applyFill(frame, plan.fill, paintByName);
-  if (plan.stroke) {
-    frame.strokes = [solidPaint(plan.stroke)];
-    frame.strokeWeight = 1;
+  try {
+    frame.layoutMode = plan.layout === 'column' ? 'VERTICAL' : 'HORIZONTAL';
+    frame.primaryAxisSizingMode = 'AUTO';
+    frame.counterAxisSizingMode = 'AUTO';
+    frame.counterAxisAlignItems = 'CENTER';
+    frame.itemSpacing = 8;
+    const [pt, pr, pb, pl] = plan.padding;
+    frame.paddingTop = pt; frame.paddingRight = pr; frame.paddingBottom = pb; frame.paddingLeft = pl;
+    frame.cornerRadius = plan.radius;
+    frame.fills = [];
+    if (plan.fill) await applyFill(frame, plan.fill, paintByName);
+    if (plan.stroke) {
+      frame.strokes = [solidPaint(plan.stroke)];
+      frame.strokeWeight = 1;
+    }
+    for (const child of plan.children) {
+      const node = child.type === 'text'
+        ? await renderText(child, paintByName, warnings)
+        : await renderPlan(child, paintByName, warnings);
+      frame.appendChild(node);
+    }
+    return frame;
+  } catch (err) {
+    // Waise vermeiden: bereits erzeugten Frame (samt Kindern) abräumen, dann re-throwen.
+    // Jede Rekursionsebene räumt so ihren eigenen Frame ab; buildComponents protokolliert weiter in skipped.
+    try {
+      frame.remove();
+    } catch {
+      // remove kann selbst werfen (z. B. Node bereits entfernt) — bewusst ignorieren.
+    }
+    throw err;
   }
-  for (const child of plan.children) {
-    const node = child.type === 'text'
-      ? await renderText(child, paintByName, warnings)
-      : await renderPlan(child, paintByName, warnings);
-    frame.appendChild(node);
-  }
-  return frame;
 }
