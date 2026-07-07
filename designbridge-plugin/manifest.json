@@ -4,10 +4,16 @@
   "api": "1.0.0",
   "main": "dist/main.js",
   "ui": "dist/ui.html",
-  "editorType": ["figma"],
-  "permissions": ["currentuser"],
+  "editorType": [
+    "figma"
+  ],
+  "permissions": [
+    "currentuser"
+  ],
   "networkAccess": {
-    "allowedDomains": ["http://localhost:3047", "http://127.0.0.1:3047"],
+    "allowedDomains": [
+      "http://localhost:3047"
+    ],
     "reasoning": "Holt den zuletzt in DesignBridge erzeugten Token-Export vom lokalen Server (Code → Figma)."
   }
 }
