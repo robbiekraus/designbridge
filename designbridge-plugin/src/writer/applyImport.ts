@@ -41,6 +41,9 @@ export async function applyImport(payload: ImportPayload): Promise<ImportSummary
     colorsUpdated: 0,
     textCreated: 0,
     textUpdated: 0,
+    componentsCreated: 0,
+    componentsUpdated: 0,
+    placeholders: 0,
     skipped: [],
   };
 

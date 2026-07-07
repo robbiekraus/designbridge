@@ -118,6 +118,9 @@ export interface ImportSummary {
   colorsUpdated: number;
   textCreated: number;
   textUpdated: number;
+  componentsCreated: number;
+  componentsUpdated: number;
+  placeholders: number;
   skipped: string[];
 }
 
