@@ -20,7 +20,7 @@ const WEIGHT_TO_STYLE: Record<number, string> = {
   900: 'Black',
 };
 
-function nearestWeightStyle(weight?: number): string {
+export function nearestWeightStyle(weight?: number): string {
   if (!weight) return 'Regular';
   let best = 400;
   let bestDiff = Infinity;
