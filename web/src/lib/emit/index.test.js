@@ -8,6 +8,7 @@ const imageResult = {
       typography: [{ size: 32, weight: 700, role: 'headline', confidence: 'high' }],
       spacing: [], border_radius: [], shadows: [],
     },
+    atomics: [{ name: 'Button', variants: [] }],
   },
 };
 const mockResult = { source: 'url', mocked: true, raw: null };
@@ -23,6 +24,9 @@ describe('buildExports', () => {
     expect(figma.designbridge).toBe('figma-import');
     expect(figma.colors).toContainEqual({ name: 'primary-button', hex: '#022d2c' });
     expect(figma.text).toContainEqual({ name: 'headline', fontSize: 32, fontWeight: 700 });
+    expect(figma.version).toBe(2);
+    expect(figma.components.length).toBeGreaterThan(0);
+    expect(figma.components[0].name).toBe('Button');
   });
 
   it('returns null for a mock import with no token detail', () => {
