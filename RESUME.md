@@ -49,7 +49,7 @@ Frühere „Plugin zwingend"-Aussage war falsch. Verifiziert + **live bewiesen**
 - **Sync/Round-Trip (Phase 6):** ❌
 
 ## Git
-Alles auf `main`, **LOKAL, NICHT gepusht** (stehende Regel: kein Push ohne dein OK). Vor dieser Session war `main` bereits 2 Commits vor `origin` (Figma-Lese-Spec + Resume). Diese Session hat noch NICHT committet — die neuen Dateien liegen als Änderungen im Working Tree. **Nächste Session: committen + auf deinen OK pushen.**
+**Lokal committet als `3b130a6` auf `main` (NICHT gepusht).** `main` jetzt 3 Commits vor `origin` (dieser Commit + Figma-Lese-Spec + Resume). Stehende Regel: kein Push ohne Robs OK. **Nächste Session: nach dem manuellen Figma-Test `git push` mit Robs OK.**
 
 ## App starten (Server + Web)
 ```
