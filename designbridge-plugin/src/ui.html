@@ -142,6 +142,42 @@
     input[type="text"]:focus { border-color: var(--accent); }
     input[type="text"]::placeholder { color: #bbb; }
 
+    textarea {
+      width: 100%;
+      min-height: 96px;
+      padding: 8px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      line-height: 1.5;
+      outline: none;
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+      transition: border-color 0.15s;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: #bbb; }
+
+    #import-btn, #import-fetch-btn {
+      width: 100%;
+      padding: 10px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin: 8px 0 6px;
+    }
+    #import-fetch-btn { margin-top: 0; }
+    #import-btn:hover:not(:disabled),
+    #import-fetch-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    #import-btn:disabled, #import-fetch-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
     /* ── Diff stats ── */
     #diff-stats {
       display: none;
@@ -244,6 +280,22 @@
     <p class="card-title">Export</p>
     <button id="export-btn">Scan &amp; Export</button>
     <p id="status" class="status status--idle">Ready — click to scan your file.</p>
+  </div>
+
+  <div class="card">
+    <p class="card-title">Code → Figma</p>
+    <button id="import-fetch-btn">Aus DesignBridge übernehmen</button>
+    <p id="import-status" class="status status--idle">Legt Paint- &amp; Text-Styles an (Gruppe „DesignBridge/…"). In DesignBridge zuerst „An Figma senden" klicken.</p>
+    <details style="margin-top:10px;">
+      <summary style="font-size:11px;color:var(--text-muted);cursor:pointer;">Oder JSON manuell einfügen</summary>
+      <label class="field-label" for="import-json" style="margin-top:8px;">DesignBridge-Export einfügen</label>
+      <textarea
+        id="import-json"
+        placeholder='{ "designbridge": "figma-import", "version": 1, "colors": [...], "text": [...] }'
+        spellcheck="false"
+      ></textarea>
+      <button id="import-btn">In Figma schreiben</button>
+    </details>
   </div>
 
   <div id="diff-stats"></div>

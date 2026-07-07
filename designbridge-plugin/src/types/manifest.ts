@@ -105,5 +105,25 @@ export interface ErrorMessage {
   message: string;
 }
 
-export type SandboxMessage = ExportReadyMessage | StatusMessage | ErrorMessage;
-export type UIMessage = ExportMessage;
+// ─── Import (Code → Figma) ────────────────────────────────────────────────────
+
+export interface ImportMessage {
+  type: 'IMPORT';
+  json: string;
+}
+
+export interface ImportSummary {
+  colorsCreated: number;
+  colorsUpdated: number;
+  textCreated: number;
+  textUpdated: number;
+  skipped: string[];
+}
+
+export interface ImportDoneMessage {
+  type: 'IMPORT_DONE';
+  summary: ImportSummary;
+}
+
+export type SandboxMessage = ExportReadyMessage | StatusMessage | ErrorMessage | ImportDoneMessage;
+export type UIMessage = ExportMessage | ImportMessage;

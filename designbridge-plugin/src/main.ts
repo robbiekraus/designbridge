@@ -1,6 +1,8 @@
 import { scanTokens } from './scanner/tokens';
 import { scanComponents } from './scanner/components';
 import { applyDiff } from './scanner/diff';
+import { parseImportPayload } from './writer/parsePayload';
+import { applyImport } from './writer/applyImport';
 import type {
   UIMessage,
   SandboxMessage,
@@ -64,6 +66,24 @@ function postStatus(message: string): void {
 }
 
 figma.ui.onmessage = async (msg: UIMessage) => {
+  // ─── Import: Code → Figma (write Paint & Text styles) ───
+  if (msg.type === 'IMPORT') {
+    try {
+      const payload = parseImportPayload(msg.json);
+      postStatus('Schreibe Styles nach Figma…');
+      const summary = await applyImport(payload);
+      const done: SandboxMessage = { type: 'IMPORT_DONE', summary };
+      figma.ui.postMessage(done);
+    } catch (err) {
+      const errorMsg: SandboxMessage = {
+        type: 'ERROR',
+        message: err instanceof Error ? err.message : String(err),
+      };
+      figma.ui.postMessage(errorMsg);
+    }
+    return;
+  }
+
   if (msg.type !== 'EXPORT') return;
 
   try {

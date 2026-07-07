@@ -6,6 +6,7 @@ export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
   const [activeId, setActiveId] = useState('css');
   const [copied, setCopied] = useState(null);
+  const [sent, setSent] = useState(null);
 
   if (!exports) {
     return (
@@ -30,6 +31,20 @@ export default function Export({ result }) {
 
   const handleDownloadAll = () => {
     EXPORT_FORMATS.forEach(f => downloadFile(f.filename, exports[f.id], f.mime));
+  };
+
+  const handleSendToFigma = async () => {
+    try {
+      const res = await fetch('/api/figma-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: exports.figma,
+      });
+      setSent(res.ok ? 'ok' : 'fail');
+    } catch {
+      setSent('fail');
+    }
+    setTimeout(() => setSent(null), 3000);
   };
 
   const handleExportLibrary = async () => {
@@ -100,6 +115,26 @@ export default function Export({ result }) {
         >
           {code}
         </pre>
+        {activeId === 'figma' && (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSendToFigma}
+                className="text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+              >
+                An Figma senden
+              </button>
+              {sent === 'ok' && <span className="text-[11px] text-emerald-600">bereit — jetzt im Plugin „Aus DesignBridge übernehmen"</span>}
+              {sent === 'fail' && <span className="text-[11px] text-red-600">fehlgeschlagen — läuft der Server?</span>}
+            </div>
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              Schnellster Weg: <strong>An Figma senden</strong> → in Figma das DesignBridge-Plugin öffnen →
+              <strong> Aus DesignBridge übernehmen</strong>. Alternativ JSON <strong>Kopieren</strong> und im
+              Plugin unter „Code → Figma" einfügen. Legt Paint- und Text-Styles an (Gruppe „DesignBridge/…").
+              v1: Farben + Typografie.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );
