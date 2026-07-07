@@ -44,4 +44,9 @@ describe('emitFigmaComponents', () => {
     expect(emitFigmaComponents({ raw: null })).toEqual([]);
     expect(emitFigmaComponents(undefined)).toEqual([]);
   });
+
+  it('Platzhalter ohne Scan-Varianten bekommt default-Variante', () => {
+    const out = emitFigmaComponents({ raw: { tokens: {}, atomics: [{ name: 'Avatar', variants: [] }], components: [], patterns: [] } });
+    expect(out[0].variants).toEqual([{ name: 'default', plan: null }]);
+  });
 });

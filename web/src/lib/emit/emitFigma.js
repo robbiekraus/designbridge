@@ -1,6 +1,6 @@
 // Emits the DesignBridge → Figma import envelope consumed by the Figma plugin
-// (designbridge-plugin/src/writer/parsePayload.ts). v1 = colors + typography only.
-export function emitFigma(tokens) {
+// (designbridge-plugin/src/writer/parsePayload.ts). v2 = colors + typography + components.
+export function emitFigma(tokens, components = []) {
   const colors = [];
   const text = [];
 
@@ -17,5 +17,8 @@ export function emitFigma(tokens) {
     }
   }
 
-  return JSON.stringify({ designbridge: 'figma-import', version: 1, colors, text }, null, 2) + '\n';
+  return JSON.stringify(
+    { designbridge: 'figma-import', version: 2, colors, text, components },
+    null, 2
+  ) + '\n';
 }

@@ -20,7 +20,7 @@ describe('emitFigma', () => {
   it('emits a designbridge figma-import envelope', () => {
     const payload = JSON.parse(emitFigma(normalizeTokens(rawTokens)));
     expect(payload.designbridge).toBe('figma-import');
-    expect(payload.version).toBe(1);
+    expect(payload.version).toBe(2);
     expect(Array.isArray(payload.colors)).toBe(true);
     expect(Array.isArray(payload.text)).toBe(true);
   });
@@ -43,7 +43,7 @@ describe('emitFigma', () => {
 
   it('only includes colors and typography (no spacing/radius/shadow)', () => {
     const payload = JSON.parse(emitFigma(normalizeTokens(rawTokens)));
-    expect(Object.keys(payload).sort()).toEqual(['colors', 'designbridge', 'text', 'version']);
+    expect(Object.keys(payload).sort()).toEqual(['colors', 'components', 'designbridge', 'text', 'version']);
   });
 
   it('returns empty arrays when there are no tokens', () => {
@@ -54,5 +54,17 @@ describe('emitFigma', () => {
 
   it('ends with a trailing newline', () => {
     expect(emitFigma(normalizeTokens(rawTokens)).endsWith('\n')).toBe(true);
+  });
+
+  it('hängt components an und setzt version 2', () => {
+    const comps = [{ name: 'Button', kind: 'atomic', confidence: null, source: null, notes: null, placeholder: false, variants: [] }];
+    const parsed = JSON.parse(emitFigma([], comps));
+    expect(parsed.version).toBe(2);
+    expect(parsed.components).toHaveLength(1);
+  });
+
+  it('ohne components-Argument → leeres Array (abwärtskompatibel)', () => {
+    const parsed = JSON.parse(emitFigma([]));
+    expect(parsed.components).toEqual([]);
   });
 });

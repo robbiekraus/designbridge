@@ -3,6 +3,7 @@ import { emitCss } from './emitCss.js';
 import { emitTailwind } from './emitTailwind.js';
 import { emitTokensJson } from './emitTokensJson.js';
 import { emitFigma } from './emitFigma.js';
+import { emitFigmaComponents } from './emitFigmaComponents.js';
 
 export { emitComponents } from './emitComponents.js';
 export { buildLibraryZip } from './buildLibraryZip.js';
@@ -23,6 +24,6 @@ export function buildExports(result) {
     css: emitCss(tokens),
     tailwind: emitTailwind(tokens),
     json: emitTokensJson(tokens),
-    figma: emitFigma(tokens),
+    figma: emitFigma(tokens, emitFigmaComponents(result)),
   };
 }
