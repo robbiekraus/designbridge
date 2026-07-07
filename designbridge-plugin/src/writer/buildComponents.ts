@@ -31,17 +31,31 @@ async function loadInter(style: string): Promise<FontName> {
 }
 
 async function makeText(content: string, size: number, style: string, fill?: SolidPaint): Promise<TextNode> {
+  // Font zuerst laden: schlägt das fehl, existiert noch kein Node → keine Waise.
+  const font = await loadInter(style);
   const t = figma.createText();
-  t.fontName = await loadInter(style);
+  t.fontName = font;
   t.characters = content;
   t.fontSize = size;
   if (fill) t.fills = [fill];
   return t;
 }
 
-/** Platzhalter-Karte: Name, Varianten, Notizen, gelbes Badge. */
+/** Platzhalter-Karte: Name, Varianten, Notizen, gelbes Badge.
+ *  Räumt bei Fehlern (z. B. Font nicht ladbar) den eigenen Frame wieder ab,
+ *  damit keine halb gebaute Karte als Waise auf der Seite liegen bleibt. */
 async function buildPlaceholderFrame(comp: ImportComponent): Promise<FrameNode> {
   const frame = figma.createFrame();
+  try {
+    await fillPlaceholderFrame(frame, comp);
+    return frame;
+  } catch (err) {
+    try { frame.remove(); } catch { /* schon entfernt */ }
+    throw err;
+  }
+}
+
+async function fillPlaceholderFrame(frame: FrameNode, comp: ImportComponent): Promise<void> {
   frame.layoutMode = 'VERTICAL';
   frame.primaryAxisSizingMode = 'AUTO';
   frame.counterAxisSizingMode = 'AUTO';
@@ -59,6 +73,7 @@ async function buildPlaceholderFrame(comp: ImportComponent): Promise<FrameNode> 
   if (comp.notes) frame.appendChild(await makeText(`„${comp.notes}"`, 10, 'Regular', MUTED_TEXT));
 
   const badge = figma.createFrame();
+  frame.appendChild(badge); // sofort einhängen: Frame-Cleanup räumt das Badge mit ab
   badge.layoutMode = 'HORIZONTAL';
   badge.primaryAxisSizingMode = 'AUTO';
   badge.counterAxisSizingMode = 'AUTO';
@@ -66,8 +81,6 @@ async function buildPlaceholderFrame(comp: ImportComponent): Promise<FrameNode> 
   badge.cornerRadius = 3;
   badge.fills = [BADGE_YELLOW];
   badge.appendChild(await makeText('Vorlage fehlt — Platzhalter', 9, 'Medium', BADGE_TEXT));
-  frame.appendChild(badge);
-  return frame;
 }
 
 function findByName(section: FrameNode, name: string): SceneNode | undefined {
@@ -83,11 +96,17 @@ export async function buildComponents(
 
   for (const comp of components) {
     const section = sections[comp.kind];
+    // Vor dem try deklariert, damit der catch bereits erzeugte Nodes wieder
+    // entfernen kann: Halb gebaute ComponentNodes tauchen sonst als Waisen
+    // im Assets-Panel auf, halbe Platzhalter-Frames auf der Seite.
+    const variantComponents: ComponentNode[] = [];
+    let pending: SceneNode | null = null;
     try {
       if (comp.placeholder) {
         // ── Platzhalter: einzelne Komponente ──
-        const frame = await buildPlaceholderFrame(comp);
-        const fresh = figma.createComponentFromNode(frame);
+        pending = await buildPlaceholderFrame(comp);
+        const fresh = figma.createComponentFromNode(pending);
+        pending = fresh;
         fresh.name = comp.name;
         const existing = findByName(section, comp.name);
         if (existing) {
@@ -98,12 +117,12 @@ export async function buildComponents(
           section.appendChild(fresh);
           result.created += 1;
         }
+        pending = null;
         result.placeholders += 1;
         continue;
       }
 
       // ── Template-Komponente: Component Set mit Varianten ──
-      const variantComponents: ComponentNode[] = [];
       for (const v of comp.variants) {
         if (!v.plan) {
           result.skipped.push(`${comp.name}/${v.name}: ungültiger Bauplan`);
@@ -121,18 +140,36 @@ export async function buildComponents(
 
       const existing = findByName(section, comp.name);
       if (existing && existing.type === 'COMPONENT_SET') {
-        // Update: neue Varianten in bestehendes Set, alte entfernen (Set-Identität bleibt)
+        // Update: neue Varianten in bestehendes Set, alte entfernen (Set-Identität bleibt).
+        // Reihenfolge ist Absicht — erst append, dann remove: Ein Component Set darf nie
+        // leer werden, und Remove-first würde die Set-Identität zerstören. Der transiente
+        // `Variant=x`-Namenskonflikt zwischen alten und neuen Varianten wird von Figma toleriert.
         const old = [...existing.children];
         for (const c of variantComponents) existing.appendChild(c);
         for (const o of old) o.remove();
         result.updated += 1;
       } else {
-        if (existing) existing.remove(); // Strukturwechsel (z. B. war Platzhalter)
+        let idx = -1;
+        if (existing) {
+          // Strukturwechsel (z. B. war Platzhalter): Position merken, dann ersetzen
+          idx = section.children.indexOf(existing);
+          existing.remove();
+        }
         const set = figma.combineAsVariants(variantComponents, section);
         set.name = comp.name;
+        // combineAsVariants hängt ans Ende — zurück an die alte Position schieben
+        if (idx >= 0) section.insertChild(idx, set);
         result.created += 1;
       }
     } catch (err) {
+      // Waisen-Cleanup: bereits erzeugte, aber noch nicht platzierte Nodes entfernen,
+      // damit ein Teilfehler keine Reste im Assets-Panel / auf der Seite hinterlässt.
+      for (const c of variantComponents) {
+        try { c.remove(); } catch { /* z. B. schon in ein Set gewandert und mit-entfernt */ }
+      }
+      if (pending) {
+        try { pending.remove(); } catch { /* bereits entfernt */ }
+      }
       result.skipped.push(`${comp.name}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
