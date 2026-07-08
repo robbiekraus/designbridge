@@ -54,16 +54,14 @@ export default function App() {
   };
 
   const handleRetryInterpret = () => {
-    setLastImport((prev) => {
-      const pending = { ...prev, interpretPending: true, interpretError: null, interpretFailed: [] };
-      saveLastImport(pending);
-      runInterpretation(pending).then((next) => {
-        if (next) {
-          saveLastImport(next);
-          setLastImport(next);
-        }
-      });
-      return pending;
+    const pending = { ...lastImport, interpretPending: true, interpretError: null, interpretFailed: [] };
+    saveLastImport(pending);
+    setLastImport(pending);
+    runInterpretation(pending).then((next) => {
+      if (next) {
+        saveLastImport(next);
+        setLastImport(next);
+      }
     });
   };
 
