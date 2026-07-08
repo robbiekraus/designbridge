@@ -1,9 +1,9 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **08.07.2026** — **„Visuelle Interpretation Slice 1" KOMPLETT GEBAUT & BROWSER-VERIFIZIERT** auf Branch `feat/visual-interpretation-v1` (16 Commits, **ungepusht, nicht gemergt** — wartet auf Robs OK). Server 93/93 + Web 152/152 grün. Vorgänger Phase 5.2 ist auf `origin/main`.
+Stand: **08.07.2026** — **„Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT** auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün, im Browser end-to-end verifiziert. Feature-Branch `feat/visual-interpretation-v1` existiert noch lokal (redundant, kann irgendwann gelöscht werden — Löschen nur mit Robs OK).
 
-## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Merge/Push entscheiden
-- **Feature ist fertig.** Branch `feat/visual-interpretation-v1` (16 Commits ab `c6e96b2`, Working Tree sauber). Merge auf `main` + Push **NUR mit Robs OK** (CLAUDE.md Regel 5). Danach RESUME auf „gepusht" stellen.
+## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: nächste Scheibe oder Feinschliff
+- **Slice 1 ist live.** `npm run dev:demo` starten (Backend mit `DEMO_FALLBACK=1` + Web), http://localhost:5173, Bild importieren → KI-Vorschauen in der Library. ⚠️ Ohne laufendes Backend schlägt der Import fehl (das war der „Try again geht nicht"-Fehler am 08.07.).
 - **Was live ist:** Bild-Import → Bausteine ohne Template bekommen automatisch eine KI-interpretierte shadcn/Tailwind-Vorschau in der Library, gerendert im sandboxed `<iframe sandbox="allow-scripts">` (kein same-origin), gelbe Pille „von KI interpretiert", Code-Bereich zeigt das `jsx`, Retry bei Fehler. Ein Vision-Call pro Import. Alles mit `DEMO_FALLBACK=1` (Credits LEER).
 - **Subagent-Muster hat sich bezahlt gemacht** — die Reviews + der Browser-Smoke fingen **3 echte Bugs** (alle plan-vererbt): Bild-Leak/Hang im scan DEMO-Fallback (`35d18de`), Prozess-Crash im interpret DEMO-Fallback (`b4ad5f1`), und — nur end-to-end sichtbar — eine **Interpret-Endlosschleife** durch instabile `onImported`-Referenz im ImportModal-useEffect (`a57f0d4`). Plus StrictMode-Doppel-POST beim Retry (`d2e6812`) und XSS-Sanitizer-Härtung (`a377219`).
 - **Offene Feinschliff-Kandidaten (NICHT blockierend, bewusst nicht im Slice gefixt):** (1) Retry ist Batch-weit statt pro-Baustein (Slice-1-Absicht); (2) „generischer Stub"-Chip zeigt sich gleichzeitig mit „Wird interpretiert …"/Fehlerzeile (optisch doppelt); (3) Stale-Closure-Race bei überlappenden Importen (schmales Fenster). Alle drei als Fast-Follow dokumentiert.
