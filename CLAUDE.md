@@ -23,6 +23,7 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 
 ## Working style the user expects
 
+- **Analyze every task and pick the model deliberately.** Before starting a task (or dispatching subagents), assess its complexity and choose the model tier accordingly — and **always tell Rob which model you'll use and why** (one short line, e.g. "Implementer läuft auf Sonnet — mechanischer Task mit fertigem Spec-Code"). Rule of thumb: mechanical/well-specified implementation & reviews → Sonnet; architecture, design decisions, tricky debugging, final reviews → Opus/Fable; trivial lookups → Haiku.
 - **One question at a time** during exploration. Multiple choice when possible.
 - **Visual mockups in the brainstorm browser companion** for any UI question. Text-only design descriptions do not work for this user.
 - **Plan first, implement second.** Spec under `docs/superpowers/specs/`, plan under `docs/superpowers/plans/`, then code.
