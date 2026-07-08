@@ -24,9 +24,10 @@ function fakeClient(responseObj) {
   };
 }
 
-const COMPONENTS = [
-  { name: 'Stat Card', kind: 'component', variants: [], notes: '' },
-  { name: 'Data Table', kind: 'component', variants: [], notes: '' },
+// Segmente ohne eigenen Crop (visual: null) → Fallback aufs Vollbild.
+const SEGMENTS = [
+  { id: 'seg_0', label: 'Stat Card', kind: 'component', bounds: null, visual: null, structure: null },
+  { id: 'seg_1', label: 'Data Table', kind: 'component', bounds: null, visual: null, structure: null },
 ];
 
 test('liefert Interpretationen für angefragte Bausteine', async () => {
@@ -36,23 +37,25 @@ test('liefert Interpretationen für angefragte Bausteine', async () => {
       { name: 'Data Table', html: '<table class="w-full"><tr><td>Zeile</td></tr></table>', jsx: 'export function DataTable() { return null; }' },
     ],
   });
-  const res = await interpretComponents(tmpImage(), 'image/png', COMPONENTS, { client });
+  const res = await interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client });
   assert.equal(res.interpretations.length, 2);
   assert.deepEqual(res.failed, []);
   assert.equal(res.interpretations[0].name, 'Stat Card');
   assert.match(res.interpretations[0].html, /rounded-lg/);
 });
 
-test('EIN Call: Bild als base64-Block + Prompt enthält Baustein-Namen', async () => {
+test('EIN Call: Bild als base64-Block (Fallback) + Prompt enthält Baustein-Namen', async () => {
   const client = fakeClient({ interpretations: [] });
-  await interpretComponents(tmpImage(), 'image/png', COMPONENTS, { client });
+  await interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client });
   assert.equal(client.calls.length, 1);
   const content = client.calls[0].messages[0].content;
-  assert.equal(content[0].type, 'image');
-  assert.equal(content[0].source.media_type, 'image/png');
-  assert.ok(content[0].source.data.length > 0);
-  assert.match(content[1].text, /Stat Card/);
-  assert.match(content[1].text, /Data Table/);
+  const imageBlocks = content.filter((b) => b.type === 'image');
+  assert.equal(imageBlocks.length, 1); // Segmente ohne visual → EIN Vollbild als Fallback-Grounding
+  assert.equal(imageBlocks[0].source.media_type, 'image/png');
+  assert.ok(imageBlocks[0].source.data.length > 0);
+  const text = content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  assert.match(text, /Stat Card/);
+  assert.match(text, /Data Table/);
 });
 
 test('fehlender oder leerer Baustein landet in failed, Rest liefert', async () => {
@@ -62,7 +65,7 @@ test('fehlender oder leerer Baustein landet in failed, Rest liefert', async () =
       { name: 'Data Table', html: '   ', jsx: 'x' }, // leer nach trim → failed
     ],
   });
-  const res = await interpretComponents(tmpImage(), 'image/png', COMPONENTS, { client });
+  const res = await interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client });
   assert.equal(res.interpretations.length, 1);
   assert.deepEqual(res.failed, ['Data Table']);
 });
@@ -79,7 +82,7 @@ test('script-Tags und on*-Attribute werden gestrippt', () => {
 test('ungültiges JSON von Claude wirft verständlichen Fehler', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: 'Sorry, kann ich nicht.' }] }) } };
   await assert.rejects(
-    () => interpretComponents(tmpImage(), 'image/png', COMPONENTS, { client }),
+    () => interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client }),
     /invalid JSON/
   );
 });
@@ -106,9 +109,47 @@ test('Namens-Matching toleriert umgebende Leerzeichen', async () => {
   const res = await interpretComponents(
     tmpImage(),
     'image/png',
-    [{ name: 'Stat Card', kind: 'component', variants: [], notes: '' }],
+    [{ id: 'seg_0', label: 'Stat Card', kind: 'component', bounds: null, visual: null, structure: null }],
     { client }
   );
   assert.equal(res.interpretations.length, 1);
   assert.equal(res.interpretations[0].name, 'Stat Card');
+});
+
+test('sends one image block per segment-with-visual and labels them', async () => {
+  let captured;
+  const fakeClient = { messages: { create: async (args) => {
+    captured = args;
+    return { content: [{ text: JSON.stringify({ interpretations: [
+      { name: 'Stat Card', html: '<div class="p-4">42</div>', jsx: 'export function StatCard(){return null}' },
+      { name: 'Line Chart Card', html: '<div class="p-4">chart</div>', jsx: 'export function LineChartCard(){return null}' },
+    ] }) }] };
+  } } };
+  const segments = [
+    { id: 'seg_0', label: 'Stat Card', kind: 'component', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
+    { id: 'seg_1', label: 'Line Chart Card', kind: 'component', bounds: {x:0.2,y:0,w:0.3,h:0.3}, visual: { base64: 'BBBB', media_type: 'image/png' }, structure: null },
+  ];
+  const res = await interpretComponents('/nonexistent-full.png', 'image/png', segments, { client: fakeClient });
+
+  const imageBlocks = captured.messages[0].content.filter((b) => b.type === 'image');
+  assert.equal(imageBlocks.length, 2); // ein Crop je Segment, kein Voll-Bild nötig
+  const text = captured.messages[0].content.filter((b)=>b.type==='text').map((b)=>b.text).join('\n');
+  assert.match(text, /Stat Card/);
+  assert.match(text, /Line Chart Card/);
+  assert.equal(res.interpretations.length, 2);
+  assert.equal(res.failed.length, 0);
+});
+
+test('segment without visual falls back to the full image', async () => {
+  const fs = await import('fs'); const os = await import('os'); const path = await import('path');
+  const full = path.join(os.tmpdir(), `db-full-${Math.random().toString(36).slice(2)}.png`);
+  fs.writeFileSync(full, Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6360000002000154a24f0d0000000049454e44ae426082','hex'));
+  let captured;
+  const fakeClient = { messages: { create: async (args) => { captured = args; return { content:[{text: JSON.stringify({ interpretations:[{name:'Mystery', html:'<div>x</div>', jsx:'export function Mystery(){return null}'}] })}] }; } } };
+  const segments = [{ id:'seg_0', label:'Mystery', kind:'component', bounds:null, visual:null, structure:null }];
+  const res = await interpretComponents(full, 'image/png', segments, { client: fakeClient });
+  fs.unlinkSync(full);
+  const imageBlocks = captured.messages[0].content.filter((b)=>b.type==='image');
+  assert.equal(imageBlocks.length, 1); // Voll-Bild als Fallback-Grounding
+  assert.equal(res.interpretations[0].name, 'Mystery');
 });
