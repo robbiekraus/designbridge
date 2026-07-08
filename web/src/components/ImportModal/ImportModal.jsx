@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ImportModalShell from './ImportModalShell.jsx';
 import ImportProgress from './ImportProgress.jsx';
 import ImportSuccess from './ImportSuccess.jsx';
@@ -19,8 +19,14 @@ export default function ImportModal({ open, onClose, onImported, onOpenLibrary }
   const [activeTab, setActiveTab] = useState('image');
   const { stage, result, error, submit, reset } = useImportSession();
 
+  // Jedes erfolgreiche Import-Ergebnis GENAU EINMAL nach oben melden — auch wenn
+  // der Parent bei jedem Render eine neue onImported-Referenz übergibt. Ohne diese
+  // Guard feuerte der Effekt bei jedem Re-Render erneut; seit handleImported ein
+  // neues Result-Objekt erzeugt (interpretPending), führte das zur Endlosschleife.
+  const emittedFor = useRef(null);
   useEffect(() => {
-    if (stage === 'success' && result) {
+    if (stage === 'success' && result && emittedFor.current !== result) {
+      emittedFor.current = result;
       try { localStorage.setItem('designbridge.hasImported', '1'); } catch {}
       onImported?.(result);
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ImportModal from './ImportModal.jsx';
 
@@ -56,5 +56,33 @@ describe('ImportModal', () => {
     expect(await screen.findByText(/Extracting tokens/i, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(await screen.findByText(/Extracted from url/i, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(screen.getByText('Colors')).toBeInTheDocument();
+  }, 5000);
+
+  it('meldet ein Ergebnis nur EINMAL, auch bei neuer onImported-Referenz (kein Loop)', async () => {
+    global.fetch.mockImplementation(async () => ({
+      ok: true,
+      json: async () => ({
+        tokens: { colors: [{ hex: '#fff', confidence: 'high' }], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atomics: [], components: [], patterns: [],
+      }),
+    }));
+
+    const onImported = vi.fn();
+    const user = userEvent.setup();
+    const { rerender } = render(<ImportModal open={true} onClose={() => {}} onImported={onImported} />);
+    await user.click(screen.getByRole('button', { name: /^URL/ }));
+    await user.type(screen.getByPlaceholderText('https://example.com'), 'https://acme.com');
+    await user.click(screen.getByRole('button', { name: /^Import$/ }));
+
+    await waitFor(() => expect(onImported).toHaveBeenCalledTimes(1));
+
+    // Parent re-rendert mit NEUER Callback-Referenz (wie App bei jedem Render):
+    // darf das bereits gemeldete Ergebnis NICHT erneut hochmelden.
+    const onImported2 = vi.fn();
+    rerender(<ImportModal open={true} onClose={() => {}} onImported={onImported2} />);
+    rerender(<ImportModal open={true} onClose={() => {}} onImported={vi.fn()} />);
+
+    expect(onImported).toHaveBeenCalledTimes(1);
+    expect(onImported2).not.toHaveBeenCalled();
   }, 5000);
 });
