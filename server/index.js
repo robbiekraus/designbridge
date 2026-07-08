@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import scanRouter from './routes/scan.js';
 import figmaExportRouter from './routes/figmaExport.js';
+import interpretRouter from './routes/interpret.js';
 
 const app = express();
 const PORT = process.env.PORT || 3047;
@@ -27,6 +28,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/scan', scanRouter);
 app.use('/api/figma-export', figmaExportRouter);
+app.use('/api/interpret', interpretRouter);
 
 app.listen(PORT, () => {
   console.log(`\n🌉 Designbridge server running on http://localhost:${PORT}`);
