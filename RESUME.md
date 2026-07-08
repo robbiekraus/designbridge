@@ -1,64 +1,39 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **07.07.2026** — **Phase 5 (Figma-Emitter v1 = Schreib-Richtung) KOMPLETT VERIFIZIERT inkl. manuellem Figma-Test.** Rob hat live bestätigt: Auto-Fetch-Weg (Web → Server → Plugin) schreibt Styles nach Figma — „Fertig — 16 Farben aktualisiert, 5 Textstile aktualisiert" (Create-or-Update-Pfad damit gleich mitbewiesen).
+Stand: **08.07.2026** — **Phase 5.2 (Figma-Emitter v2: Components/Patterns → echte Figma-Komponenten) IN ARBEIT auf Branch `feat/figma-emitter-v2`. Tasks 1–9 fertig, Task 10 ist der Wiedereinstieg.**
 
-## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: `git push` (Robs OK einholen, falls nicht schon am 07.07. passiert)
-`main` ist **5 Commits vor `origin`** (alle lokal, kein Push ohne Robs OK):
-- `3b130a6` Phase 5 Figma-Emitter v1 (Web + Plugin + Auto-Fetch)
-- `3667d59` RESUME-Update
-- `3cce4c2` **Plugin-Typecheck-Fix** (tsconfig typeRoots/lib + 3 vorbestehende Typfehler + `npm run typecheck`-Script) — der „vorbestehende Config-Fund" aus der letzten RESUME ist damit ERLEDIGT
-- `b1d897f` Manifest-Fix: `127.0.0.1` aus `allowedDomains` (Figma lehnt IP-URLs ab; nur `http://localhost:3047` bleibt)
-- (+ dieses RESUME-Update)
+## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Task 10 bauen (subagent-getrieben weiter)
+- Branch **`feat/figma-emitter-v2` auschecken** (nicht main). 16 Commits vor origin, alles LOKAL/ungepusht.
+- Ausführungs-Skill: **`superpowers:subagent-driven-development`** (so lief die ganze Umsetzung: pro Task 1 Implementer-Subagent → Spec-Review → Quality-Review; Reviews haben real Bugs gefangen, beibehalten).
+- **Plan mit vollem Task-Text (Tasks 10–12 wörtlich drin):** `docs/superpowers/plans/2026-07-07-figma-emitter-v2-components.md`. Task 10 = `designbridge-plugin/src/writer/upsertPage.ts` (Seite „🌉 DesignBridge" mit 3 Auto-Layout-Sektionen `DB/Atomics|Components|Patterns`, `upsertPage()` + `layoutSections()`, Re-Import per Name). Der komplette Code steht im Plan.
+- **Modell-Hinweis:** Implementer/Reviewer liefen auf **Sonnet** (`model: 'sonnet'` im Agent-Call) — schnell & ausreichend. Als Opus kurz down war, schlug der Agent-Dispatch fehl (Klassifizierer) — dann einfach erneut versuchen.
 
-## Danach zur Wahl (Design-geformt → Briefing-Regel beachten!)
-- **Phase 5.2:** Components/Patterns → Figma-Nodes
-- **oder:** Radius/Spacing/Shadows → Figma-Variables
-- **oder:** Figma-Ingester v1 (Lese-Richtung) — Spec liegt (`2026-07-03-figma-ingester-v1-design.md`), **Plan fehlt noch**
+## Was passierte (Task 10) — kein Schaden
+Der Agent-Dispatch für Task 10 schlug fehl, WEIL `claude-opus-4-8` temporär nicht erreichbar war (Safety-Klassifizierer konnte nicht prüfen). Es wurde **nichts geschrieben**, `upsertPage.ts` existiert nicht, Working Tree sauber. Einfach Task 10 neu starten.
 
-## Erkenntnisse aus dem manuellen Test (07.07.)
-- **API-Credits leer** (gleiche Lage wie Demo 24.06.) → Bild-Import lief über `DEMO_FALLBACK=1` (env beim Serverstart, `.env` steht weiter auf 0). Für echte Vision-Scans: console.anthropic.com → Plans & Billing aufladen.
-- **Figma verliert Dev-Plugin-Pfade auf externen Volumes** → Lösung: „Fehlendes Manifest suchen" → `designbridge-plugin/manifest.json` neu wählen.
-- **Figma lehnt `http://127.0.0.1:…` in `allowedDomains` ab** (nur `localhost` ist als http-Ausnahme gültig) → gefixt in `b1d897f`.
+## Fertig & committet auf `feat/figma-emitter-v2` (Tasks 1–9)
+**Web (Suite 127/127 grün):** `pickTokenRefs.js` (Token-Slots mit Namen für Style-Verknüpfung) · `planHelpers.js` + `planFor` in allen 4 Templates (button/card/badge/input — Figma-Bauplan neben `styleFor`) · `emitFigmaComponents.js` (Inventar → `components[]`) · `emitFigma.js` v2 (`version:2` + `components` im Umschlag) + `buildExports`-Verdrahtung + Test-Schutz · Export.jsx Hinweistext.
+**Plugin (typecheck 0 Fehler + esbuild sauber; via `npm run typecheck` im Plugin-Ordner):** `parsePayload.ts` v2 (Bauplan-Typen `ColorRef/PlanBox/PlanText/PlanNode/ImportVariant/ImportComponent`, lenientes Parsen, v1-tolerant) · `renderPlan.ts` (generischer `PlanBox`→FrameNode-Zeichner, Style-Verknüpfung `DesignBridge/Color/<token>` mit Hex-Fallback, Frame-Self-Cleanup bei Fehler) · `buildComponents.ts` (`combineAsVariants`→Component Sets, Platzhalter-Komponenten mit gelbem Badge, Upsert per Name, alle Waisen-Löcher geschlossen) · `ImportSummary` +componentsCreated/Updated/placeholders.
+**Letzter Commit:** `40f7d30`.
 
-## ✅ Schreibrichtung-Architektur ENTSCHIEDEN (06.07. abends)
-Verifiziert + live bewiesen (Figma-Datei `fE1iyfh3nACMao43RnUJY6`, plugin-frei via Figma-MCP). ABER: App-als-MCP-Client (`mcp:connect`) ist Dritt-Apps verwehrt — der Live-Beweis lief nur, weil Claude Code ein freigegebener Client ist. **Rob-Entscheidung = Weg A festschreiben + Plugin als Fallback behalten.**
-- **Weg A (plugin-frei, empfohlen):** Nutzer schreibt via freigegebenem MCP-Client (Claude/Cursor/Figma-Agent) mit `emitFigma`-Export als Input.
-- **Weg B (Plugin, gebaut & jetzt E2E-verifiziert):** universeller app-naher Fallback.
-- Anleitung: [docs/figma-schreiben-anleitung.md](docs/figma-schreiben-anleitung.md) · Architektur: `docs/superpowers/specs/2026-07-06-figma-write-architecture-decision.md`
-- Beobachten: öffnet Figma `mcp:connect` für Dritte → In-App-MCP-Weg (Option D) bauen, Plugin ablösen.
+## Architektur (entschieden im Brainstorm 08.07., Spec + Plan committet)
+- Spec: `docs/superpowers/specs/2026-07-07-figma-emitter-v2-components-design.md`
+- **Ansatz „dummes Plugin":** App berechnet aus den `planFor`-Rezepten einen neutralen Bauplan (nur `box`+`text`, Farben als `{token,hex}`), Plugin zeichnet nur noch → Template-Wissen lebt EINMAL (in der App). Das ist Robs Kernanforderung „eine Wahrheit, zwei Repos" zu Ende gedacht: HTML-Vorschau, shadcn-Code und Figma-Nodes aus derselben Quelle.
+- Entscheidungen: echte Component Sets mit Varianten · eigene Seite „🌉 DesignBridge" als Sticker-Sheet · Bausteine ohne Template = beschriftete Platzhalter · Farben verknüpft mit Phase-5-Styles · Auto-Fetch-Transport wie Phase 5 · Re-Import per Name (keine Duplikate).
+- Scope-Grenze v2: keine neuen Templates, keine Radius/Spacing/Shadow-Variables, kein Zurücklesen aus Figma.
 
-## Wo wir im Gesamtbild stehen (die Brücke)
-- **REIN/lesen (Ingester):** Bild ✅ · URL ✅ (+Komponenten-Erkennung) · Repo ✅ · **Figma lesen ⏳ (nur gespec't)**
-- **RAUS/schreiben (Emitter):** Code CSS/Tailwind ✅ · shadcn-Components ✅ · **nach Figma: Tokens (Farben+Typo) ✅ E2E-VERIFIZIERT 07.07. · Components/Patterns → Nodes ❌ (Phase 5.2) · Variables/Radius/Spacing/Shadows ❌**
-- **Sync/Round-Trip (Phase 6):** ❌
+## Nach Task 12: Robs manueller Figma-Test (wie Phase 5)
+Backend `PORT=3047 node server/index.js` (bei leeren API-Credits `DEMO_FALLBACK=1` davor — Credits sind LEER) + `cd web && npm run dev`. Bild importieren → Library → **Export** (Sidebar unten) → Format „Nach Figma (Plugin)" → **„An Figma senden"**. Figma: Plugin **DesignBridge** (Plugins → Development; bei „Fehlendes Manifest" → `designbridge-plugin/manifest.json` neu wählen) → Karte „Code → Figma" → **„Aus DesignBridge übernehmen"**. Erwartung v2: Seite „🌉 DesignBridge" mit Button-Component-Set (Varianten-Dropdown), Card/Badge/Input, Platzhalter-Karten; Farben zeigen Style-Verknüpfung.
 
-## App starten (Server + Web)
-```
-npm run dev
-```
-→ Backend http://localhost:3047, Frontend http://localhost:5173. Nur EINE Instanz.
+## Phase 5 (Vorgänger) — FERTIG, E2E-verifiziert 07.07., GEPUSHT
+Tokens (Farben+Typo) → Figma Paint/Text-Styles via Plugin + Auto-Fetch. Robs Test war grün (16 Farben, 5 Textstile). Plus Plugin-Typecheck-Fix (`npm run typecheck` existiert jetzt, `.bin/tsc` ist kaputt → Script nutzt node direkt) + Manifest-Fix (Figma verbietet `127.0.0.1` in `allowedDomains`, nur `localhost`). `origin/main` ist auf diesem Stand.
 
-**⚠️ Zuverlässiger** (PORT-Injection-Falle bei `npm run dev`): Backend separat `PORT=3047 node server/index.js`, Vite parallel (`cd web && npm run dev`), Proxy `/api → :3047` greift.
-
-## Tests & Checks
-```
-npm run test:server                          # 77/77
-cd web && npx vitest run                     # 106/106
-cd designbridge-plugin && npm run build      # esbuild, „Build complete."
-cd designbridge-plugin && npm run typecheck  # NEU: tsc --noEmit, 0 Fehler
-```
-(`npx tsc` direkt geht nicht — `.bin/tsc`-Wrapper ist kaputt, deshalb das npm-Script via node.)
-
-## Figma-Test-Ablauf (funktionierend, als Referenz)
-1. Backend + Web starten (s. o.; bei leeren Credits `DEMO_FALLBACK=1` vor `node server/index.js`).
-2. Web :5173 → Bild importieren → Library → **Export** (Sidebar unten) → Format „Nach Figma (Plugin)" → **„An Figma senden"**.
-3. Figma: Plugins → Development → **DesignBridge** → Karte „Code → Figma" → **„Aus DesignBridge übernehmen"**.
-4. Ergebnis: Local Styles `DesignBridge/Color/*` + `DesignBridge/Text/*`, Statuszeile „Fertig — …".
-   - Fallback ohne Server: JSON manuell einfügen → „In Figma schreiben".
+## App starten / Tests
+- `npm run dev` → Backend :3047 + Web :5173 (ODER zuverlässiger: Backend separat `PORT=3047 node server/index.js`, Vite parallel — `npm run dev` injiziert PORT unsauber).
+- `npm run test:server` (77/77) · `cd web && npx vitest run` (127/127) · `cd designbridge-plugin && npm run typecheck && npm run build`.
 
 ## Wichtige Dateien
-- Figma-Emitter: `web/src/lib/emit/emitFigma.js`; `designbridge-plugin/src/writer/{parsePayload,applyImport}.ts`
-- Auto-Fetch: `server/lib/figmaExportStore.js`, `server/routes/figmaExport.js`; Plugin `src/ui.ts` (`DESIGNBRIDGE_URL`)
-- Plugin-Hebel: `designbridge-plugin/` (`src/main.ts` message-routing, `src/ui.html`/`ui.ts` Panel)
-- Figma-Lese-Spec (später für Sync): `docs/superpowers/specs/2026-07-03-figma-ingester-v1-design.md`
+- Web-Emitter v2: `web/src/lib/emit/{emitFigma,emitFigmaComponents,pickTokenRefs}.js` + `web/src/lib/components/templates/{planHelpers.js, *.js planFor}`
+- Plugin-Writer: `designbridge-plugin/src/writer/{parsePayload,renderPlan,buildComponents,applyImport}.ts` (+ `upsertPage.ts` = Task 10, fehlt noch), Verdrahtung folgt in `src/main.ts`/`src/ui.ts` (Task 11)
+- Spec/Plan: `docs/superpowers/specs/2026-07-07-figma-emitter-v2-components-design.md` · `docs/superpowers/plans/2026-07-07-figma-emitter-v2-components.md`
 - Arbeitsregeln: `CLAUDE.md`
