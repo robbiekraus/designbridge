@@ -9,6 +9,7 @@ import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
+import { componentsNeedingInterpretation, runInterpretation } from './lib/interpret.js';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -31,8 +32,20 @@ export default function App() {
   }, []);
 
   const handleImported = (result) => {
-    saveLastImport(result);
-    setLastImport(result);
+    const todo = componentsNeedingInterpretation(result);
+    const initial = result.source === 'image' && todo.length > 0
+      ? { ...result, interpretPending: true }
+      : result;
+    saveLastImport(initial);
+    setLastImport(initial);
+    if (initial.interpretPending) {
+      runInterpretation(initial).then((next) => {
+        if (next) {
+          saveLastImport(next);
+          setLastImport(next);
+        }
+      });
+    }
   };
 
   const handleDeepened = (result) => {
@@ -40,13 +53,27 @@ export default function App() {
     setLastImport(result);
   };
 
+  const handleRetryInterpret = () => {
+    setLastImport((prev) => {
+      const pending = { ...prev, interpretPending: true, interpretError: null, interpretFailed: [] };
+      saveLastImport(pending);
+      runInterpretation(pending).then((next) => {
+        if (next) {
+          saveLastImport(next);
+          setLastImport(next);
+        }
+      });
+      return pending;
+    });
+  };
+
   const renderPage = () => {
     if (!lastImport) return <EmptyState onNewImport={() => setModalOpen(true)} />;
     switch (page) {
       case 'Tokens': return <Tokens result={lastImport} />;
-      case 'Atomics': return <Atomics result={lastImport} />;
-      case 'Components': return <Components result={lastImport} />;
-      case 'Patterns': return <Patterns result={lastImport} />;
+      case 'Atomics': return <Atomics result={lastImport} onRetryInterpret={handleRetryInterpret} />;
+      case 'Components': return <Components result={lastImport} onRetryInterpret={handleRetryInterpret} />;
+      case 'Patterns': return <Patterns result={lastImport} onRetryInterpret={handleRetryInterpret} />;
       case 'Export': return <Export result={lastImport} />;
       case 'Dashboard':
       default: return <Dashboard result={lastImport} />;
