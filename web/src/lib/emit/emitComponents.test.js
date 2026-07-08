@@ -107,4 +107,24 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.interpretedHtml).toBeNull();
     expect(item.interpretPending).toBe(false);
   });
+
+  it('failed hat Vorrang vor pending (failed-Liste + interpretPending gleichzeitig)', () => {
+    const result = { raw: baseRaw, interpretFailed: ['Avatar'], interpretPending: true };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretFailed).toBe(true);
+    expect(item.interpretPending).toBe(false);
+  });
+
+  it('vorhandene Interpretation schlägt stale failed/pending (kein failed/pending trotz Listeneintrag)', () => {
+    const result = {
+      raw: baseRaw,
+      interpretations: { Avatar: { html: '<div>A</div>', jsx: 'export function Avatar(){return null;}' } },
+      interpretFailed: ['Avatar'],
+      interpretPending: true,
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedHtml).toBe('<div>A</div>');
+    expect(item.interpretFailed).toBe(false);
+    expect(item.interpretPending).toBe(false);
+  });
 });

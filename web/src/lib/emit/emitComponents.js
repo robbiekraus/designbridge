@@ -46,6 +46,8 @@ export function emitComponents(result, kind) {
       const slug = slugify(item.name) || 'component';
       const pascal = toPascal(slug) || 'Component';
       const interp = !tpl ? (result?.interpretations?.[item.name] ?? null) : null;
+      const unresolved = !tpl && !interp;
+      const failedListed = (result?.interpretFailed ?? []).includes(item.name);
       out.push({
         name: item.name,
         slug,
@@ -61,10 +63,8 @@ export function emitComponents(result, kind) {
         notes: item.notes ?? null,
         hasPreview: Boolean(tpl),
         interpretedHtml: interp?.html ?? null,
-        interpretFailed: !tpl && !interp && (result?.interpretFailed ?? []).includes(item.name),
-        interpretPending: !tpl && !interp
-          && !(result?.interpretFailed ?? []).includes(item.name)
-          && Boolean(result?.interpretPending),
+        interpretFailed: unresolved && failedListed,
+        interpretPending: unresolved && !failedListed && Boolean(result?.interpretPending),
       });
     }
   }
