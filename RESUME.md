@@ -1,6 +1,15 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **08.07.2026** — **„Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT** auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün, im Browser end-to-end verifiziert. Feature-Branch `feat/visual-interpretation-v1` existiert noch lokal (redundant, kann irgendwann gelöscht werden — Löschen nur mit Robs OK).
+Stand: **08.07.2026 (spät)** — **Kurskorrektur: NICHT Figma-Export, sondern Interpretations-QUALITÄT.** Rob hat gesehen, dass die KI-Interpretation „fahrig" ist (Stat Card ≈ Line Chart Card, beide nicht getroffen; Donut näher dran). Ursache am Code verifiziert = **zwei Lecks**: (1) **Routing** — Template-Gate `/card|tile|panel/` kapert inhaltstragende Karten auf ein generisches Card-Template, bevor die KI sie sieht; (2) **Grounding** — Interpret bekommt nur das GANZE Bild + Namen, keinen Ausschnitt. Robs Kern-Einsicht: **erst die Quelle in abgegrenzte Einzelteile zerlegen, dann interpretieren.**
+
+**Neuer Plan (im Brainstorm 08.07. mit Rob freigegeben, Option C „saubere Architektur"):** quellen-agnostische **Decompose-Stufe** (ein `Segment`-Contract + `Decomposer`-Interface; Bild jetzt, URL später), 3 Scheiben: ① Bild-Zerlegung (diese Session) → ② URL/DOM → ③ Figma-Export + Design-System heben.
+
+**⏳ LÄUFT GERADE: Autarker Nacht-Bau von Scheibe ① (subagent-getrieben).** Spec `docs/superpowers/specs/2026-07-08-source-decomposition-design.md`, Plan `docs/superpowers/plans/2026-07-08-source-decomposition-slice1-image.md` (beide auf `main` committet: `346f41a`, `b352938`). Branch: `feat/source-decomposition-slice1`. Modell: Implementer/Review = Sonnet, Koordination/Abnahme = Opus.
+
+⚠️ **CREDITS-VORBEHALT:** API-Credits leer → alles wird gebaut + unit-getestet (Fake-Clients) + Demo-Fixture, aber die **reale Live-Treffsicherheit an einem echten Screenshot ist erst mit aufgefüllten Credits verifizierbar** (offen für Robs Morgen-Review). `jimp@0.22.12` gepinnt fürs Croppen.
+
+---
+## Alter Stand (Referenz): „Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün. Feature-Branch `feat/visual-interpretation-v1` lokal (redundant).
 
 ## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Richtung mit Rob bestätigen, dann bauen
 - **Slice 1 ist live.** `npm run dev:demo` starten (Backend mit `DEMO_FALLBACK=1` + Web), http://localhost:5173, Bild importieren → KI-Vorschauen in der Library. ⚠️ Ohne laufendes Backend schlägt der Import fehl (das war der „Try again geht nicht"-Fehler am 08.07.).
