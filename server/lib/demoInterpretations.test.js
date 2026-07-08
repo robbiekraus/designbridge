@@ -37,3 +37,10 @@ test('deckt die Nicht-Template-Bausteine der Demo-Dashboard-Fixture ab', () => {
     assert.ok(names.has(required), `fehlt: ${required}`);
   }
 });
+
+test('fixture covers newly-routed content cards distinctly', () => {
+  const all = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
+  const byName = Object.fromEntries(all.map((i) => [i.name, i]));
+  assert.ok(byName['Stat Card'] && byName['Line Chart Card']);
+  assert.notEqual(byName['Stat Card'].html, byName['Line Chart Card'].html);
+});

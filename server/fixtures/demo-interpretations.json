@@ -58,5 +58,15 @@
     "name": "Sidebar + Content Shell",
     "html": "<div class=\"flex gap-3 w-80\"><div class=\"w-20 rounded-lg border border-[#E9ECEF] bg-[#F8F9FA] h-32\"></div><div class=\"flex-1 space-y-2\"><div class=\"h-8 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"h-20 rounded-lg border border-[#E9ECEF] bg-white\"></div></div></div>",
     "jsx": "export function SidebarContentShell({ sidebar, children }) {\n  return (\n    <div className=\"flex gap-3\">\n      <div className=\"w-56 shrink-0\">{sidebar}</div>\n      <div className=\"flex-1 space-y-3\">{children}</div>\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Stat Card",
+    "html": "<div class=\"rounded-xl border border-[#e5e7eb] bg-white p-4 w-56\"><p class=\"text-xs text-[#6b7280]\">Total Sales</p><p class=\"mt-1 text-2xl font-semibold text-[#111827]\">$12,480</p><p class=\"mt-1 text-xs text-[#16a34a]\">+8.2% vs last week</p></div>",
+    "jsx": "export function StatCard(){return (<div className=\"rounded-xl border bg-white p-4 w-56\"><p className=\"text-xs text-muted-foreground\">Total Sales</p><p className=\"mt-1 text-2xl font-semibold\">$12,480</p><p className=\"mt-1 text-xs text-green-600\">+8.2% vs last week</p></div>);}"
+  },
+  {
+    "name": "Line Chart Card",
+    "html": "<div class=\"rounded-xl border border-[#e5e7eb] bg-white p-4 w-80\"><p class=\"text-sm font-medium text-[#111827]\">Income Details</p><svg viewBox=\"0 0 300 120\" class=\"mt-2 w-full h-28\"><polyline fill=\"none\" stroke=\"#4263EB\" stroke-width=\"3\" points=\"0,90 50,70 100,80 150,40 200,55 250,20 300,35\"/></svg></div>",
+    "jsx": "export function LineChartCard(){return (<div className=\"rounded-xl border bg-white p-4 w-80\"><p className=\"text-sm font-medium\">Income Details</p><svg viewBox=\"0 0 300 120\" className=\"mt-2 w-full h-28\"><polyline fill=\"none\" stroke=\"#4263EB\" strokeWidth=\"3\" points=\"0,90 50,70 100,80 150,40 200,55 250,20 300,35\"/></svg></div>);}"
   }
 ]
