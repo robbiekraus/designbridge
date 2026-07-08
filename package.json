@@ -9,7 +9,7 @@
     "server": "node --watch server/index.js",
     "web": "cd web && npm run dev",
     "install:all": "npm install && cd web && npm install",
-    "test:server": "node --test 'server/lib/*.test.js'"
+    "test:server": "node --test 'server/**/*.test.js'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
