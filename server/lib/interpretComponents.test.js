@@ -83,3 +83,32 @@ test('ungültiges JSON von Claude wirft verständlichen Fehler', async () => {
     /invalid JSON/
   );
 });
+
+test('sanitizeHtml entfernt iframe, object, embed, base und meta-refresh', () => {
+  const dirty = '<div><iframe src="x"></iframe><object data="data:text/html;base64,PHNjcmlwdD4="></object><embed src="x"><base href="//evil"><meta http-equiv="refresh" content="0;url=//evil">Keep</div>';
+  const clean = sanitizeHtml(dirty);
+  assert.doesNotMatch(clean, /<iframe/i);
+  assert.doesNotMatch(clean, /<object/i);
+  assert.doesNotMatch(clean, /<embed/i);
+  assert.doesNotMatch(clean, /<base/i);
+  assert.doesNotMatch(clean, /http-equiv/i);
+  assert.match(clean, /Keep/);
+});
+
+test('sanitizeHtml entfernt javascript: URIs in href/src', () => {
+  const dirty = `<a href="javascript:evil()">x</a><img src='javascript:evil()'><a href=javascript:evil()>y</a>`;
+  const clean = sanitizeHtml(dirty);
+  assert.doesNotMatch(clean, /javascript:/i);
+});
+
+test('Namens-Matching toleriert umgebende Leerzeichen', async () => {
+  const client = { messages: { create: async () => ({ content: [{ text: JSON.stringify({ interpretations: [{ name: '  Stat Card  ', html: '<div class="p-2">ok</div>', jsx: '' }] }) }] }) } };
+  const res = await interpretComponents(
+    tmpImage(),
+    'image/png',
+    [{ name: 'Stat Card', kind: 'component', variants: [], notes: '' }],
+    { client }
+  );
+  assert.equal(res.interpretations.length, 1);
+  assert.equal(res.interpretations[0].name, 'Stat Card');
+});

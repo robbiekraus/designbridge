@@ -12,7 +12,14 @@ export function sanitizeHtml(html) {
     .replace(/<script\b[^>]*>/gi, '')
     .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
     .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '');
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    // Gefährliche Elemente ganz entfernen (Defense-in-Depth zum iframe-Sandbox)
+    .replace(/<\/?(?:iframe|object|embed|base)\b[^>]*>/gi, '')
+    .replace(/<meta\b[^>]*http-equiv[^>]*>/gi, '')
+    // javascript:-URIs in navigierbaren Attributen entfernen
+    .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi, '')
+    .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi, '')
+    .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*javascript:[^\s>]*/gi, '');
 }
 
 function buildPrompt(components) {
@@ -58,11 +65,11 @@ export async function interpretComponents(imagePath, mimetype, components, { cli
   } catch {
     throw new Error(`Claude returned invalid JSON. Raw: ${text.slice(0, 300)}`);
   }
-  const byName = new Map((parsed.interpretations ?? []).map((i) => [i.name, i]));
+  const byName = new Map((parsed.interpretations ?? []).map((i) => [String(i.name ?? '').trim(), i]));
   const interpretations = [];
   const failed = [];
   for (const comp of components) {
-    const it = byName.get(comp.name);
+    const it = byName.get(comp.name.trim());
     const html = sanitizeHtml(it?.html);
     if (!it || !html.trim()) {
       failed.push(comp.name);
