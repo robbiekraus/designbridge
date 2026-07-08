@@ -1,14 +1,15 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **08.07.2026** — **Phase 5.2 (Tokens+Templates→Figma) GEMERGT & GEPUSHT.** Neuer Zielpunkt gebrainstormt, gespec't und geplant: **„Visuelle Interpretation Slice 1" — KI-Referenz je Baustein in der Library (Bild-Quelle).** Spec + Plan committet (lokal auf `main`, ungepusht). **Wiedereinstieg = subagent-getriebene Umsetzung des Plans ab Task 0.**
+Stand: **08.07.2026** — **„Visuelle Interpretation Slice 1" KOMPLETT GEBAUT & BROWSER-VERIFIZIERT** auf Branch `feat/visual-interpretation-v1` (16 Commits, **ungepusht, nicht gemergt** — wartet auf Robs OK). Server 93/93 + Web 152/152 grün. Vorgänger Phase 5.2 ist auf `origin/main`.
 
-## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Slice 1 bauen (subagent-getrieben)
-- **Skill:** `superpowers:subagent-driven-development` (pro Task 1 Implementer-Subagent → Spec-Review → Quality-Review; das Muster hat in Phase 5.2 real Bugs gefangen).
-- **Plan mit vollem Task-Text (Tasks 0–11 wörtlich, inkl. allem Code):** `docs/superpowers/plans/2026-07-08-visual-interpretation-slice1.md`.
-- **Spec:** `docs/superpowers/specs/2026-07-08-visual-interpretation-slice1-design.md`.
-- **Task 0 zuerst:** Branch `feat/visual-interpretation-v1` von `main` (im Haupt-Repo, kein Worktree — Muster Phase 5.2) + Baseline verifizieren (Server 77/77, Web 127/127).
-- **Modell-Hinweis (Robs Regel: immer Modell nennen + warum):** Implementer + Reviewer auf **Sonnet** (`model: 'sonnet'` im Agent-Call) — die Tasks sind mechanisch, der Code steht wörtlich im Plan. Koordination + finale Abnahme auf Fable/Opus. Wenn Opus mal down ist, scheitert der Agent-Dispatch (Safety-Klassifizierer) → einfach neu versuchen.
-- **0 Credits nötig:** Der ganze Plan ist mit `DEMO_FALLBACK=1` baubar/testbar (Fixture-Interpretationen liegen als Task-4-Datei bei). API-Credits sind LEER.
+## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Merge/Push entscheiden
+- **Feature ist fertig.** Branch `feat/visual-interpretation-v1` (16 Commits ab `c6e96b2`, Working Tree sauber). Merge auf `main` + Push **NUR mit Robs OK** (CLAUDE.md Regel 5). Danach RESUME auf „gepusht" stellen.
+- **Was live ist:** Bild-Import → Bausteine ohne Template bekommen automatisch eine KI-interpretierte shadcn/Tailwind-Vorschau in der Library, gerendert im sandboxed `<iframe sandbox="allow-scripts">` (kein same-origin), gelbe Pille „von KI interpretiert", Code-Bereich zeigt das `jsx`, Retry bei Fehler. Ein Vision-Call pro Import. Alles mit `DEMO_FALLBACK=1` (Credits LEER).
+- **Subagent-Muster hat sich bezahlt gemacht** — die Reviews + der Browser-Smoke fingen **3 echte Bugs** (alle plan-vererbt): Bild-Leak/Hang im scan DEMO-Fallback (`35d18de`), Prozess-Crash im interpret DEMO-Fallback (`b4ad5f1`), und — nur end-to-end sichtbar — eine **Interpret-Endlosschleife** durch instabile `onImported`-Referenz im ImportModal-useEffect (`a57f0d4`). Plus StrictMode-Doppel-POST beim Retry (`d2e6812`) und XSS-Sanitizer-Härtung (`a377219`).
+- **Offene Feinschliff-Kandidaten (NICHT blockierend, bewusst nicht im Slice gefixt):** (1) Retry ist Batch-weit statt pro-Baustein (Slice-1-Absicht); (2) „generischer Stub"-Chip zeigt sich gleichzeitig mit „Wird interpretiert …"/Fehlerzeile (optisch doppelt); (3) Stale-Closure-Race bei überlappenden Importen (schmales Fenster). Alle drei als Fast-Follow dokumentiert.
+- **Browser-Smoke Step 7 (Fehler+Retry) nur unit-getestet**, nicht voll im Browser durchgespielt — ohne `DEMO_FALLBACK` scheitert schon der Scan (500), sodass man gar nicht in die Library kommt; der Failed/Retry-Zustand ist über die Vitest-Tests (Task 9 + `d2e6812`) abgedeckt.
+
+**Referenz — Umsetzungsmuster (falls weitere Slices):** `superpowers:subagent-driven-development`, Implementer + Reviewer auf **Sonnet** (mechanisch, Code steht im Plan), Koordination + Browser-Verify + finale Abnahme auf Opus/Fable. Plan/Spec: `docs/superpowers/{plans,specs}/2026-07-08-visual-interpretation-slice1*`.
 
 ## Was Slice 1 baut (in kurz)
 Nach einem **Bild-Import** bekommen alle Bausteine **ohne Hand-Template** automatisch eine **KI-interpretierte shadcn/Tailwind-Vorschau in der Library** — gerendert in einem sandboxed `<iframe>`, markiert mit gelber Pille „von KI interpretiert". Ein **einziger** Claude-Vision-Call pro Import (Bild + Liste aller offenen Bausteine). Fehler fallen weich auf den heutigen Platzhalter zurück („Erneut versuchen"). Figma-Export der KI-Bausteine ist bewusst NICHT in Slice 1 (nächste Scheibe; das iframe-Rendering ist deren Fundament).
