@@ -179,6 +179,9 @@ window.onmessage = (event: MessageEvent) => {
       s.colorsUpdated ? `${s.colorsUpdated} Farben aktualisiert` : '',
       `${s.textCreated} Textstile neu`,
       s.textUpdated ? `${s.textUpdated} Textstile aktualisiert` : '',
+      s.componentsCreated ? `${s.componentsCreated} Komponenten neu` : '',
+      s.componentsUpdated ? `${s.componentsUpdated} Komponenten aktualisiert` : '',
+      s.placeholders ? `${s.placeholders} Platzhalter` : '',
     ].filter(Boolean);
     const skipped = s.skipped.length ? ` · ${s.skipped.length} übersprungen` : '';
     setImportStatus(`Fertig — ${parts.join(', ')}${skipped}.`, 'success');

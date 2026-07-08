@@ -3,6 +3,8 @@ import { scanComponents } from './scanner/components';
 import { applyDiff } from './scanner/diff';
 import { parseImportPayload } from './writer/parsePayload';
 import { applyImport } from './writer/applyImport';
+import { buildComponents } from './writer/buildComponents';
+import { upsertPage, layoutSections } from './writer/upsertPage';
 import type {
   UIMessage,
   SandboxMessage,
@@ -72,6 +74,21 @@ figma.ui.onmessage = async (msg: UIMessage) => {
       const payload = parseImportPayload(msg.json);
       postStatus('Schreibe Styles nach Figma…');
       const summary = await applyImport(payload);
+
+      if (payload.components.length > 0) {
+        postStatus('Baue Komponenten…');
+        const { page, sections } = await upsertPage();
+        await figma.setCurrentPageAsync(page);
+        const paintStyles = await figma.getLocalPaintStylesAsync();
+        const paintByName = new Map(paintStyles.map((s) => [s.name, s]));
+        const res = await buildComponents(payload.components, sections, paintByName);
+        layoutSections(sections);
+        summary.componentsCreated = res.created;
+        summary.componentsUpdated = res.updated;
+        summary.placeholders = res.placeholders;
+        summary.skipped.push(...res.skipped);
+      }
+
       const done: SandboxMessage = { type: 'IMPORT_DONE', summary };
       figma.ui.postMessage(done);
     } catch (err) {
