@@ -13,6 +13,7 @@ import { downloadRepoTarball } from '../lib/fetchRepoTarball.js';
 import { extractRepoFiles } from '../lib/extractRepoFiles.js';
 import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
 import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
+import { putImage } from '../lib/imageStore.js';
 
 const router = express.Router();
 
@@ -61,6 +62,8 @@ router.post('/image', upload.single('image'), async (req, res) => {
     );
 
     result.meta.image_filename = req.file.originalname;
+    // Bild kurzlebig behalten, damit /api/interpret/components es ansehen kann.
+    result.meta.import_id = putImage(req.file.path, req.file.mimetype);
 
     res.json(result);
   } catch (err) {
@@ -69,13 +72,13 @@ router.post('/image', upload.single('image'), async (req, res) => {
       console.warn('[scan] DEMO_FALLBACK active — returning bundled fixture instead of failing.');
       // Brief pause so the "Extracting tokens…" progress reads like a real analysis.
       await new Promise(r => setTimeout(r, 2500));
-      res.json(loadDemoFallback(req.file.originalname));
+      const fallback = loadDemoFallback(req.file.originalname);
+      fallback.meta.import_id = putImage(req.file.path, req.file.mimetype);
+      res.json(fallback);
     } else {
+      fs.unlink(req.file.path, () => {});
       res.status(500).json({ error: err.message });
     }
-  } finally {
-    // Clean up temp file
-    fs.unlink(req.file.path, () => {});
   }
 });
 
