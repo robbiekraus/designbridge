@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
 Return ONLY a valid JSON object with no markdown, no explanation, no preamble.
@@ -22,9 +20,9 @@ Structure:
     "border_radius": [{ "value": "px or % value", "usage": "where used", "confidence": "high|medium|low" }],
     "shadows": [{ "description": "semantic name e.g. card-shadow", "css": "box-shadow CSS value", "confidence": "high|medium|low" }]
   },
-  "atomics": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "" }],
-  "components": [{ "name": "component name", "confidence": "high|medium|low", "notes": "" }],
-  "patterns": [{ "name": "pattern name", "confidence": "high|medium|low" }],
+  "atomics": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "components": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "patterns": [{ "name": "pattern name", "confidence": "high|medium|low", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
   "warnings": ["any caveats about low-confidence extractions or things that cannot be inferred from a static image"]
 }
 
@@ -35,9 +33,11 @@ Rules:
 - For typography: estimate sizes based on visual proportion (body ≈ 14px, headings scale from there)
 - Mark anything estimated (not directly readable) as confidence: "medium" or "low"
 - Motion tokens cannot be extracted from static screenshots — omit them entirely
-- Be generous: extract everything visible, even partial elements`;
+- Be generous: extract everything visible, even partial elements
+- For every atomic/component/pattern add "bbox": a TIGHT bounding box around that element AS IT APPEARS in the screenshot, as fractions of image size: x,y = top-left corner (0..1), w,h = width,height (0..1). If unsure, give your best estimate.`;
 
-export async function analyzeScreenshot(imagePath, mimeType, extractTargets) {
+export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client } = {}) {
+  const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const imageData = fs.readFileSync(imagePath);
   const base64 = imageData.toString('base64');
 
@@ -52,7 +52,7 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
 
   const t0 = Date.now();
 
-  const response = await client.messages.create({
+  const response = await c.messages.create({
     model: 'claude-sonnet-4-5',
     max_tokens: 4096,
     messages: [{
