@@ -30,7 +30,19 @@ describe('componentsNeedingInterpretation', () => {
   it('filtert Template-Treffer raus und behält kind/variants/notes', () => {
     const todo = componentsNeedingInterpretation(RESULT);
     expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
-    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund' });
+    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null });
+  });
+
+  it('passes bbox through and routes content-bearing cards to interpretation', () => {
+    const result = { raw: { components: [
+      { name: 'Card', confidence: 'high', notes: '', bbox: { x:0,y:0,w:0.1,h:0.1 } },        // Template → raus
+      { name: 'Stat Card', confidence: 'high', notes: 'Sales', bbox: { x:0.1,y:0,w:0.2,h:0.2 } }, // interpretieren
+    ] } };
+    const todo = componentsNeedingInterpretation(result);
+    const names = todo.map((t) => t.name);
+    expect(names).toContain('Stat Card');
+    expect(names).not.toContain('Card');
+    expect(todo.find((t) => t.name === 'Stat Card').bbox).toEqual({ x:0.1,y:0,w:0.2,h:0.2 });
   });
 
   it('lässt bereits interpretierte Bausteine aus', () => {

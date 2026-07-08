@@ -24,6 +24,7 @@ export function componentsNeedingInterpretation(result) {
         kind,
         variants: item.variants ?? [],
         notes: item.notes ?? '',
+        bbox: item.bbox ?? null,
       });
     }
   }
