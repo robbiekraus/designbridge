@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run web\"",
+    "dev:demo": "concurrently \"DEMO_FALLBACK=1 npm run server\" \"npm run web\"",
     "server": "node --watch server/index.js",
     "web": "cd web && npm run dev",
     "install:all": "npm install && cd web && npm install",
