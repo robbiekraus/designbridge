@@ -17,7 +17,7 @@ const RESULT = {
       { name: 'Avatar', variants: [], confidence: 'med', notes: 'rund' }, // kein Template → rein
     ],
     components: [
-      { name: 'Stat Card', confidence: 'high' }, // "Card" matcht Template → raus
+      { name: 'Stat Card', confidence: 'high' }, // inhaltstragende Card → rein (Leck 1 Fix)
       { name: 'Data Table', confidence: 'med' }, // rein
     ],
     patterns: [{ name: 'Metrics Overview', confidence: 'low' }], // rein
@@ -29,14 +29,14 @@ afterEach(() => vi.restoreAllMocks());
 describe('componentsNeedingInterpretation', () => {
   it('filtert Template-Treffer raus und behält kind/variants/notes', () => {
     const todo = componentsNeedingInterpretation(RESULT);
-    expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Data Table', 'Metrics Overview']);
+    expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
     expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund' });
   });
 
   it('lässt bereits interpretierte Bausteine aus', () => {
     const withOne = { ...RESULT, interpretations: { Avatar: { html: '<div/>', jsx: '' } } };
     expect(componentsNeedingInterpretation(withOne).map((t) => t.name)).toEqual([
-      'Data Table', 'Metrics Overview',
+      'Stat Card', 'Data Table', 'Metrics Overview',
     ]);
   });
 
@@ -86,6 +86,7 @@ describe('runInterpretation', () => {
       ...RESULT,
       interpretations: {
         Avatar: { html: '<div/>', jsx: '' },
+        'Stat Card': { html: '<div/>', jsx: '' },
         'Data Table': { html: '<div/>', jsx: '' },
         'Metrics Overview': { html: '<div/>', jsx: '' },
       },
@@ -112,7 +113,7 @@ describe('runInterpretation', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'kaputt' }) })));
     const next = await runInterpretation(RESULT);
     expect(next.interpretError).toBe('kaputt');
-    expect(next.interpretFailed).toEqual(['Avatar', 'Data Table', 'Metrics Overview']);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
     expect(next.interpretPending).toBe(false);
   });
 });

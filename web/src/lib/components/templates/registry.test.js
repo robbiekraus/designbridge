@@ -49,3 +49,26 @@ describe('template registry', () => {
     expect(TEMPLATES.find((t) => t.key === 'input').emit(picks, {})).toContain('export function Input');
   });
 });
+
+describe('matchTemplate — content-bearing cards go to interpretation', () => {
+  it('plain primitives still match a template', () => {
+    expect(matchTemplate('Card')).toBeTruthy();
+    expect(matchTemplate('Panel')).toBeTruthy();
+    expect(matchTemplate('Button')).toBeTruthy();
+    expect(matchTemplate('Search Input')).toBeTruthy();
+    expect(matchTemplate('Icon Button')).toBeTruthy();
+  });
+
+  it('content-bearing cards do NOT match a template', () => {
+    expect(matchTemplate('Stat Card')).toBeNull();
+    expect(matchTemplate('Line Chart Card')).toBeNull();
+    expect(matchTemplate('Metric Card')).toBeNull();
+    expect(matchTemplate('Map Card')).toBeNull();
+    expect(matchTemplate('Activity Feed Panel')).toBeNull();
+  });
+
+  it('is case-insensitive', () => {
+    expect(matchTemplate('stat card')).toBeNull();
+    expect(matchTemplate('CARD')).toBeTruthy();
+  });
+});
