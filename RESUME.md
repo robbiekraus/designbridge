@@ -4,9 +4,15 @@ Stand: **08.07.2026 (spät)** — **Kurskorrektur: NICHT Figma-Export, sondern I
 
 **Neuer Plan (im Brainstorm 08.07. mit Rob freigegeben, Option C „saubere Architektur"):** quellen-agnostische **Decompose-Stufe** (ein `Segment`-Contract + `Decomposer`-Interface; Bild jetzt, URL später), 3 Scheiben: ① Bild-Zerlegung (diese Session) → ② URL/DOM → ③ Figma-Export + Design-System heben.
 
-**⏳ LÄUFT GERADE: Autarker Nacht-Bau von Scheibe ① (subagent-getrieben).** Spec `docs/superpowers/specs/2026-07-08-source-decomposition-design.md`, Plan `docs/superpowers/plans/2026-07-08-source-decomposition-slice1-image.md` (beide auf `main` committet: `346f41a`, `b352938`). Branch: `feat/source-decomposition-slice1`. Modell: Implementer/Review = Sonnet, Koordination/Abnahme = Opus.
+**✅ SCHEIBE ① FERTIG GEBAUT (autark, subagent-getrieben) — wartet auf Robs Review + Merge-Entscheidung.** Branch `feat/source-decomposition-slice1`, **NICHT gepusht, NICHT gemergt** (kein Push ohne Robs OK, CLAUDE-Regel 5). Spec `346f41a`, Plan `b352938` auf `main`.
+- **Tasks 0–9 alle erledigt**, je einzeln committet. **Server 102/102 + Web 156/156 grün, Plugin typecheck+build sauber.**
+- **Browser-Smoke (DEMO) bestanden & per Screenshot belegt:** Stat Card rendert jetzt eine echte Metrik-Kachel, Line Chart Card ein echtes Liniendiagramm — zwei **distinct** interpretierte iframe-Vorschauen (`sandbox="allow-scripts"`) statt der früher identischen leeren Karte. Leck 1 sichtbar behoben. Echte Backend-Kette Scan→Interpret (durch die neue Decompose-Route) end-to-end über den Proxy verifiziert.
+- **Was gebaut wurde:** `Segment`-Contract + `getDecomposer()`-Fabrik (`server/lib/decompose/`), `ImageDecomposer` (jimp-Crop), Scan liefert `bbox` (+ injizierbarer Client), `interpretComponents` = Multi-Image-Call (Crop je Segment + Vollbild-Fallback), Route decompose→interpret, Web reicht bbox durch, Routing-Fix (inhaltstragende Karten → Interpretation), Demo-Fixtures (bbox + Stat/Line-Chart-Card). Test-Glob → `server/**` (Fix für decompose-Subdir).
+- `jimp@0.22.12` gepinnt (reines JS, kein native Build).
 
-⚠️ **CREDITS-VORBEHALT:** API-Credits leer → alles wird gebaut + unit-getestet (Fake-Clients) + Demo-Fixture, aber die **reale Live-Treffsicherheit an einem echten Screenshot ist erst mit aufgefüllten Credits verifizierbar** (offen für Robs Morgen-Review). `jimp@0.22.12` gepinnt fürs Croppen.
+⚠️ **CREDITS-VORBEHALT (weiterhin offen — Account-Problem):** Alles gebaut + unit-getestet + Demo grün, aber die **reale Live-Treffsicherheit an einem echten Screenshot ist erst mit aufgefüllten Credits verifizierbar.** Im Demo-Modus wirft der Live-Vision-Call → Fixture-Fallback; die echte Decompose→Crop→Multi-Image-Kette läuft zwar (jimp lokal), das Crop-Ergebnis wird demo-seitig aber verworfen. → Erster Live-Test, sobald Credits da sind.
+
+**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen; (2) entscheiden: Branch mergen/pushen? (3) sobald Credits: Live-Import eines echten Screenshots gegen die neue Kette prüfen. Danach ggf. Scheibe ② (URL/DOM-Decompose, `node-html-parser` liegt bereit) oder ③ (Figma-Export).
 
 ---
 ## Alter Stand (Referenz): „Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün. Feature-Branch `feat/visual-interpretation-v1` lokal (redundant).
