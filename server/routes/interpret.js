@@ -43,8 +43,13 @@ router.post('/components', async (req, res) => {
   } catch (err) {
     console.error('[interpret] Error:', err.message);
     if (process.env.DEMO_FALLBACK === '1') {
-      console.warn('[interpret] DEMO_FALLBACK active — returning bundled interpretations.');
-      return res.json(loadDemoInterpretations(components.map((c) => c.name)));
+      try {
+        console.warn('[interpret] DEMO_FALLBACK active — returning bundled interpretations.');
+        return res.json(loadDemoInterpretations(components.map((c) => c.name)));
+      } catch (fallbackErr) {
+        console.error('[interpret] DEMO_FALLBACK failed:', fallbackErr.message);
+        return res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
+      }
     }
     res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
   }
