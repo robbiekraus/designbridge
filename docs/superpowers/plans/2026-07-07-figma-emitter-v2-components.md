@@ -1063,6 +1063,8 @@ export function layoutSections(sections: SectionFrames): void {
 
 **Achtung `figma.createComponentFromNode` in Task 9 hängt Komponenten zunächst dort an, wo der Quell-Frame liegt** — `createFrame()` erzeugt auf der aktuellen Seite. In Task 11 wird deshalb VOR dem Bauen `figma.currentPage = page` gesetzt (bzw. `figma.setCurrentPageAsync(page)`), damit alles direkt auf der DesignBridge-Seite entsteht.
 
+**Review-Addendum (Task 10):** `createSection` bekam einen try/catch + `frame.remove()`-Selbst-Cleanup und `sectionHeading` den Bold→Regular-Font-Fallback — analog `renderPlan.ts`/`renderText`, um dieselbe Waisen-Node-Klasse zu schließen, die Commits `9bafca1` + renderPlan-Fix in den Schwesterdateien bereits behoben hatten.
+
 - [ ] **Step 2: Verifizieren** — Run: `cd designbridge-plugin && npm run typecheck` → 0 Fehler; `npm run build` → „Build complete."
 
 - [ ] **Step 3: Commit**
