@@ -29,7 +29,8 @@ Task-Bögen: **1–5 Server** (`imageStore` → Scan gibt `meta.import_id` → `
 - Neuer Feature-Branch entsteht in Task 0.
 
 ## App starten / Tests
-- Backend: `DEMO_FALLBACK=1 PORT=3047 node server/index.js` (Credits LEER → Fallback zwingend) · Web: `cd web && npm run dev` (:5173). (`npm run dev` injiziert PORT unsauber → Backend lieber separat.)
+- **Einfachster Weg (Rob): `npm run dev:demo`** — startet Backend (mit `DEMO_FALLBACK=1`, Port 3047) + Web (:5173) in einem Befehl, dann http://localhost:5173 öffnen. Credits LEER → der Demo-Modus ist zwingend, sonst scheitert schon der Scan. ⚠️ **Ohne laufendes Backend schlägt jeder Import fehl** („Fehler / Try again geht nicht" = Backend down).
+- Manuell/getrennt (für Entwicklung): Backend `DEMO_FALLBACK=1 PORT=3047 node server/index.js` · Web `cd web && npm run dev`.
 - `npm run test:server` (aktuell 77/77) · `cd web && npx vitest run` (aktuell 127/127) · Plugin: `cd designbridge-plugin && npm run typecheck && npm run build`.
 - Repo-Regel 7: nach Datei-Writes `find . -name '._*' -delete` (AppleDouble).
 
