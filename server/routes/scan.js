@@ -69,12 +69,18 @@ router.post('/image', upload.single('image'), async (req, res) => {
   } catch (err) {
     console.error('[scan] Error:', err.message);
     if (process.env.DEMO_FALLBACK === '1') {
-      console.warn('[scan] DEMO_FALLBACK active — returning bundled fixture instead of failing.');
-      // Brief pause so the "Extracting tokens…" progress reads like a real analysis.
-      await new Promise(r => setTimeout(r, 2500));
-      const fallback = loadDemoFallback(req.file.originalname);
-      fallback.meta.import_id = putImage(req.file.path, req.file.mimetype);
-      res.json(fallback);
+      try {
+        console.warn('[scan] DEMO_FALLBACK active — returning bundled fixture instead of failing.');
+        // Brief pause so the "Extracting tokens…" progress reads like a real analysis.
+        await new Promise(r => setTimeout(r, 2500));
+        const fallback = loadDemoFallback(req.file.originalname);
+        fallback.meta.import_id = putImage(req.file.path, req.file.mimetype);
+        return res.json(fallback);
+      } catch (fallbackErr) {
+        console.error('[scan] DEMO_FALLBACK failed:', fallbackErr.message);
+        fs.unlink(req.file.path, () => {});
+        return res.status(500).json({ error: fallbackErr.message });
+      }
     } else {
       fs.unlink(req.file.path, () => {});
       res.status(500).json({ error: err.message });
