@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getImage } from '../lib/imageStore.js';
 import { interpretComponents } from '../lib/interpretComponents.js';
+import { getDecomposer } from '../lib/decompose/index.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -38,7 +39,11 @@ router.post('/components', async (req, res) => {
   }
   try {
     console.log(`[interpret] ${components.length} Bausteine für Import ${importId}`);
-    const result = await interpretComponents(image.path, image.mimetype, components);
+    const segments = await getDecomposer('image').decompose(
+      { imagePath: image.path, mimetype: image.mimetype },
+      components,
+    );
+    const result = await interpretComponents(image.path, image.mimetype, segments);
     res.json(result);
   } catch (err) {
     console.error('[interpret] Error:', err.message);
