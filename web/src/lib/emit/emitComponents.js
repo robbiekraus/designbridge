@@ -45,6 +45,7 @@ export function emitComponents(result, kind) {
       const tpl = matchTemplate(item.name);
       const slug = slugify(item.name) || 'component';
       const pascal = toPascal(slug) || 'Component';
+      const interp = !tpl ? (result?.interpretations?.[item.name] ?? null) : null;
       out.push({
         name: item.name,
         slug,
@@ -52,11 +53,18 @@ export function emitComponents(result, kind) {
         kind: itemKind,
         templateKey: tpl?.key ?? null,
         variants: tpl?.variants ?? [],
-        code: tpl ? tpl.emit(picks, item) : genericStub(pascal, item),
+        code: tpl
+          ? tpl.emit(picks, item)
+          : (interp?.jsx?.trim() ? interp.jsx : genericStub(pascal, item)),
         confidence: item.confidence ?? null,
         source: item.source ?? null,
         notes: item.notes ?? null,
         hasPreview: Boolean(tpl),
+        interpretedHtml: interp?.html ?? null,
+        interpretFailed: !tpl && !interp && (result?.interpretFailed ?? []).includes(item.name),
+        interpretPending: !tpl && !interp
+          && !(result?.interpretFailed ?? []).includes(item.name)
+          && Boolean(result?.interpretPending),
       });
     }
   }

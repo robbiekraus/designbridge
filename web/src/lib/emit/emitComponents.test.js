@@ -50,3 +50,61 @@ describe('emitComponents', () => {
     expect(out[0].name).toBe('Button');
   });
 });
+
+describe('emitComponents + Interpretationen', () => {
+  const baseRaw = {
+    tokens: { colors: [{ hex: '#4263EB', role: 'brand-primary', confidence: 'high' }] },
+    atomics: [{ name: 'Avatar', variants: [], confidence: 'med', notes: '' }],
+    components: [],
+    patterns: [],
+  };
+
+  it('Baustein ohne Template MIT Interpretation: jsx wird code, html wird interpretedHtml', () => {
+    const result = {
+      raw: baseRaw,
+      interpretations: { Avatar: { html: '<div class="rounded-full">A</div>', jsx: 'export function Avatar() { return null; }' } },
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedHtml).toContain('rounded-full');
+    expect(item.code).toContain('export function Avatar');
+    expect(item.hasPreview).toBe(false); // hasPreview bleibt Template-Sache
+    expect(item.interpretFailed).toBe(false);
+    expect(item.interpretPending).toBe(false);
+  });
+
+  it('Interpretation mit leerem jsx: html-Vorschau ja, Code fällt auf Stub zurück', () => {
+    const result = {
+      raw: baseRaw,
+      interpretations: { Avatar: { html: '<div>A</div>', jsx: '' } },
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedHtml).toBe('<div>A</div>');
+    expect(item.code).toContain('generischer Stub');
+  });
+
+  it('pending: Baustein ohne Template ohne Interpretation bei interpretPending', () => {
+    const result = { raw: baseRaw, interpretPending: true };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedHtml).toBeNull();
+    expect(item.interpretPending).toBe(true);
+  });
+
+  it('failed: Baustein in interpretFailed wird markiert', () => {
+    const result = { raw: baseRaw, interpretFailed: ['Avatar'] };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretFailed).toBe(true);
+    expect(item.interpretPending).toBe(false);
+  });
+
+  it('Template-Bausteine bleiben unberührt von Interpretationen', () => {
+    const result = {
+      raw: { ...baseRaw, atomics: [{ name: 'Button', variants: [], confidence: 'high' }] },
+      interpretations: { Button: { html: '<div>sollte ignoriert werden</div>', jsx: 'x' } },
+      interpretPending: true,
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.hasPreview).toBe(true);
+    expect(item.interpretedHtml).toBeNull();
+    expect(item.interpretPending).toBe(false);
+  });
+});
