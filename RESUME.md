@@ -1,15 +1,23 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **08.07.2026** — **Phase 5.2 (Figma-Emitter v2: Components/Patterns → echte Figma-Komponenten) IN ARBEIT auf Branch `feat/figma-emitter-v2`. Tasks 1–9 fertig, Task 10 ist der Wiedereinstieg.**
+Stand: **08.07.2026** — **Phase 5.2 (Figma-Emitter v2) CODE FERTIG auf Branch `feat/figma-emitter-v2` (Tasks 1–11 implementiert+reviewt). Task 12 Steps 1–2 (Full-Verify + Browser-Smoke) grün. OFFEN: Step 3 = Robs Figma-Laufzeittest, Step 4 = Merge+Push (nur mit Robs OK).**
 
-## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Task 10 bauen (subagent-getrieben weiter)
-- Branch **`feat/figma-emitter-v2` auschecken** (nicht main). 16 Commits vor origin, alles LOKAL/ungepusht.
-- Ausführungs-Skill: **`superpowers:subagent-driven-development`** (so lief die ganze Umsetzung: pro Task 1 Implementer-Subagent → Spec-Review → Quality-Review; Reviews haben real Bugs gefangen, beibehalten).
-- **Plan mit vollem Task-Text (Tasks 10–12 wörtlich drin):** `docs/superpowers/plans/2026-07-07-figma-emitter-v2-components.md`. Task 10 = `designbridge-plugin/src/writer/upsertPage.ts` (Seite „🌉 DesignBridge" mit 3 Auto-Layout-Sektionen `DB/Atomics|Components|Patterns`, `upsertPage()` + `layoutSections()`, Re-Import per Name). Der komplette Code steht im Plan.
-- **Modell-Hinweis:** Implementer/Reviewer liefen auf **Sonnet** (`model: 'sonnet'` im Agent-Call) — schnell & ausreichend. Als Opus kurz down war, schlug der Agent-Dispatch fehl (Klassifizierer) — dann einfach erneut versuchen.
+## ⏱️ ERSTER PUNKT NÄCHSTE SESSION: Task 12 Step 3 — Robs Figma-Laufzeittest
+- Branch **`feat/figma-emitter-v2`** (nicht main). **19 Commits** vor origin, alles LOKAL/ungepusht.
+- **Server ggf. starten** (falls nicht mehr laufend): Backend `DEMO_FALLBACK=1 PORT=3047 node server/index.js` (Credits LEER) + `cd web && npm run dev` (bzw. Preview :5173).
+- **Step 3 (nur Rob):** Bild importieren → Export → „Nach Figma (Plugin)" → „An Figma senden" → Figma-Plugin **DesignBridge** → „Aus DesignBridge übernehmen". Erwartung: Seite „🌉 DesignBridge" mit Sektionen; Button als Component Set (3 Varianten im Dropdown); Card/Badge/Input ebenso; Platzhalter-Karten (gelbes Badge); Farb-Test: Paint-Style `DesignBridge/Color/brand-primary` ändern ⇒ Button-Füllung folgt; Re-Import ⇒ „aktualisiert" statt Duplikate.
+- **Step 4 (nur mit Robs OK):** `git checkout main && git merge --ff-only feat/figma-emitter-v2 && git push`.
+- Ausführungs-Skill war: **`superpowers:subagent-driven-development`** (pro Task 1 Implementer-Subagent → Spec-Review → Quality-Review, alles Sonnet; Reviews haben real Bugs gefangen).
 
-## Was passierte (Task 10) — kein Schaden
-Der Agent-Dispatch für Task 10 schlug fehl, WEIL `claude-opus-4-8` temporär nicht erreichbar war (Safety-Klassifizierer konnte nicht prüfen). Es wurde **nichts geschrieben**, `upsertPage.ts` existiert nicht, Working Tree sauber. Einfach Task 10 neu starten.
+## Task 12 Steps 1–2 — VERIFIZIERT (08.07.)
+- **Step 1 Full-Suite grün:** Server 77/77 · Web 127/127 · Plugin typecheck 0 + „Build complete." · AppleDouble bereinigt.
+- **Step 2 Browser-Smoke grün** (Backend+Web, DEMO_FALLBACK-Fixture, Dummy-PNG per Drop injiziert): Export „Nach Figma (Plugin)" liefert Payload `version:2`, `components`-Array (17), **Bauplan auf Varianten-Ebene** (`variants[i].plan`, Button 3 Varianten Typ `box`, Fill token-verknüpft `brand-primary`), `placeholder:true`-Einträge vorhanden. Keine Konsolenfehler. `buildComponents` verzweigt korrekt auf `comp.placeholder` (ignoriert dann den Plan → beschrifteter Platzhalter).
+
+## Fertig & reviewt auf `feat/figma-emitter-v2`
+
+### Tasks 10–11 (diese Session, 08.07.)
+- **Task 10** `designbridge-plugin/src/writer/upsertPage.ts` (Commit `055974d`): Seite „🌉 DesignBridge" + 3 Auto-Layout-Sektionen `DB/Atomics|Components|Patterns`, `upsertPage()`/`layoutSections()`, Re-Import per Name. Quality-Review-Fix: `createSection` try/catch+`frame.remove()` und `sectionHeading` Bold→Regular-Fallback (analog `renderPlan`/`renderText`, schließt dieselbe Waisen-Node-Klasse). Plan-Addendum ergänzt.
+- **Task 11** `main.ts` + `ui.ts` verdrahtet (Commit `24a9557`): IMPORT-Zweig baut bei `payload.components.length>0` Komponenten (upsertPage → `setCurrentPageAsync` → `buildComponents` → `layoutSections` → Summary). Statuszeile um Komponenten/Platzhalter erweitert. Quality-Review: approved, keine Befunde.
 
 ## Fertig & committet auf `feat/figma-emitter-v2` (Tasks 1–9)
 **Web (Suite 127/127 grün):** `pickTokenRefs.js` (Token-Slots mit Namen für Style-Verknüpfung) · `planHelpers.js` + `planFor` in allen 4 Templates (button/card/badge/input — Figma-Bauplan neben `styleFor`) · `emitFigmaComponents.js` (Inventar → `components[]`) · `emitFigma.js` v2 (`version:2` + `components` im Umschlag) + `buildExports`-Verdrahtung + Test-Schutz · Export.jsx Hinweistext.
