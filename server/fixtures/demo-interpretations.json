@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Avatar",
+    "html": "<div class=\"flex items-center gap-3\"><div class=\"h-9 w-9 rounded-full bg-[#4263EB] text-white flex items-center justify-center text-sm font-medium\">RK</div><div class=\"h-9 w-9 rounded-full bg-[#EDF2FF] text-[#4263EB] flex items-center justify-center text-sm font-medium\">AM</div></div>",
+    "jsx": "export function Avatar({ initials = \"RK\", className = \"\" }) {\n  return (\n    <div className={`h-9 w-9 rounded-full bg-[#4263EB] text-white flex items-center justify-center text-sm font-medium ${className}`}>\n      {initials}\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Status Dot",
+    "html": "<div class=\"flex items-center gap-4 text-sm text-[#495057]\"><span class=\"flex items-center gap-1.5\"><span class=\"h-2 w-2 rounded-full bg-[#51CF66]\"></span>Aktiv</span><span class=\"flex items-center gap-1.5\"><span class=\"h-2 w-2 rounded-full bg-[#FCC419]\"></span>Wartend</span></div>",
+    "jsx": "export function StatusDot({ color = \"#51CF66\", label = \"Aktiv\" }) {\n  return (\n    <span className=\"flex items-center gap-1.5 text-sm text-[#495057]\">\n      <span className=\"h-2 w-2 rounded-full\" style={{ backgroundColor: color }} />\n      {label}\n    </span>\n  );\n}\n"
+  },
+  {
+    "name": "Sidebar Navigation",
+    "html": "<nav class=\"w-56 rounded-lg border border-[#E9ECEF] bg-white p-3 space-y-1\"><div class=\"rounded-md bg-[#EDF2FF] px-3 py-2 text-sm font-medium text-[#4263EB]\">Dashboard</div><div class=\"rounded-md px-3 py-2 text-sm text-[#495057] hover:bg-[#F8F9FA]\">Berichte</div><div class=\"rounded-md px-3 py-2 text-sm text-[#495057] hover:bg-[#F8F9FA]\">Ereignisse</div><div class=\"rounded-md px-3 py-2 text-sm text-[#495057] hover:bg-[#F8F9FA]\">Einstellungen</div></nav>",
+    "jsx": "export function SidebarNavigation({ items = [\"Dashboard\", \"Berichte\", \"Ereignisse\", \"Einstellungen\"], active = 0 }) {\n  return (\n    <nav className=\"w-56 rounded-lg border border-[#E9ECEF] bg-white p-3 space-y-1\">\n      {items.map((label, i) => (\n        <div key={label} className={`rounded-md px-3 py-2 text-sm ${i === active ? \"bg-[#EDF2FF] font-medium text-[#4263EB]\" : \"text-[#495057] hover:bg-[#F8F9FA]\"}`}>\n          {label}\n        </div>\n      ))}\n    </nav>\n  );\n}\n"
+  },
+  {
+    "name": "Donut Chart",
+    "html": "<div class=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-56\"><div class=\"text-sm font-medium text-[#212529] mb-3\">Kategorien</div><svg viewBox=\"0 0 42 42\" class=\"h-28 w-28 mx-auto\"><circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#E9ECEF\" stroke-width=\"6\"></circle><circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#4263EB\" stroke-width=\"6\" stroke-dasharray=\"55 45\" stroke-dashoffset=\"25\"></circle><circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#51CF66\" stroke-width=\"6\" stroke-dasharray=\"25 75\" stroke-dashoffset=\"70\"></circle></svg></div>",
+    "jsx": "export function DonutChart({ title = \"Kategorien\" }) {\n  return (\n    <div className=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-56\">\n      <div className=\"text-sm font-medium text-[#212529] mb-3\">{title}</div>\n      <svg viewBox=\"0 0 42 42\" className=\"h-28 w-28 mx-auto\">\n        <circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#E9ECEF\" strokeWidth=\"6\" />\n        <circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#4263EB\" strokeWidth=\"6\" strokeDasharray=\"55 45\" strokeDashoffset=\"25\" />\n        <circle cx=\"21\" cy=\"21\" r=\"15.9\" fill=\"none\" stroke=\"#51CF66\" strokeWidth=\"6\" strokeDasharray=\"25 75\" strokeDashoffset=\"70\" />\n      </svg>\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Bar Chart",
+    "html": "<div class=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-64\"><div class=\"text-sm font-medium text-[#212529] mb-3\">Umsatz je Monat</div><div class=\"flex items-end gap-2 h-24\"><div class=\"flex-1 rounded-t bg-[#4263EB]\" style=\"height:40%\"></div><div class=\"flex-1 rounded-t bg-[#4263EB]\" style=\"height:65%\"></div><div class=\"flex-1 rounded-t bg-[#4263EB]\" style=\"height:50%\"></div><div class=\"flex-1 rounded-t bg-[#4263EB]\" style=\"height:85%\"></div><div class=\"flex-1 rounded-t bg-[#5C7CFA]\" style=\"height:100%\"></div></div></div>",
+    "jsx": "export function BarChart({ title = \"Umsatz je Monat\", values = [40, 65, 50, 85, 100] }) {\n  return (\n    <div className=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-64\">\n      <div className=\"text-sm font-medium text-[#212529] mb-3\">{title}</div>\n      <div className=\"flex items-end gap-2 h-24\">\n        {values.map((v, i) => (\n          <div key={i} className=\"flex-1 rounded-t bg-[#4263EB]\" style={{ height: `${v}%` }} />\n        ))}\n      </div>\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Data Table",
+    "html": "<div class=\"rounded-lg border border-[#E9ECEF] bg-white overflow-hidden w-72\"><table class=\"w-full text-sm\"><thead><tr class=\"bg-[#F8F9FA] text-left text-[#868E96]\"><th class=\"px-3 py-2 font-medium\">Ereignis</th><th class=\"px-3 py-2 font-medium\">Status</th></tr></thead><tbody><tr class=\"border-t border-[#F1F3F5]\"><td class=\"px-3 py-2 text-[#212529]\">Deploy v2.1</td><td class=\"px-3 py-2\"><span class=\"rounded bg-[#51CF66]/15 px-1.5 py-0.5 text-xs text-[#2B8A3E]\">OK</span></td></tr><tr class=\"border-t border-[#F1F3F5]\"><td class=\"px-3 py-2 text-[#212529]\">Import Lauf</td><td class=\"px-3 py-2\"><span class=\"rounded bg-[#FCC419]/20 px-1.5 py-0.5 text-xs text-[#E67700]\">Läuft</span></td></tr></tbody></table></div>",
+    "jsx": "export function DataTable({ rows = [[\"Deploy v2.1\", \"OK\"], [\"Import Lauf\", \"Läuft\"]] }) {\n  return (\n    <div className=\"rounded-lg border border-[#E9ECEF] bg-white overflow-hidden\">\n      <table className=\"w-full text-sm\">\n        <thead>\n          <tr className=\"bg-[#F8F9FA] text-left text-[#868E96]\">\n            <th className=\"px-3 py-2 font-medium\">Ereignis</th>\n            <th className=\"px-3 py-2 font-medium\">Status</th>\n          </tr>\n        </thead>\n        <tbody>\n          {rows.map(([name, status]) => (\n            <tr key={name} className=\"border-t border-[#F1F3F5]\">\n              <td className=\"px-3 py-2 text-[#212529]\">{name}</td>\n              <td className=\"px-3 py-2\">{status}</td>\n            </tr>\n          ))}\n        </tbody>\n      </table>\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Tooltip",
+    "html": "<div class=\"inline-flex flex-col items-center\"><div class=\"rounded bg-[#1A1B1E] px-2 py-1 text-xs text-white\">Details anzeigen</div><div class=\"h-2 w-2 -mt-1 rotate-45 bg-[#1A1B1E]\"></div></div>",
+    "jsx": "export function Tooltip({ label = \"Details anzeigen\" }) {\n  return (\n    <div className=\"inline-flex flex-col items-center\">\n      <div className=\"rounded bg-[#1A1B1E] px-2 py-1 text-xs text-white\">{label}</div>\n      <div className=\"h-2 w-2 -mt-1 rotate-45 bg-[#1A1B1E]\" />\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Segmented Control",
+    "html": "<div class=\"inline-flex rounded-lg bg-[#F1F3F5] p-1 text-sm\"><div class=\"rounded-md bg-white px-3 py-1 font-medium text-[#212529] shadow-sm\">Woche</div><div class=\"px-3 py-1 text-[#868E96]\">Monat</div><div class=\"px-3 py-1 text-[#868E96]\">Jahr</div></div>",
+    "jsx": "export function SegmentedControl({ options = [\"Woche\", \"Monat\", \"Jahr\"], active = 0 }) {\n  return (\n    <div className=\"inline-flex rounded-lg bg-[#F1F3F5] p-1 text-sm\">\n      {options.map((o, i) => (\n        <div key={o} className={`px-3 py-1 ${i === active ? \"rounded-md bg-white font-medium text-[#212529] shadow-sm\" : \"text-[#868E96]\"}`}>\n          {o}\n        </div>\n      ))}\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Category List Item",
+    "html": "<div class=\"flex items-center gap-3 rounded-lg border border-[#E9ECEF] bg-white px-3 py-2 w-64\"><span class=\"h-2.5 w-2.5 rounded-full bg-[#4263EB]\"></span><span class=\"flex-1 text-sm text-[#212529]\">Marketing</span><span class=\"text-sm font-medium text-[#212529]\">42%</span></div>",
+    "jsx": "export function CategoryListItem({ label = \"Marketing\", value = \"42%\", color = \"#4263EB\" }) {\n  return (\n    <div className=\"flex items-center gap-3 rounded-lg border border-[#E9ECEF] bg-white px-3 py-2\">\n      <span className=\"h-2.5 w-2.5 rounded-full\" style={{ backgroundColor: color }} />\n      <span className=\"flex-1 text-sm text-[#212529]\">{label}</span>\n      <span className=\"text-sm font-medium text-[#212529]\">{value}</span>\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Dashboard Grid Layout",
+    "html": "<div class=\"grid grid-cols-3 gap-3 w-80\"><div class=\"h-14 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"h-14 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"h-14 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"col-span-2 h-20 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"h-20 rounded-lg border border-[#E9ECEF] bg-white\"></div></div>",
+    "jsx": "export function DashboardGridLayout({ children }) {\n  return <div className=\"grid grid-cols-3 gap-3\">{children}</div>;\n}\n"
+  },
+  {
+    "name": "Metrics Overview",
+    "html": "<div class=\"flex gap-3\"><div class=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-36\"><div class=\"text-xs text-[#868E96]\">Umsatz</div><div class=\"text-xl font-semibold text-[#1A1B1E]\">€48.2k</div><div class=\"text-xs text-[#2B8A3E]\">+12%</div></div><div class=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-36\"><div class=\"text-xs text-[#868E96]\">Nutzer</div><div class=\"text-xl font-semibold text-[#1A1B1E]\">1.204</div><div class=\"text-xs text-[#C92A2A]\">-3%</div></div></div>",
+    "jsx": "export function MetricsOverview({ metrics = [{ label: \"Umsatz\", value: \"€48.2k\", delta: \"+12%\" }] }) {\n  return (\n    <div className=\"flex gap-3\">\n      {metrics.map((m) => (\n        <div key={m.label} className=\"rounded-lg border border-[#E9ECEF] bg-white p-4 w-36\">\n          <div className=\"text-xs text-[#868E96]\">{m.label}</div>\n          <div className=\"text-xl font-semibold text-[#1A1B1E]\">{m.value}</div>\n          <div className=\"text-xs text-[#2B8A3E]\">{m.delta}</div>\n        </div>\n      ))}\n    </div>\n  );\n}\n"
+  },
+  {
+    "name": "Sidebar + Content Shell",
+    "html": "<div class=\"flex gap-3 w-80\"><div class=\"w-20 rounded-lg border border-[#E9ECEF] bg-[#F8F9FA] h-32\"></div><div class=\"flex-1 space-y-2\"><div class=\"h-8 rounded-lg border border-[#E9ECEF] bg-white\"></div><div class=\"h-20 rounded-lg border border-[#E9ECEF] bg-white\"></div></div></div>",
+    "jsx": "export function SidebarContentShell({ sidebar, children }) {\n  return (\n    <div className=\"flex gap-3\">\n      <div className=\"w-56 shrink-0\">{sidebar}</div>\n      <div className=\"flex-1 space-y-3\">{children}</div>\n    </div>\n  );\n}\n"
+  }
+]
