@@ -12,6 +12,10 @@ async function cropVisual(img, bbox) {
   let y = Math.round(clamp(bbox.y, 0, 1) * H);
   let w = Math.round(clamp(bbox.w, 0, 1) * W);
   let h = Math.round(clamp(bbox.h, 0, 1) * H);
+  // Offset im gültigen Bereich halten, damit W-x / H-y >= 1 bleibt (sonst
+  // wirft jimp bei einer bbox, die genau auf den rechten/unteren Rand rundet).
+  x = clamp(x, 0, W - 1);
+  y = clamp(y, 0, H - 1);
   w = clamp(w, 1, W - x);
   h = clamp(h, 1, H - y);
   const crop = img.clone().crop(x, y, w, h);
@@ -30,7 +34,14 @@ export const imageDecomposer = {
       let bounds = null;
       if (hasBox) {
         if (!img) img = await Jimp.read(imagePath);
-        bounds = { x: item.bbox.x, y: item.bbox.y, w: item.bbox.w, h: item.bbox.h };
+        // bounds ist als normiert 0..1 dokumentiert → auf den Bereich clampen,
+        // damit spätere Konsumenten (Scheibe ②/③) sich darauf verlassen können.
+        bounds = {
+          x: clamp(item.bbox.x, 0, 1),
+          y: clamp(item.bbox.y, 0, 1),
+          w: clamp(item.bbox.w, 0, 1),
+          h: clamp(item.bbox.h, 0, 1),
+        };
         try {
           visual = await cropVisual(img, item.bbox);
         } catch {

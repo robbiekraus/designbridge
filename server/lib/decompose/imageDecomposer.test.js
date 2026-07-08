@@ -55,3 +55,22 @@ test('clamps out-of-range bbox to image bounds', async () => {
   assert.ok(crop.getWidth() > 0 && crop.getWidth() <= 20);  // 0.8..1.0 → ~20px
   assert.ok(crop.getHeight() > 0 && crop.getHeight() <= 20);
 });
+
+test('bbox pinned to the right/bottom edge still crops (no swallowed throw)', async () => {
+  const p = await makeSplitImage(); // 100x100
+  const inv = [{ name: 'Edge', kind: 'component', bbox: { x: 1, y: 1, w: 0.5, h: 0.5 } }];
+  const segs = await imageDecomposer.decompose({ imagePath: p, mimetype: 'image/png' }, inv);
+  fs.unlinkSync(p);
+  assert.ok(segs[0].visual, 'visual gesetzt statt verschlucktem Crop-Fehler');
+  const crop = await Jimp.read(Buffer.from(segs[0].visual.base64, 'base64'));
+  assert.ok(crop.getWidth() >= 1 && crop.getHeight() >= 1);
+});
+
+test('bounds are clamped to the normalized 0..1 range', async () => {
+  const p = await makeSplitImage();
+  const inv = [{ name: 'OOR', kind: 'component', bbox: { x: 1.2, y: -0.1, w: 0.5, h: 0.5 } }];
+  const segs = await imageDecomposer.decompose({ imagePath: p, mimetype: 'image/png' }, inv);
+  fs.unlinkSync(p);
+  assert.ok(segs[0].bounds.x >= 0 && segs[0].bounds.x <= 1);
+  assert.ok(segs[0].bounds.y >= 0 && segs[0].bounds.y <= 1);
+});
