@@ -59,3 +59,55 @@ describe('LibraryObjectList', () => {
     expect(note.parentElement.className).not.toMatch(/amber/);
   });
 });
+
+function item(overrides = {}) {
+  return {
+    name: 'Avatar', slug: 'avatar', filename: 'Avatar.jsx', kind: 'atomic',
+    templateKey: null, variants: [], code: '// code', confidence: 'med',
+    source: null, notes: null, hasPreview: false,
+    interpretedHtml: null, interpretFailed: false, interpretPending: false,
+    ...overrides,
+  };
+}
+
+describe('LibraryObjectList — Interpretations-Zustände', () => {
+  it('interpretedHtml: iframe-Vorschau + gelbe Pille, kein Stub-Chip', () => {
+    render(<LibraryObjectList items={[item({ interpretedHtml: '<div>A</div>' })]} picks={{}} />);
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByTitle('Vorschau: Avatar')).toBeTruthy();
+    expect(screen.getByText('von KI interpretiert')).toBeTruthy();
+    expect(screen.queryByText('generischer Stub')).toBeNull();
+  });
+
+  it('pending: zeigt „Wird interpretiert …"', () => {
+    render(<LibraryObjectList items={[item({ interpretPending: true })]} picks={{}} />);
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText(/Wird interpretiert/)).toBeTruthy();
+  });
+
+  it('failed: Fehlerzeile + „Erneut versuchen" ruft onRetryInterpret', () => {
+    const retry = vi.fn();
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={retry}
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText(/Interpretation fehlgeschlagen/)).toBeTruthy();
+    fireEvent.click(screen.getByText('Erneut versuchen'));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('Template-Vorschau bleibt Vorrang (hasPreview schlägt interpretedHtml)', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ hasPreview: true, templateKey: 'button', interpretedHtml: '<div>x</div>', variants: ['primary'] })]}
+        picks={{}}
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.queryByTitle('Vorschau: Avatar')).toBeNull();
+  });
+});
