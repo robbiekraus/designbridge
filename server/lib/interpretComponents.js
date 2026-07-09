@@ -37,8 +37,10 @@ Return ONLY valid JSON, no markdown, no preamble, in this shape:
 
 Rules:
 - Stay as close to the original as possible: copy the visible colors (as Tailwind arbitrary values like bg-[#4263EB]), spacing, radii, typography and REAL text content.
-- html must be fully self-contained: Tailwind classes only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for simple chart shapes).
-- For charts, reconstruct a simplified but recognizable visual (bars/lines/donut as divs or inline SVG) — not a live chart library.
+- Reproduce ALL text and NUMBERS visible in the crop verbatim — headings, labels, values, percentages, currency, units, dates. Do not invent placeholders and do not omit numbers.
+- html must be fully self-contained: Tailwind classes only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
+- For charts, reconstruct a recognizable static SVG (bars/line/donut) AND include the data details visible in the crop: axis tick labels, value/data labels on points or segments, the legend, and any center or total value. Not a live chart library, but not a bare shape either.
+- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element).
 - Keep each html snippet compact (one component).
 - Produce one entry per component, using its EXACT name.
 

@@ -30,6 +30,18 @@ const SEGMENTS = [
   { id: 'seg_1', label: 'Data Table', kind: 'component', bounds: null, visual: null, structure: null },
 ];
 
+test('Prompt verlangt Daten-Treue: Zahlen, Achsen/Legende, Tooltip, aktive Zustände', async () => {
+  const client = fakeClient({ interpretations: [] });
+  await interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client });
+  const prompt = client.calls[0].messages[0].content
+    .filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  assert.match(prompt, /NUMBERS/i);
+  assert.match(prompt, /axis tick labels/i);
+  assert.match(prompt, /legend/i);
+  assert.match(prompt, /tooltip/i);
+  assert.match(prompt, /highlighted|selected|active/i);
+});
+
 test('liefert Interpretationen für angefragte Bausteine', async () => {
   const client = fakeClient({
     interpretations: [
