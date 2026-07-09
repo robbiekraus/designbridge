@@ -37,6 +37,24 @@ describe('emitComponents', () => {
     expect(hero.code).toContain('unsicher erkannt');
   });
 
+  it('emits an icon-only IconButton (svg, no text) for an Icon Button atomic', () => {
+    const withIcon = {
+      raw: { ...result.raw, atomics: [{ name: 'Icon Button', variants: ['primary'], confidence: 'high' }] },
+    };
+    const iconBtn = emitComponents(withIcon).find((c) => c.name === 'Icon Button');
+    expect(iconBtn.filename).toBe('IconButton.jsx');
+    expect(iconBtn.templateKey).toBe('button');
+    expect(iconBtn.code).toContain('export function IconButton');
+    expect(iconBtn.code).toContain('<svg');
+    expect(iconBtn.code).toContain('aria-label');
+  });
+
+  it('a plain Button emits a text button (no svg, function named Button)', () => {
+    const button = emitComponents(result).find((c) => c.name === 'Button');
+    expect(button.code).toContain('export function Button');
+    expect(button.code).not.toContain('<svg');
+  });
+
   it('filters by kind when asked', () => {
     const atomics = emitComponents(result, 'atomic');
     expect(atomics).toHaveLength(1);
