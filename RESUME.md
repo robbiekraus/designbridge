@@ -13,7 +13,14 @@ Stand: **08.07.2026 (spät)** — **Kurskorrektur: NICHT Figma-Export, sondern I
 
 ⚠️ **CREDITS-VORBEHALT (weiterhin offen — Account-Problem):** Alles gebaut + unit-getestet + Demo grün, aber die **reale Live-Treffsicherheit an einem echten Screenshot ist erst mit aufgefüllten Credits verifizierbar.** Im Demo-Modus wirft der Live-Vision-Call → Fixture-Fallback; die echte Decompose→Crop→Multi-Image-Kette läuft zwar (jimp lokal), das Crop-Ergebnis wird demo-seitig aber verworfen. → Erster Live-Test, sobald Credits da sind.
 
-**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen; (2) entscheiden: Branch mergen/pushen? (3) sobald Credits: Live-Import eines echten Screenshots gegen die neue Kette prüfen. Danach ggf. Scheibe ② (URL/DOM-Decompose, `node-html-parser` liegt bereit) oder ③ (Figma-Export).
+**Nachtrag 09.07. (credit-freie Politur nach Robs Feedback beim Testen, alles auf demselben Branch):**
+- **Betriebsfehler geklärt:** „Import failed / Unexpected end of JSON input" bei Bild+URL+Testseite = **Backend lief nicht** (nur Web auf 5173, nichts auf 3047). Fix = Backend starten; Faustregel bis Credits: **immer `npm run dev:demo`** (startet beide), nie nur `npm run web`.
+- **Template-Bugs gefixt** (Hand-Templates, nicht KI): Icon Button hat jetzt ein Icon (Vorschau **und** generierter Code = `IconButton` mit svg/aria-label); button `secondary`≠`ghost` (ghost = Akzentfarbe randlos, secondary = Rahmen+neutral), synchron in Vorschau/Code/Figma-Plan.
+- **Interpret-Prompt gehärtet** für Robs Chart-Klagen (Zahlen/Achsen/Legende/Tooltip/aktive Zustände verbatim aus dem Crop) — **wirkt erst mit Credits**, per Prompt-Test gesichert, bewusst KEINE Fixture-Aufhübschung (kein Vortäuschen).
+- Stand grün: **Server 105/105 · Web 161/161**. Branch ~19 Commits vor origin, weiterhin LOKAL/ungepusht.
+- ⚠️ Rob kommt an die **Credits weiterhin nicht ran (Account-Problem)** → der echte Chart-/Interpretations-Test bleibt offen bis dahin.
+
+**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen; (2) entscheiden: Branch mergen/pushen? (3) sobald Credits: Live-Import eines echten Screenshots gegen die neue Kette prüfen (Chart-Fidelity!). Danach ggf. Scheibe ② (URL/DOM-Decompose, `node-html-parser` liegt bereit) oder ③ (Figma-Export).
 
 ---
 ## Alter Stand (Referenz): „Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün. Feature-Branch `feat/visual-interpretation-v1` lokal (redundant).
