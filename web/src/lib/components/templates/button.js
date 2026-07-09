@@ -18,7 +18,7 @@ export const buttonTemplate = {
         '  const variants = {',
         `    primary: "bg-[${p.primary}] text-[${p.onPrimary}] hover:opacity-90",`,
         `    secondary: "border border-[${p.border}] text-[${p.text}] hover:bg-[${p.surfaceMuted}]",`,
-        `    ghost: "text-[${p.text}] hover:bg-[${p.surfaceMuted}]",`,
+        `    ghost: "text-[${p.primary}] hover:bg-[${p.surfaceMuted}]",`,
         '  };',
         '  return <button className={[base, variants[variant], className].join(" ")} {...props} />;',
         '}',
@@ -36,7 +36,7 @@ export const buttonTemplate = {
     if (variant === 'secondary')
       return { ...base, background: 'transparent', color: p.text, borderColor: p.border };
     if (variant === 'ghost')
-      return { ...base, background: 'transparent', color: p.text };
+      return { ...base, background: 'transparent', color: p.primary };
     return { ...base, background: p.primary, color: p.onPrimary };
   },
   planFor(variant, r) {
@@ -44,7 +44,7 @@ export const buttonTemplate = {
     if (variant === 'secondary')
       return { ...base, stroke: colorRef(r.border), children: [textEl('Button', r, r.text)] };
     if (variant === 'ghost')
-      return { ...base, children: [textEl('Button', r, r.text)] };
+      return { ...base, children: [textEl('Button', r, r.primary)] };
     return { ...base, fill: colorRef(r.primary), children: [textEl('Button', r, r.onPrimary)] };
   },
 };

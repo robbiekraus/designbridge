@@ -68,7 +68,7 @@ function Row({ item, picks, onRetryInterpret }) {
           <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-1 pb-1.5">Vorschau</div>
           <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
             {Preview ? (
-              <Preview variant={variant} picks={picks} />
+              <Preview variant={variant} picks={picks} name={item.name} />
             ) : item.interpretedHtml ? (
               <div className="w-full">
                 <InterpretedPreview html={item.interpretedHtml} title={item.name} />
