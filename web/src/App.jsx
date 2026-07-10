@@ -33,7 +33,7 @@ export default function App() {
 
   const handleImported = (result) => {
     const todo = componentsNeedingInterpretation(result);
-    const initial = result.source === 'image' && todo.length > 0
+    const initial = ['image', 'url'].includes(result.source) && todo.length > 0
       ? { ...result, interpretPending: true }
       : result;
     saveLastImport(initial);
