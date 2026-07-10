@@ -25,13 +25,22 @@ test('füllt structure mit Subtree-HTML und passendem CSS', async () => {
   assert.equal(s.visual, null);
 });
 
-test('Selector-Miss → Segment ohne structure', async () => {
+test('Selector-Miss → Vollseiten-Fallback', async () => {
   const segs = await urlDecomposer.decompose({ html: HTML, css: CSS }, [
     { name: 'Ghost', kind: 'component', selector: 'html > body > article:nth-of-type(9)' },
     { name: 'NoSel', kind: 'component' },
+    { name: 'Stat Card', kind: 'component', selector: 'html > body > div:nth-of-type(1)' },
   ]);
-  assert.equal(segs[0].structure, null);
-  assert.equal(segs[1].structure, null);
+  // Miss/ohne Selector: ganze Seite als structure, aber keine Position (bounds).
+  for (const s of [segs[0], segs[1]]) {
+    assert.ok(s.structure.html.includes('Home'));
+    assert.ok(s.structure.html.includes('12.400 €'));
+    assert.ok(s.structure.css.includes('.stat-card'));
+    assert.equal(s.bounds, null);
+  }
+  // Hit bekommt weiterhin nur den Subtree.
+  assert.ok(segs[2].structure.html.includes('12.400 €'));
+  assert.ok(!segs[2].structure.html.includes('Home'));
 });
 
 test('überlanges HTML wird gekappt', async () => {

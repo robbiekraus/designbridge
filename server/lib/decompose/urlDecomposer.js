@@ -61,11 +61,19 @@ function cssDigest(css, el) {
 export const urlDecomposer = {
   async decompose({ html, css }, inventory) {
     const root = parse(html || '');
+    // Vollseiten-Fallback bei Selector-Miss (Spec-Parität zum Bild-Vollbild):
+    // lieber ganze Seite als gar kein Grounding. Lazy, einmal pro Aufruf.
+    let fullPage = null;
+    const fullPageStructure = () =>
+      (fullPage ??= {
+        html: (root.outerHTML || html || '').slice(0, HTML_CAP),
+        css: String(css || '').slice(0, CSS_CAP),
+      });
     return inventory.map((item, i) => {
       const el = item.selector ? resolveSelector(root, item.selector) : null;
       const structure = el
         ? { html: (el.outerHTML || '').slice(0, HTML_CAP), css: cssDigest(css || '', el) }
-        : null;
+        : fullPageStructure();
       return {
         id: `seg_${i}`,
         label: item.name,
