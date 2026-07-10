@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Suche",
+    "html": "<form role=\"search\" class=\"flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 w-64\"><svg class=\"h-4 w-4 text-[#9ca3af]\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\"><circle cx=\"9\" cy=\"9\" r=\"6\" stroke-width=\"2\"/><path d=\"M14 14l4 4\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><input type=\"search\" placeholder=\"Suchen…\" class=\"flex-1 text-sm text-[#111827] placeholder-[#9ca3af] outline-none\"></form>",
+    "jsx": "export function Suche({ placeholder = \"Suchen…\" }) {\n  return (\n    <form role=\"search\" className=\"flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 w-64\">\n      <svg className=\"h-4 w-4 text-[#9ca3af]\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\">\n        <circle cx=\"9\" cy=\"9\" r=\"6\" strokeWidth=\"2\" />\n        <path d=\"M14 14l4 4\" strokeWidth=\"2\" strokeLinecap=\"round\" />\n      </svg>\n      <input type=\"search\" placeholder={placeholder} className=\"flex-1 text-sm text-[#111827] placeholder-[#9ca3af] outline-none\" />\n    </form>\n  );\n}\n"
+  },
+  {
+    "name": "Formular",
+    "html": "<form class=\"flex items-center gap-2\"><input type=\"email\" placeholder=\"E-Mail\" class=\"rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] placeholder-[#9ca3af]\"><button class=\"rounded-lg bg-[#4263EB] px-4 py-2 text-sm font-medium text-white hover:opacity-90\">Abonnieren</button></form>",
+    "jsx": "export function Formular({ placeholder = \"E-Mail\", buttonLabel = \"Abonnieren\" }) {\n  return (\n    <form className=\"flex items-center gap-2\">\n      <input type=\"email\" placeholder={placeholder} className=\"rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#111827] placeholder-[#9ca3af]\" />\n      <button className=\"rounded-lg bg-[#4263EB] px-4 py-2 text-sm font-medium text-white hover:opacity-90\">{buttonLabel}</button>\n    </form>\n  );\n}\n"
+  },
+  {
+    "name": "Liste",
+    "html": "<ul class=\"space-y-1.5 text-sm text-[#374151]\"><li class=\"flex items-center gap-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-[#4263EB]\"></span>Punkt 1</li><li class=\"flex items-center gap-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-[#4263EB]\"></span>Punkt 2</li><li class=\"flex items-center gap-2\"><span class=\"h-1.5 w-1.5 rounded-full bg-[#4263EB]\"></span>Punkt 3</li></ul>",
+    "jsx": "export function Liste({ items = [\"Punkt 1\", \"Punkt 2\", \"Punkt 3\"] }) {\n  return (\n    <ul className=\"space-y-1.5 text-sm text-[#374151]\">\n      {items.map((label) => (\n        <li key={label} className=\"flex items-center gap-2\">\n          <span className=\"h-1.5 w-1.5 rounded-full bg-[#4263EB]\" />\n          {label}\n        </li>\n      ))}\n    </ul>\n  );\n}\n"
+  },
+  {
+    "name": "Navbar",
+    "html": "<nav class=\"flex items-center justify-between gap-4 px-4 py-2 border-b border-[#e5e7eb] bg-white\"><a href=\"#\" class=\"text-sm font-medium text-[#111827]\">Home</a><form role=\"search\" class=\"flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-1.5\"><svg class=\"h-4 w-4 text-[#9ca3af]\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\"><circle cx=\"9\" cy=\"9\" r=\"6\" stroke-width=\"2\"/><path d=\"M14 14l4 4\" stroke-width=\"2\" stroke-linecap=\"round\"/></svg><input type=\"search\" placeholder=\"Suchen…\" class=\"text-sm text-[#111827] placeholder-[#9ca3af] outline-none bg-transparent\"></form></nav>",
+    "jsx": "export function Navbar({ homeLabel = \"Home\", placeholder = \"Suchen…\" }) {\n  return (\n    <nav className=\"flex items-center justify-between gap-4 px-4 py-2 border-b border-[#e5e7eb] bg-white\">\n      <a href=\"#\" className=\"text-sm font-medium text-[#111827]\">{homeLabel}</a>\n      <form role=\"search\" className=\"flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-1.5\">\n        <input type=\"search\" placeholder={placeholder} className=\"text-sm text-[#111827] placeholder-[#9ca3af] outline-none bg-transparent\" />\n      </form>\n    </nav>\n  );\n}\n"
+  },
+  {
+    "name": "Hero",
+    "html": "<header class=\"px-6 py-10 text-center\"><h1 class=\"text-2xl font-semibold text-[#111827]\">ACME Analytics</h1><p class=\"mt-2 text-sm text-[#6b7280]\">Eine kleine Demo-Seite mit echten CSS-Variablen.</p><div class=\"mt-4 flex justify-center gap-2\"><button class=\"rounded-lg bg-[#4263EB] px-4 py-2 text-sm font-medium text-white hover:opacity-90\">Jetzt starten</button><button class=\"rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#f9fafb]\">Mehr</button></div></header>",
+    "jsx": "export function Hero({ title = \"ACME Analytics\", subtitle = \"Eine kleine Demo-Seite mit echten CSS-Variablen.\" }) {\n  return (\n    <header className=\"px-6 py-10 text-center\">\n      <h1 className=\"text-2xl font-semibold text-[#111827]\">{title}</h1>\n      <p className=\"mt-2 text-sm text-[#6b7280]\">{subtitle}</p>\n      <div className=\"mt-4 flex justify-center gap-2\">\n        <button className=\"rounded-lg bg-[#4263EB] px-4 py-2 text-sm font-medium text-white hover:opacity-90\">Jetzt starten</button>\n        <button className=\"rounded-lg border border-[#e5e7eb] px-4 py-2 text-sm font-medium text-[#111827] hover:bg-[#f9fafb]\">Mehr</button>\n      </div>\n    </header>\n  );\n}\n"
+  },
+  {
+    "name": "Footer",
+    "html": "<footer class=\"px-4 py-4 text-center text-xs text-[#9ca3af] border-t border-[#e5e7eb]\"><p>© ACME</p></footer>",
+    "jsx": "export function Footer({ text = \"© ACME\" }) {\n  return (\n    <footer className=\"px-4 py-4 text-center text-xs text-[#9ca3af] border-t border-[#e5e7eb]\">\n      <p>{text}</p>\n    </footer>\n  );\n}\n"
+  }
+]
