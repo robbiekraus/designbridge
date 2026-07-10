@@ -32,6 +32,9 @@ function escapeRegExp(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// Bekannte Grenze: das Brace-Matching unten ist eine naive Heuristik —
+// @media-/verschachtelte Blöcke und String-Literale mit Braces werden
+// mis-geparst (kein Crash, nur verlustbehaftet). Für den Digest-Zweck ok.
 function cssDigest(css, el) {
   const classes = new Set();
   const tags = new Set();
@@ -44,7 +47,9 @@ function cssDigest(css, el) {
   let m;
   while ((m = re.exec(css))) {
     const sel = m[1].trim();
-    const hitClass = [...classes].some((c) => sel.includes(`.${c}`));
+    const hitClass = [...classes].some((c) =>
+      new RegExp(`\\.${escapeRegExp(c)}(?![\\w-])`).test(sel)
+    );
     const hitTag = [...tags].some((t) =>
       new RegExp(`(^|[\\s,>+~])${escapeRegExp(t)}([.:#\\s,>+~[]|$)`).test(sel)
     );
