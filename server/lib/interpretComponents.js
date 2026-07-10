@@ -22,9 +22,9 @@ export function sanitizeHtml(html) {
     .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*javascript:[^\s>]*/gi, '');
 }
 
-function buildPrompt(segments, hasFullImageFallback) {
+function buildPrompt(segments, hasFullImageFallback, hasStructure) {
   const labels = segments.map((s) => s.label);
-  return `You are a UI reconstruction engine. Below you receive one cropped image PER component (in order), each preceded by its name. ${hasFullImageFallback ? 'For any component WITHOUT its own crop, use the full screenshot provided first.' : ''}
+  return `You are a UI reconstruction engine. Below you receive one cropped image OR the source HTML+CSS per component (in order), each preceded by its name. ${hasFullImageFallback ? 'For any component WITHOUT its own crop, use the full screenshot provided first.' : ''}
 
 For EACH component, reconstruct it as faithfully as possible to how it appears in ITS image.
 
@@ -40,7 +40,7 @@ Rules:
 - Reproduce ALL text and NUMBERS visible in the crop verbatim — headings, labels, values, percentages, currency, units, dates. Do not invent placeholders and do not omit numbers.
 - html must be fully self-contained: Tailwind classes only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
 - For charts, reconstruct a recognizable static SVG (bars/line/donut) AND include the data details visible in the crop: axis tick labels, value/data labels on points or segments, the legend, and any center or total value. Not a live chart library, but not a bare shape either.
-- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element).
+- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element).${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into clean Tailwind — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}
 - Keep each html snippet compact (one component).
 - Produce one entry per component, using its EXACT name.
 
@@ -50,8 +50,11 @@ COMPONENTS (in order): ${JSON.stringify(labels)}`;
 export async function interpretComponents(imagePath, mimetype, segments, { client } = {}) {
   const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
-  const withoutVisual = segments.filter((s) => !(s.visual && s.visual.base64));
-  const hasFullImageFallback = withoutVisual.length > 0;
+  const withStructure = segments.filter((s) => s.structure && s.structure.html);
+  const bare = segments.filter(
+    (s) => !(s.visual && s.visual.base64) && !(s.structure && s.structure.html)
+  );
+  const hasFullImageFallback = bare.length > 0 && !!imagePath;
 
   const content = [];
   if (hasFullImageFallback) {
@@ -63,7 +66,13 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
     content.push({ type: 'text', text: `Component: ${s.label}` });
     content.push({ type: 'image', source: { type: 'base64', media_type: s.visual.media_type, data: s.visual.base64 } });
   }
-  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback) });
+  for (const s of withStructure) {
+    content.push({
+      type: 'text',
+      text: `Component: ${s.label}\nSOURCE HTML:\n${s.structure.html}\nRELEVANT CSS:\n${s.structure.css || '(none)'}`,
+    });
+  }
+  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0) });
 
   const response = await c.messages.create({
     model: MODEL,
