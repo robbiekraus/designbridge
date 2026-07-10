@@ -76,3 +76,26 @@ test('returns the empty shape instead of throwing on pathological input', () => 
     assert.deepEqual(out, { atomics: [], components: [], patterns: [] });
   }
 });
+
+test('erkannte Bausteine tragen einen selector-Pfad', () => {
+  const r = recognizeComponents('<div><nav><a class="btn">x</a></nav><button>Ok</button></div>');
+  const btn = r.atomics.find((a) => a.name === 'Button');
+  assert.ok(btn.selector && /button|nav/.test(btn.selector));
+  const nav = r.patterns.find((p) => p.name === 'Navbar');
+  assert.match(nav.selector, /nav/);
+});
+
+test('wiederholte Klassen-Cluster werden Kandidaten mit selector', () => {
+  const html = `<main>
+    <div class="stat-card"><h3>Umsatz</h3><p>12.400 €</p></div>
+    <div class="stat-card"><h3>Kunden</h3><p>87</p></div>
+    <div class="row"><span>a</span><span>b</span></div>
+  </main>`;
+  const r = recognizeComponents(html);
+  const cand = r.components.find((c) => c.name === 'Stat Card');
+  assert.ok(cand, 'Kandidat Stat Card fehlt');
+  assert.equal(cand.confidence, 'low');
+  assert.equal(cand.notes, 'unerkannter Baustein-Kandidat');
+  assert.ok(cand.selector.includes('div'));
+  assert.ok(!r.components.some((c) => c.name === 'Row'), 'Layout-Klassen sind keine Kandidaten');
+});
