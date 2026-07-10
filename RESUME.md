@@ -1,6 +1,22 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **08.07.2026 (spät)** — **Kurskorrektur: NICHT Figma-Export, sondern Interpretations-QUALITÄT.** Rob hat gesehen, dass die KI-Interpretation „fahrig" ist (Stat Card ≈ Line Chart Card, beide nicht getroffen; Donut näher dran). Ursache am Code verifiziert = **zwei Lecks**: (1) **Routing** — Template-Gate `/card|tile|panel/` kapert inhaltstragende Karten auf ein generisches Card-Template, bevor die KI sie sieht; (2) **Grounding** — Interpret bekommt nur das GANZE Bild + Namen, keinen Ausschnitt. Robs Kern-Einsicht: **erst die Quelle in abgegrenzte Einzelteile zerlegen, dann interpretieren.**
+Stand: **10.07.2026 (spät)** — **✅ SCHEIBE ② (URL/DOM-Decompose) FERTIG GEBAUT, wartet auf Robs Review.**
+
+## Scheibe ② — URL-Import bekommt KI-Interpretation (Branch `feat/url-decompose-slice2`, LOKAL, ungepusht)
+Rob hat im Brainstorm 10.07. entschieden: Scheibe ② vor Scheibe ③ (Figma-Export), Repo-Decompose kommt als LETZTE Scheibe. Spec `docs/superpowers/specs/2026-07-10-url-decompose-slice2-design.md` + Plan (8 Tasks) liegen auf `main` (mit gepusht). Slice 1 wurde vorher mit Robs OK auf `main` gemergt UND gepusht (`origin/main` = `146c33a`ff).
+
+**Was gebaut wurde (subagent-getrieben, Sonnet-Implementer + Reviews, Fable-Koordination):** `pageStore` (HTML+CSS ephemer, TTL 15 min, Muster imageStore) · `recognizeComponents` instanzbasiert (`selector`-Pfade `tag:nth-of-type(n) > …` je Baustein + „unerkannte Baustein-Kandidaten" aus wiederholten Klassen-Clustern, max 5) · `UrlDecomposer` in der Fabrik (`structure = {html≤8k, css-Digest≤4k}`, Vollseiten-Fallback bei Selector-Miss) · `interpretComponents` versteht structure-Segmente als Textblöcke (ein Call, gemischt visual+structure, imagePath darf null sein) · Route mit Store-/kind-Weiche + `demo-url-interpretations.json` (deckt die 6 template-losen demo-site-Bausteine: Suche, Formular, Liste, Navbar, Hero, Footer) · Web-Gates in `interpret.js` UND `App.jsx` lassen `source:'url'` durch.
+
+**Stand grün:** Server **117/117** · Web **162/162** · Plugin typecheck+build sauber. **Browser-Smoke bestanden** (URL-Import der demo-site → 6 Bausteine mit gelber Pille „von KI interpretiert", iframe-Vorschau + jsx sichtbar, keine Konsolenfehler; Screenshots in der Session vom 10.07.). Der Smoke fing einen echten Bug: `App.jsx` hatte ein ZWEITES source-Gate, das der Plan übersehen hatte (`0566cc8`).
+
+**Finaler Gesamt-Review (frische Augen, Sonnet): „ship-ready"** — keine Correctness-Bugs, keine neue XSS-Fläche (structure.html geht nur in den Prompt, Ausgabe weiter durch sanitizeHtml + sandbox-iframe), kein Bild-Pfad-Regress, Tests ehrlich. **Bekannte Limitierungen (akzeptiert, Fast-Follow-Kandidaten):** (1) **Kandidaten-Erkennung flutet bei Tailwind/Utility-Klassen** (`items-center` etc. werden Kandidaten und verbrauchen das 5er-Limit — demo-site nutzt semantische Klassen, echte Tailwind-Seiten treffen das; Filter für Utility-Muster nachrüsten); (2) Compound-Klassen doppelt (user-card → Card + Kandidat); (3) cssDigest-Heuristik lossy bei @media/nested braces; (4) Vollseiten-Fallback wird pro Miss-Segment dupliziert (Token-Kosten, falls Misses häufig); (5) Server-Test importiert Web-Registry (Kopplung).
+
+**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen (Branch `feat/url-decompose-slice2`, ~11 Commits); (2) Merge/Push-Entscheidung; (3) sobald Credits: Live-Test an echter fremder URL (dann zeigt sich auch Limitierung 1). Danach: Scheibe ③ (Figma-Export, Architekturfrage plan-vs-jsx offen — Brainstorm nötig) oder Feinschliff.
+
+**Visual-Companion-Absprache:** Rob wollte den Brainstorm-Browser „noch nicht, aber vorbereiten" — beim nächsten genuin visuellen Punkt (z. B. Scheibe-③-Mockups) wieder anbieten.
+
+---
+## Alter Stand (08.07., Referenz) — **Kurskorrektur: NICHT Figma-Export, sondern Interpretations-QUALITÄT.** Rob hat gesehen, dass die KI-Interpretation „fahrig" ist (Stat Card ≈ Line Chart Card, beide nicht getroffen; Donut näher dran). Ursache am Code verifiziert = **zwei Lecks**: (1) **Routing** — Template-Gate `/card|tile|panel/` kapert inhaltstragende Karten auf ein generisches Card-Template, bevor die KI sie sieht; (2) **Grounding** — Interpret bekommt nur das GANZE Bild + Namen, keinen Ausschnitt. Robs Kern-Einsicht: **erst die Quelle in abgegrenzte Einzelteile zerlegen, dann interpretieren.**
 
 **Neuer Plan (im Brainstorm 08.07. mit Rob freigegeben, Option C „saubere Architektur"):** quellen-agnostische **Decompose-Stufe** (ein `Segment`-Contract + `Decomposer`-Interface; Bild jetzt, URL später), 3 Scheiben: ① Bild-Zerlegung (diese Session) → ② URL/DOM → ③ Figma-Export + Design-System heben.
 
