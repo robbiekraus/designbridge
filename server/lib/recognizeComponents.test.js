@@ -99,3 +99,18 @@ test('wiederholte Klassen-Cluster werden Kandidaten mit selector', () => {
   assert.ok(cand.selector.includes('div'));
   assert.ok(!r.components.some((c) => c.name === 'Row'), 'Layout-Klassen sind keine Kandidaten');
 });
+
+test('Tailwind-Utility-Klassen werden keine Kandidaten', () => {
+  const rep = (cls) =>
+    `<div class="${cls}"><span>a</span><span>b</span></div>`.repeat(2);
+  const html = `<main>${rep('items-center')}${rep('rounded-xl')}${rep('py-4')}${rep(
+    'justify-between'
+  )}${rep('bg-white')}${rep('shadow')}${rep('text-sm')}${rep('hover:bg-gray-50')}${rep(
+    'pricing-table'
+  )}</main>`;
+  const r = recognizeComponents(html);
+  const names = r.components
+    .filter((c) => c.notes === 'unerkannter Baustein-Kandidat')
+    .map((c) => c.name);
+  assert.deepEqual(names, ['Pricing Table']);
+});

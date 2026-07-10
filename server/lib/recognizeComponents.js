@@ -35,6 +35,19 @@ const LAYOUT_CLASS = /container|wrapper|row|col|grid|flex|inner|content|main|pag
 // "card" allein zaehlt als bekannt, "stat-card" nicht — sonst wuerden zusammengesetzte
 // Klassennamen wie "stat-card" faelschlich als bekannt gelten und nie zum Kandidaten.
 const KNOWN_CLASS_WORDS = new Set(['btn', 'button', 'badge', 'chip', 'tag', 'card', 'tile']);
+// Tailwind-/Utility-Klassen sind Styling, keine Bausteine — ohne diesen Filter
+// fluten sie die Kandidatenliste (items-center, py-4, …) und verbrauchen das
+// 5er-Limit, bevor echte unbenannte Bausteine (stat-card) drankommen.
+const UTILITY_CLASS = new RegExp(
+  '[:\\[\\]/]|^-|^(?:' +
+    '(?:p|m)(?:[trblxyse])?-|' +
+    '(?:w|h|min-w|min-h|max-w|max-h|size|basis|order|z|inset|top|right|bottom|left)-|' +
+    '(?:text|font|bg|border|rounded|shadow|ring|outline|fill|stroke|divide|space|gap)(?:-|$)|' +
+    '(?:items|justify|self|place|object|overflow|align|leading|tracking|whitespace|break|list|aspect|columns)-|' +
+    '(?:transition|duration|delay|ease|animate|opacity|cursor|select|grow|shrink|truncate|uppercase|lowercase|capitalize|italic|underline)(?:-|$)|' +
+    '(?:absolute|relative|fixed|sticky|static|hidden|block|inline|inline-block|inline-flex|table)$' +
+  ')'
+);
 const titleCase = (cls) =>
   cls.split(/[-_]/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
@@ -52,7 +65,7 @@ function recognizeCandidates(els) {
   }
   const out = [];
   for (const [cls, list] of byClass) {
-    if (list.length < 2 || LAYOUT_CLASS.test(cls) || KNOWN_CLASS_WORDS.has(cls)) continue;
+    if (list.length < 2 || LAYOUT_CLASS.test(cls) || KNOWN_CLASS_WORDS.has(cls) || UTILITY_CLASS.test(cls)) continue;
     out.push({
       name: titleCase(cls),
       variants: [],
