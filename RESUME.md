@@ -11,16 +11,26 @@ Stand: **08.07.2026 (spät)** — **Kurskorrektur: NICHT Figma-Export, sondern I
 - **Was gebaut wurde:** `Segment`-Contract + `getDecomposer()`-Fabrik (`server/lib/decompose/`), `ImageDecomposer` (jimp-Crop), Scan liefert `bbox` (+ injizierbarer Client), `interpretComponents` = Multi-Image-Call (Crop je Segment + Vollbild-Fallback), Route decompose→interpret, Web reicht bbox durch, Routing-Fix (inhaltstragende Karten → Interpretation), Demo-Fixtures (bbox + Stat/Line-Chart-Card). Test-Glob → `server/**` (Fix für decompose-Subdir).
 - `jimp@0.22.12` gepinnt (reines JS, kein native Build).
 
-⚠️ **CREDITS-VORBEHALT (weiterhin offen — Account-Problem):** Alles gebaut + unit-getestet + Demo grün, aber die **reale Live-Treffsicherheit an einem echten Screenshot ist erst mit aufgefüllten Credits verifizierbar.** Im Demo-Modus wirft der Live-Vision-Call → Fixture-Fallback; die echte Decompose→Crop→Multi-Image-Kette läuft zwar (jimp lokal), das Crop-Ergebnis wird demo-seitig aber verworfen. → Erster Live-Test, sobald Credits da sind.
+ℹ️ **Credits: offener Nice-to-have, KEIN Blocker** (siehe Nachtrag 10.07. unten). Alles gebaut + unit-getestet + Demo grün. Was ohne Credits offen bleibt: die **reale Live-Treffsicherheit an einem echten Screenshot** — die kann erst mit aufgefülltem Guthaben verifiziert werden. Im Demo-Modus wirft der Live-Vision-Call → Fixture-Fallback; die echte Decompose→Crop→Multi-Image-Kette läuft zwar (jimp lokal), das Crop-Ergebnis wird demo-seitig aber verworfen. → Live-Test folgt, sobald Credits da sind — blockiert aber nicht den weiteren Bau.
 
 **Nachtrag 09.07. (credit-freie Politur nach Robs Feedback beim Testen, alles auf demselben Branch):**
 - **Betriebsfehler geklärt:** „Import failed / Unexpected end of JSON input" bei Bild+URL+Testseite = **Backend lief nicht** (nur Web auf 5173, nichts auf 3047). Fix = Backend starten; Faustregel bis Credits: **immer `npm run dev:demo`** (startet beide), nie nur `npm run web`.
 - **Template-Bugs gefixt** (Hand-Templates, nicht KI): Icon Button hat jetzt ein Icon (Vorschau **und** generierter Code = `IconButton` mit svg/aria-label); button `secondary`≠`ghost` (ghost = Akzentfarbe randlos, secondary = Rahmen+neutral), synchron in Vorschau/Code/Figma-Plan.
 - **Interpret-Prompt gehärtet** für Robs Chart-Klagen (Zahlen/Achsen/Legende/Tooltip/aktive Zustände verbatim aus dem Crop) — **wirkt erst mit Credits**, per Prompt-Test gesichert, bewusst KEINE Fixture-Aufhübschung (kein Vortäuschen).
 - Stand grün: **Server 105/105 · Web 161/161**. Branch ~19 Commits vor origin, weiterhin LOKAL/ungepusht.
-- ⚠️ Rob kommt an die **Credits weiterhin nicht ran (Account-Problem)** → der echte Chart-/Interpretations-Test bleibt offen bis dahin.
+- ℹ️ Rob kommt an die **Credits weiterhin nicht ran (Account-Problem, ungeklärt ob Zahlung/Zugriff/Sperre)** → der echte Chart-/Interpretations-Live-Test bleibt bis dahin offen. Das blockiert laut Nachtrag 10.07. aber NICHT den weiteren Bau (Kernfunktionen sind 0-Credit-fähig).
 
-**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen; (2) entscheiden: Branch mergen/pushen? (3) sobald Credits: Live-Import eines echten Screenshots gegen die neue Kette prüfen (Chart-Fidelity!). Danach ggf. Scheibe ② (URL/DOM-Decompose, `node-html-parser` liegt bereit) oder ③ (Figma-Export).
+**Nächste Schritte für Rob:** (1) Spec+Plan+Diff reviewen; (2) entscheiden: Branch mergen/pushen? (3) unabhängig davon: Scheibe ② (URL/DOM-Decompose, `node-html-parser` liegt bereit) oder ③ (Figma-Export) angehen — muss NICHT auf Credits warten. (4) Sobald Credits da sind: Live-Import eines echten Screenshots gegen die neue Kette prüfen (Chart-Fidelity) — als Nachtrag, kein Gate.
+
+## Nachtrag 10.07. — Credit-Status gecheckt: kein Blocker, sondern Architektur-Prinzip
+Rob hat Rückmeldung von der Schule: der aktuelle Stand braucht die API-Credits eigentlich gar nicht. **Live gegen die Anthropic-API geprüft (minimaler Call): Guthaben ist weiterhin leer** (`credit balance is too low`), Key selbst funktioniert. Aber die Schule hat recht — Analyse der Routen bestätigt: **Kernfunktionen sind by design 0-Credit-fähig**, das ist keine Ausnahme sondern die bewusste Architektur-Entscheidung aus [ADR-001](docs/superpowers/adr/ADR-001-repo-ingester-quelle.md) (Lehre aus dem Credit-Ausfall bei der Demo am 24.06.2026 — Memory `project_designbridge_demo_2026-06-24`): „KI ist Veredelung auf Knopfdruck, nie Grundvoraussetzung."
+
+Route-für-Route-Bild:
+- **0 Credits, immer:** `/api/scan/url`, `/api/scan/repo` (beide rein deterministisch), Figma-Export/Emitter (kein Claude-Call im ganzen Modul).
+- **Braucht Credits, hat aber Fixture-Fallback mit `DEMO_FALLBACK=1`:** `/api/scan/image`, `/api/interpret/components` — mit `npm run dev:demo` läuft die komplette App durch, nur eben mit Fixture- statt Live-Vision-Daten.
+- **Braucht Credits, ist aber explizit optional/on-demand:** `/api/scan/url/ai`, `/api/scan/repo/ai` („Mit KI vertiefen"-Knopf).
+
+**Konsequenz:** Der einzige tatsächlich credit-abhängige Rest ist die Live-Fidelity-Verifikation der Bild-Interpretation (s.o.) — das war schon immer als Nice-to-have gedacht, nie als Gate. Der Branch-Review/Merge, Scheibe ②/③ und jede weitere Arbeit können unabhängig von Credits weiterlaufen.
 
 ---
 ## Alter Stand (Referenz): „Visuelle Interpretation Slice 1" KOMPLETT, GEMERGT & GEPUSHT auf `origin/main` (`abfcc5f`). Server 93/93 + Web 152/152 grün. Feature-Branch `feat/visual-interpretation-v1` lokal (redundant).
