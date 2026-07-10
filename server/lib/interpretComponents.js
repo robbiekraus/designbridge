@@ -66,10 +66,23 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
     content.push({ type: 'text', text: `Component: ${s.label}` });
     content.push({ type: 'image', source: { type: 'base64', media_type: s.visual.media_type, data: s.visual.base64 } });
   }
+  // Identische structure-Blöcke (z. B. der Vollseiten-Fallback mehrerer
+  // Selector-Misses) nur EINMAL senden — sonst multipliziert sich die
+  // volle Seite pro Segment in den Prompt (Token-Kosten).
+  const structureGroups = new Map(); // html → { structure, labels }
   for (const s of withStructure) {
+    const g = structureGroups.get(s.structure.html);
+    if (g) g.labels.push(s.label);
+    else structureGroups.set(s.structure.html, { structure: s.structure, labels: [s.label] });
+  }
+  for (const { structure, labels } of structureGroups.values()) {
+    const who =
+      labels.length === 1
+        ? `Component: ${labels[0]}`
+        : `Components (shared source, one entry EACH): ${labels.join(', ')}`;
     content.push({
       type: 'text',
-      text: `Component: ${s.label}\nSOURCE HTML:\n${s.structure.html}\nRELEVANT CSS:\n${s.structure.css || '(none)'}`,
+      text: `${who}\nSOURCE HTML:\n${structure.html}\nRELEVANT CSS:\n${structure.css || '(none)'}`,
     });
   }
   content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0) });
