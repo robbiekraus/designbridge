@@ -25,6 +25,7 @@ export function componentsNeedingInterpretation(result) {
         variants: item.variants ?? [],
         notes: item.notes ?? '',
         bbox: item.bbox ?? null,
+        selector: item.selector ?? null,
       });
     }
   }
@@ -65,7 +66,7 @@ export function attachInterpretations(result, data) {
 export async function runInterpretation(result) {
   const todo = componentsNeedingInterpretation(result);
   const importId = result?.raw?.meta?.import_id;
-  if (result?.source !== 'image' || !importId || todo.length === 0) return null;
+  if (!['image', 'url'].includes(result?.source) || !importId || todo.length === 0) return null;
   try {
     const data = await requestInterpretations(importId, todo);
     return attachInterpretations(result, data);

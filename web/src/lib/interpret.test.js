@@ -30,7 +30,7 @@ describe('componentsNeedingInterpretation', () => {
   it('filtert Template-Treffer raus und behält kind/variants/notes', () => {
     const todo = componentsNeedingInterpretation(RESULT);
     expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
-    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null });
+    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null });
   });
 
   it('passes bbox through and routes content-bearing cards to interpretation', () => {
@@ -106,9 +106,32 @@ describe('runInterpretation', () => {
     expect(await runInterpretation(done)).toBeNull();
   });
 
-  it('liefert null ohne import_id oder für nicht-image-Quellen', async () => {
+  it('liefert null ohne import_id oder für nicht unterstützte Quellen', async () => {
     expect(await runInterpretation({ ...RESULT, raw: { ...RESULT.raw, meta: {} } })).toBeNull();
-    expect(await runInterpretation({ ...RESULT, source: 'url' })).toBeNull();
+    expect(await runInterpretation({ ...RESULT, source: 'repo' })).toBeNull();
+  });
+
+  it('läuft auch für source url und reicht selector durch', async () => {
+    let sentBody = null;
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      sentBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
+      };
+    }));
+    const urlResult = {
+      ...RESULT,
+      source: 'url',
+      raw: {
+        ...RESULT.raw,
+        atomics: [{ name: 'Avatar', selector: 'html > body > div' }],
+      },
+    };
+    const next = await runInterpretation(urlResult);
+    expect(next.interpretations.Avatar).toBeTruthy();
+    const avatar = sentBody.components.find((c) => c.name === 'Avatar');
+    expect(avatar.selector).toBe('html > body > div');
   });
 
   it('happy path: holt und merged', async () => {
