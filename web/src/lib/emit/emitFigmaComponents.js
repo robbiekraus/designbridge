@@ -18,7 +18,17 @@ const KINDS = [
 export function emitFigmaComponents(result) {
   const raw = result?.raw;
   if (!raw) return [];
-  const refs = pickTokenRefs(normalizeTokens(raw.tokens));
+  const normalizedTokens = normalizeTokens(raw.tokens);
+  const refs = pickTokenRefs(normalizedTokens);
+
+  // Dieselbe (disambiguierte!) Farbliste, aus der emitFigma/applyImport die realen
+  // DesignBridge/Color/<name>-Styles bauen (normalizeTokens.assignNames vergibt bei
+  // Kollision primary/primary-2/…) — htmlToPlan.matchColorToken matcht hier nur noch
+  // per Hex und reicht .name unverändert durch, statt role erneut zu slugifien
+  // (Review-Fix: sonst bindet applyFill silent an den falschen Style).
+  const namedColors = normalizedTokens
+    .filter((t) => t.group === 'color')
+    .map((t) => ({ hex: t.value, name: t.name }));
 
   // knownComponents = ALLE Bausteine dieses Exports (jede Ebene), unabhängig davon, ob sie
   // gleich ein Template, einen KI-Plan oder nur einen Platzhalter bekommen: buildComponents.ts
@@ -59,7 +69,7 @@ export function emitFigmaComponents(result) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings } = htmlToPlan(interp.html, { tokens: raw.tokens, knownComponents });
+        const { plan, warnings } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
           out.push({

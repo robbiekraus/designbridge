@@ -173,3 +173,31 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
     expect(clean.raw.warnings).toBeUndefined();
   });
 });
+
+describe('emitFigmaComponents — Token-Bindung gegen disambiguierte Namen (Review-Fix)', () => {
+  it('bei kollidierenden Rollen bindet der Konverter an den disambiguierten Namen (primary-2), nicht an den rohen Slug', () => {
+    // normalizeTokens.assignNames vergibt bei Kollision "primary" + "primary-2" (siehe normalizeTokens.js).
+    // htmlToPlan.matchColorToken darf NICHT bare slugify(role) zurückgeben, sonst bindet applyFill
+    // an den FALSCHEN (ersten) Figma-Style — hier müsste der Treffer auf das zweite Token (#222222) zeigen.
+    const withCollision = {
+      raw: {
+        tokens: {
+          colors: [
+            { hex: '#111111', role: 'Primary' },
+            { hex: '#222222', role: 'primary' },
+          ],
+          typography: [], spacing: [], border_radius: [], shadows: [],
+        },
+        atomics: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        components: [],
+        patterns: [],
+      },
+      interpretations: {
+        'Stat Card': { html: '<div class="bg-[#222222]"></div>', jsx: '<div />' },
+      },
+    };
+    const out = emitFigmaComponents(withCollision);
+    const card = out.find((c) => c.name === 'Stat Card');
+    expect(card.variants[0].plan.fill).toEqual({ hex: '#222222', token: 'primary-2' });
+  });
+});

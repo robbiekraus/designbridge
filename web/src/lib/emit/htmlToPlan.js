@@ -61,13 +61,19 @@ function resolveRawColor(rest) {
   return null;
 }
 
-/** Hex case-insensitiv gegen ctx.tokens.colors matchen (Shape: [{ hex, role }], siehe
- *  web/src/lib/emit/normalizeTokens.js). Treffer → slugifizierter Token-Name (dieselbe
- *  Namensvergabe wie normalizeTokens), sonst null. Spec §Konverter Punkt 5. */
+/** Hex case-insensitiv gegen ctx.tokens.colors matchen. Zwei Shapes werden unterstützt:
+ *  - { hex, name } — bereits disambiguierter Name, wie emitFigmaComponents.js ihn aus
+ *    normalizeTokens(raw.tokens) durchreicht (assignNames vergibt bei Kollision primary/primary-2/…,
+ *    siehe web/src/lib/emit/normalizeTokens.js). Dieser Name MUSS 1:1 zurückgegeben werden, sonst
+ *    bindet applyFill im Plugin an den falschen (ersten) DesignBridge/Color/<name>-Style, weil ein
+ *    erneutes slugify(role) die Kollisions-Suffixe verliert (Review-Fix: silent wrong-color bind).
+ *  - { hex, role } — Rohform (z. B. direkt in Tests), Rückwärtskompatibilität: role wird slugifiziert.
+ *  Kein Treffer → null. Spec §Konverter Punkt 5. */
 function matchColorToken(hex, ctx) {
   const list = Array.isArray(ctx?.tokens?.colors) ? ctx.tokens.colors : [];
   const found = list.find((t) => typeof t?.hex === 'string' && t.hex.toLowerCase() === hex.toLowerCase());
   if (!found) return null;
+  if (typeof found.name === 'string' && found.name) return found.name;
   return slugify(found.role) || null;
 }
 

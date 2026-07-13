@@ -436,4 +436,14 @@ describe('htmlToPlan — Token-Bindung (Spec §Konverter Punkt 5)', () => {
     const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>');
     expect(plan.fill).toEqual({ hex: '#4263EB', token: null });
   });
+
+  it('vorab vergebener .name gewinnt gegenüber slugify(role) (Bindung an disambiguierte Figma-Style-Namen)', () => {
+    // emitFigmaComponents reicht die bereits von normalizeTokens.assignNames disambiguierten
+    // Namen durch (z. B. "primary-2" bei Kollision) — matchColorToken darf role nicht erneut
+    // slugifien und muss stattdessen den mitgelieferten Namen 1:1 durchreichen.
+    const { plan } = htmlToPlan('<div class="bg-[#222222]"></div>', {
+      tokens: { colors: [{ hex: '#222222', role: 'primary', name: 'primary-2' }] },
+    });
+    expect(plan.fill).toEqual({ hex: '#222222', token: 'primary-2' });
+  });
 });
