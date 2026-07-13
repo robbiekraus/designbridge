@@ -6,6 +6,7 @@ import {
   attachInterpretations,
   runInterpretation,
   retryInterpretation,
+  applyIfSameImport,
 } from './interpret.js';
 
 const RESULT = {
@@ -218,5 +219,24 @@ describe('retryInterpretation', () => {
     const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
     const next = await retryInterpretation(noImportId, 'Avatar');
     expect(next).toBe(noImportId);
+  });
+});
+
+describe('applyIfSameImport', () => {
+  const importA = { raw: { meta: { import_id: 'A' } }, tag: 'A' };
+  const importB = { raw: { meta: { import_id: 'B' } }, tag: 'B-result' };
+
+  it('wendet next an, wenn die import_id noch übereinstimmt', () => {
+    const cur = { raw: { meta: { import_id: 'A' } }, tag: 'A-updated-state' };
+    const next = { raw: { meta: { import_id: 'A' } }, tag: 'A-interpreted' };
+    expect(applyIfSameImport(cur, next)).toBe(next);
+  });
+
+  it('verwirft next, wenn cur inzwischen einen neueren Import trägt (Stale-Closure-Race)', () => {
+    expect(applyIfSameImport(importB, importA)).toBe(importB);
+  });
+
+  it('gibt cur zurück, wenn next null ist', () => {
+    expect(applyIfSameImport(importA, null)).toBe(importA);
   });
 });

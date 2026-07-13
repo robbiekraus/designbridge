@@ -9,7 +9,7 @@ import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
-import { componentsNeedingInterpretation, runInterpretation, retryInterpretation } from './lib/interpret.js';
+import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport } from './lib/interpret.js';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -40,10 +40,11 @@ export default function App() {
     setLastImport(initial);
     if (initial.interpretPending) {
       runInterpretation(initial).then((next) => {
-        if (next) {
-          saveLastImport(next);
-          setLastImport(next);
-        }
+        setLastImport((cur) => {
+          const applied = applyIfSameImport(cur, next);
+          if (applied !== cur) saveLastImport(applied);
+          return applied;
+        });
       });
     }
   };
@@ -58,10 +59,11 @@ export default function App() {
   const handleRetryInterpret = (name) => {
     if (name) {
       retryInterpretation(lastImport, name).then((next) => {
-        if (next) {
-          saveLastImport(next);
-          setLastImport(next);
-        }
+        setLastImport((cur) => {
+          const applied = applyIfSameImport(cur, next);
+          if (applied !== cur) saveLastImport(applied);
+          return applied;
+        });
       });
       return;
     }
@@ -69,10 +71,11 @@ export default function App() {
     saveLastImport(pending);
     setLastImport(pending);
     runInterpretation(pending).then((next) => {
-      if (next) {
-        saveLastImport(next);
-        setLastImport(next);
-      }
+      setLastImport((cur) => {
+        const applied = applyIfSameImport(cur, next);
+        if (applied !== cur) saveLastImport(applied);
+        return applied;
+      });
     });
   };
 

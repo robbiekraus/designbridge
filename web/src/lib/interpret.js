@@ -128,3 +128,14 @@ export async function retryInterpretation(result, name) {
     };
   }
 }
+
+/**
+ * Schützt gegen die Stale-Closure-Race bei überlappenden Importen: wendet
+ * `next` nur an, wenn `cur` noch zum selben Import gehört (gleiche
+ * raw.meta.import_id). Sonst — oder wenn `next` null ist — bleibt `cur`.
+ */
+export function applyIfSameImport(cur, next) {
+  if (!next) return cur;
+  if (cur?.raw?.meta?.import_id !== next?.raw?.meta?.import_id) return cur;
+  return next;
+}
