@@ -165,3 +165,58 @@ test('segment without visual falls back to the full image', async () => {
   assert.equal(imageBlocks.length, 1); // Voll-Bild als Fallback-Grounding
   assert.equal(res.interpretations[0].name, 'Mystery');
 });
+
+test('structure-Segmente gehen als Textblöcke in den Prompt, kein Bild nötig', async () => {
+  let seen = null;
+  const client = {
+    messages: {
+      create: async ({ messages }) => {
+        seen = messages[0].content;
+        return {
+          content: [{ text: JSON.stringify({ interpretations: [
+            { name: 'Stat Card', html: '<div class="rounded-lg">12.400 €</div>', jsx: 'export function StatCard(){return null}' },
+          ] }) }],
+        };
+      },
+    },
+  };
+  const segments = [{
+    id: 'seg_0', label: 'Stat Card', kind: 'component',
+    bounds: { selector: 'html > body > div' }, visual: null,
+    structure: { html: '<div class="stat-card"><p>12.400 €</p></div>', css: '.stat-card{padding:16px}' },
+  }];
+  const res = await interpretComponents(null, null, segments, { client });
+  assert.equal(res.interpretations[0].name, 'Stat Card');
+  const textBlocks = seen.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  assert.ok(textBlocks.includes('stat-card'), 'Quell-HTML fehlt im Prompt');
+  assert.ok(textBlocks.includes('.stat-card{padding:16px}'), 'CSS fehlt im Prompt');
+  assert.ok(!seen.some((b) => b.type === 'image'), 'darf ohne imagePath kein Bild senden');
+});
+
+test('identische structure-Blöcke (Vollseiten-Fallback) gehen nur einmal in den Prompt', async () => {
+  let seen = null;
+  const client = {
+    messages: {
+      create: async ({ messages }) => {
+        seen = messages[0].content;
+        return {
+          content: [{ text: JSON.stringify({ interpretations: [
+            { name: 'A', html: '<div>a</div>', jsx: '' },
+            { name: 'B', html: '<div>b</div>', jsx: '' },
+          ] }) }],
+        };
+      },
+    },
+  };
+  const shared = { html: '<html><body><p>VOLLSEITE</p></body></html>', css: 'p{color:red}' };
+  const segments = [
+    { id: 'seg_0', label: 'A', kind: 'component', bounds: null, visual: null, structure: shared },
+    { id: 'seg_1', label: 'B', kind: 'component', bounds: null, visual: null, structure: shared },
+  ];
+  const res = await interpretComponents(null, null, segments, { client });
+  assert.equal(res.interpretations.length, 2);
+  const text = seen.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  const occurrences = text.split('VOLLSEITE').length - 1;
+  assert.equal(occurrences, 1, 'Vollseiten-HTML darf nur einmal im Prompt stehen');
+  assert.ok(text.includes('A, B'), 'beide Labels müssen am geteilten Block stehen');
+});

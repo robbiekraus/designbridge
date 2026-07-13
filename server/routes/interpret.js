@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getImage } from '../lib/imageStore.js';
+import { getPage } from '../lib/pageStore.js';
 import { interpretComponents } from '../lib/interpretComponents.js';
 import { getDecomposer } from '../lib/decompose/index.js';
 
@@ -12,9 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Demo safety net analog scan.js: bei DEMO_FALLBACK=1 liefert ein gescheiterter
 // Live-Call die gebündelten Fixture-Interpretationen statt eines 502.
-function loadDemoInterpretations(requestedNames) {
+function loadDemoInterpretations(requestedNames, file = 'demo-interpretations.json') {
   const all = JSON.parse(
-    fs.readFileSync(path.join(__dirname, '../fixtures/demo-interpretations.json'), 'utf8')
+    fs.readFileSync(path.join(__dirname, `../fixtures/${file}`), 'utf8')
   );
   const byName = new Map(all.map((i) => [i.name, i]));
   const interpretations = [];
@@ -34,23 +35,26 @@ router.post('/components', async (req, res) => {
     return res.status(400).json({ error: 'import_id und components sind erforderlich.' });
   }
   const image = getImage(importId);
-  if (!image) {
-    return res.status(410).json({ error: 'Bild nicht mehr verfügbar — bitte erneut importieren.' });
+  const page = image ? null : getPage(importId);
+  if (!image && !page) {
+    return res.status(410).json({ error: 'Quelle nicht mehr verfügbar — bitte erneut importieren.' });
   }
+  const kind = image ? 'image' : 'url';
   try {
     console.log(`[interpret] ${components.length} Bausteine für Import ${importId}`);
-    const segments = await getDecomposer('image').decompose(
-      { imagePath: image.path, mimetype: image.mimetype },
+    const segments = await getDecomposer(kind).decompose(
+      image ? { imagePath: image.path, mimetype: image.mimetype } : { html: page.html, css: page.css },
       components,
     );
-    const result = await interpretComponents(image.path, image.mimetype, segments);
+    const result = await interpretComponents(image?.path ?? null, image?.mimetype ?? null, segments);
     res.json(result);
   } catch (err) {
     console.error('[interpret] Error:', err.message);
     if (process.env.DEMO_FALLBACK === '1') {
       try {
         console.warn('[interpret] DEMO_FALLBACK active — returning bundled interpretations.');
-        return res.json(loadDemoInterpretations(components.map((c) => c.name)));
+        const file = kind === 'url' ? 'demo-url-interpretations.json' : 'demo-interpretations.json';
+        return res.json(loadDemoInterpretations(components.map((c) => c.name), file));
       } catch (fallbackErr) {
         console.error('[interpret] DEMO_FALLBACK failed:', fallbackErr.message);
         return res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });

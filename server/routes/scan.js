@@ -14,6 +14,7 @@ import { extractRepoFiles } from '../lib/extractRepoFiles.js';
 import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
 import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
 import { putImage } from '../lib/imageStore.js';
+import { putPage } from '../lib/pageStore.js';
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.post('/url', async (req, res) => {
     result.atomics = rec.atomics;
     result.components = rec.components;
     result.patterns = rec.patterns;
-    result.meta = { ...result.meta, ai_deepened: false };
+    result.meta = { ...result.meta, ai_deepened: false, import_id: putPage(html, css) };
     res.json(result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
