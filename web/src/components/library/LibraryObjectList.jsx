@@ -33,7 +33,7 @@ function Row({ item, picks, onRetryInterpret }) {
         <ConfidencePill value={item.confidence} />
         <SourcePill value={item.source} />
         {item.interpretedHtml && <SourcePill value="interpreted" />}
-        {!item.hasPreview && !item.interpretedHtml && (
+        {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
             generischer Stub
           </span>
@@ -84,7 +84,7 @@ function Row({ item, picks, onRetryInterpret }) {
               <span>Interpretation fehlgeschlagen.</span>
               {onRetryInterpret && (
                 <button
-                  onClick={onRetryInterpret}
+                  onClick={() => onRetryInterpret(item.name)}
                   className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
                 >
                   Erneut versuchen

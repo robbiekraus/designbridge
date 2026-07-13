@@ -9,7 +9,7 @@ import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
-import { componentsNeedingInterpretation, runInterpretation } from './lib/interpret.js';
+import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport } from './lib/interpret.js';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -40,10 +40,11 @@ export default function App() {
     setLastImport(initial);
     if (initial.interpretPending) {
       runInterpretation(initial).then((next) => {
-        if (next) {
-          saveLastImport(next);
-          setLastImport(next);
-        }
+        setLastImport((cur) => {
+          const applied = applyIfSameImport(cur, next);
+          if (applied !== cur) saveLastImport(applied);
+          return applied;
+        });
       });
     }
   };
@@ -53,15 +54,28 @@ export default function App() {
     setLastImport(result);
   };
 
-  const handleRetryInterpret = () => {
+  // Ohne `name`: Batch-Retry aller fehlgeschlagenen Bausteine.
+  // Mit `name`: Retry nur für diesen einen Baustein (per-row retry aus LibraryObjectList).
+  const handleRetryInterpret = (name) => {
+    if (name) {
+      retryInterpretation(lastImport, name).then((next) => {
+        setLastImport((cur) => {
+          const applied = applyIfSameImport(cur, next);
+          if (applied !== cur) saveLastImport(applied);
+          return applied;
+        });
+      });
+      return;
+    }
     const pending = { ...lastImport, interpretPending: true, interpretError: null, interpretFailed: [] };
     saveLastImport(pending);
     setLastImport(pending);
     runInterpretation(pending).then((next) => {
-      if (next) {
-        saveLastImport(next);
-        setLastImport(next);
-      }
+      setLastImport((cur) => {
+        const applied = applyIfSameImport(cur, next);
+        if (applied !== cur) saveLastImport(applied);
+        return applied;
+      });
     });
   };
 

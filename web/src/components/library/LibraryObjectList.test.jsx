@@ -79,13 +79,14 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     expect(screen.queryByText('generischer Stub')).toBeNull();
   });
 
-  it('pending: zeigt „Wird interpretiert …"', () => {
+  it('pending: zeigt „Wird interpretiert …" und keinen Stub-Chip', () => {
     render(<LibraryObjectList items={[item({ interpretPending: true })]} picks={{}} />);
     fireEvent.click(screen.getByText('Avatar'));
     expect(screen.getByText(/Wird interpretiert/)).toBeTruthy();
+    expect(screen.queryByText('generischer Stub')).toBeNull();
   });
 
-  it('failed: Fehlerzeile + „Erneut versuchen" ruft onRetryInterpret', () => {
+  it('failed: Fehlerzeile + „Erneut versuchen" ruft onRetryInterpret mit dem Namen der Zeile, kein Stub-Chip', () => {
     const retry = vi.fn();
     render(
       <LibraryObjectList
@@ -96,8 +97,15 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     );
     fireEvent.click(screen.getByText('Avatar'));
     expect(screen.getByText(/Interpretation fehlgeschlagen/)).toBeTruthy();
+    expect(screen.queryByText('generischer Stub')).toBeNull();
     fireEvent.click(screen.getByText('Erneut versuchen'));
     expect(retry).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledWith('Avatar');
+  });
+
+  it('settled ohne Interpretation (weder pending noch failed): zeigt den generischen-Stub-Chip', () => {
+    render(<LibraryObjectList items={[item()]} picks={{}} />);
+    expect(screen.getByText('generischer Stub')).toBeTruthy();
   });
 
   it('Template-Vorschau bleibt Vorrang (hasPreview schlägt interpretedHtml)', () => {
