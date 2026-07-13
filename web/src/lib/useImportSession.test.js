@@ -99,6 +99,25 @@ describe('useImportSession', () => {
     expect(result.current.error).toMatch(/nicht gefunden/);
   });
 
+  it('zeigt lesbaren Fehler wenn der Server kein JSON antwortet (HTML-Fehlerseite)', async () => {
+    // Safari wirft bei res.json() auf HTML „The string did not match the expected
+    // pattern" — genau das darf nicht mehr als Fehlermeldung beim Nutzer landen.
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => { throw new SyntaxError('The string did not match the expected pattern.'); },
+    });
+
+    const { result } = renderHook(() => useImportSession());
+    await act(async () => {
+      await result.current.submit({ source: 'image', payload: { file: new File(['x'], 'a.png') } });
+    });
+
+    expect(result.current.stage).toBe('error');
+    expect(result.current.error).toMatch(/500/);
+    expect(result.current.error).not.toMatch(/expected pattern/);
+  });
+
   it('reset returns to idle', async () => {
     global.fetch.mockResolvedValue({
       ok: true,

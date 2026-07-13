@@ -1,12 +1,25 @@
 import { useCallback, useState } from 'react';
 import { adaptScanResponse, adaptImageScanResponse } from './scanResultAdapter.js';
 
+// Antwort defensiv als JSON lesen: Fehlerseiten (HTML/leer) dürfen nicht als
+// kryptischer Parse-Fehler beim Nutzer landen, sondern als Status-Meldung.
+async function readScanJson(res, fallbackMessage) {
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {
+    // kein JSON — unten über den HTTP-Status melden
+  }
+  if (!res.ok) throw new Error(data?.error || `${fallbackMessage} (Server ${res.status})`);
+  if (!data) throw new Error(`${fallbackMessage} (Server ${res.status}: keine JSON-Antwort)`);
+  return data;
+}
+
 async function submitImage(file) {
   const formData = new FormData();
   formData.append('image', file);
   const res = await fetch('/api/scan/image', { method: 'POST', body: formData });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Scan failed');
+  const data = await readScanJson(res, 'Scan failed');
   return adaptScanResponse(data, 'image');
 }
 
@@ -16,8 +29,7 @@ async function submitUrl(url) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'URL-Scan fehlgeschlagen');
+  const data = await readScanJson(res, 'URL-Scan fehlgeschlagen');
   return adaptScanResponse(data, 'url');
 }
 
@@ -27,8 +39,7 @@ async function submitRepo({ url, branch }) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ url, branch: branch || undefined }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Repo-Scan fehlgeschlagen');
+  const data = await readScanJson(res, 'Repo-Scan fehlgeschlagen');
   return adaptScanResponse(data, 'repo');
 }
 

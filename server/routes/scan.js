@@ -40,8 +40,18 @@ const upload = multer({
   }
 });
 
+// Multer-Fehler (falscher Dateityp, >10 MB) als 400-JSON beantworten — sonst
+// liefert Express eine HTML-Fehlerseite, an der res.json() im Web-Client
+// scheitert (Safari: „The string did not match the expected pattern").
+function uploadImage(req, res, next) {
+  upload.single('image')(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message });
+    next();
+  });
+}
+
 // POST /api/scan/image
-router.post('/image', upload.single('image'), async (req, res) => {
+router.post('/image', uploadImage, async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image uploaded' });
   }
