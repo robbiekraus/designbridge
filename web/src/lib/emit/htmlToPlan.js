@@ -9,6 +9,8 @@
 import { slugify } from './slugify.js';
 
 const SVG_MAX_CHARS = 20000;
+const DATA_URI_RE = /^data:/i;
+const HREF_LIKE_ATTRS = ['href', 'xlink:href', 'src'];
 
 // Port von server/lib/recognizeComponents.js — dieselben Muster, damit Web und Server
 // dieselben Bausteine erkennen (Spec §Konverter Punkt 2).
@@ -218,14 +220,51 @@ function isSvgElement(el) {
   return (el.tagName || '').toLowerCase() === 'svg';
 }
 
+/** true, wenn der Attributwert eine externe Ressourcen-Referenz ist (nicht data:) — deckt
+ *  http(s):, protokoll-relative (//) und jeden anderen Remote-Ref ab. Security-Hardening
+ *  (Review-Fix): importiertes KI-HTML/SVG darf keine Remote-Requests aus Figma triggern. */
+function isExternalRef(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed === '') return false;
+  return !DATA_URI_RE.test(trimmed);
+}
+
+/** Externe Ressourcen-Referenzen (href/xlink:href/src ohne data:-URI) aus dem SVG-Subtree
+ *  entfernen, bevor das Markup als PlanSvg emittiert wird (Spec-Erweiterung, Review-Fix:
+ *  SSRF/Remote-Leak-Härtung). `<image>` mit externer Quelle wird komplett entfernt (ein Bild
+ *  ohne Quelle ist nutzlos); auf allen anderen Elementen wird nur das betroffene Attribut
+ *  entfernt (z. B. `<use xlink:href="...">` bleibt als Element erhalten). Jeder Fund erzeugt
+ *  eine Warnung statt fatal zu sein — Konverter wirft nie (Spec §Konverter). */
+function stripExternalRefs(root, ctx) {
+  const elements = [root, ...(root.querySelectorAll ? Array.from(root.querySelectorAll('*')) : [])];
+  for (const el of elements) {
+    const tag = (el.tagName || '').toLowerCase();
+    for (const attr of HREF_LIKE_ATTRS) {
+      if (!el.hasAttribute?.(attr)) continue;
+      const value = el.getAttribute(attr);
+      if (!isExternalRef(value)) continue;
+      if (tag === 'image') {
+        el.remove();
+        ctx.warnings.add(`SVG: <image> mit externer Quelle entfernt (${attr}="${value}").`);
+        break; // Element ist weg — restliche Attribute dieses Elements nicht mehr prüfen.
+      }
+      el.removeAttribute(attr);
+      ctx.warnings.add(`SVG: externe Ressourcen-Referenz entfernt (<${tag} ${attr}="${value}">).`);
+    }
+  }
+}
+
 /** SVG-Subtree → PlanSvg (Spec §Konverter Punkt 3). Markup verbatim (inkl. eigener Tags/Attribute),
  *  `<foreignObject>` vorher entfernt (kann beliebiges HTML/CSS enthalten, das Figma nicht rendert),
- *  >20000 Zeichen gekappt + Warnung statt fatal. */
+ *  externe Ressourcen-Refs entfernt (Review-Fix, s. stripExternalRefs), >20000 Zeichen gekappt +
+ *  Warnung statt fatal. */
 function convertSvgElement(el, ctx) {
   const clone = el.cloneNode(true);
   for (const fo of Array.from(clone.querySelectorAll?.('foreignObject') || [])) {
     fo.remove();
   }
+  stripExternalRefs(clone, ctx);
   let markup = clone.outerHTML;
   if (markup.length > SVG_MAX_CHARS) {
     markup = markup.slice(0, SVG_MAX_CHARS);

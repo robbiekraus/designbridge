@@ -331,6 +331,58 @@ describe('htmlToPlan — SVG-Extraktion (Spec §Konverter Punkt 3)', () => {
   });
 });
 
+describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix: kein SSRF/Remote-Leak über Figma-Import)', () => {
+  it('<image> mit externer http(s)-Quelle wird komplett entfernt + Warnung', () => {
+    const html =
+      '<svg viewBox="0 0 10 10">' +
+      '<image href="https://evil.example/x.png" width="10" height="10"></image>' +
+      '<rect width="5" height="5"></rect>' +
+      '</svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).not.toContain('evil.example');
+    expect(markup).not.toContain('<image');
+    expect(markup).toContain('<rect');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(true);
+  });
+
+  it('<image> mit protokoll-relativer (//) Quelle wird entfernt + Warnung', () => {
+    const html = '<svg viewBox="0 0 10 10"><image href="//evil.example/x.png"></image></svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    expect(plan.children[0].markup).not.toContain('evil.example');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(true);
+  });
+
+  it('<image> mit data:-URI bleibt vollständig erhalten', () => {
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+    const html = `<svg viewBox="0 0 10 10"><image href="${dataUri}" width="10" height="10"></image></svg>`;
+    const { plan, warnings } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('<image');
+    expect(markup).toContain(dataUri);
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(false);
+  });
+
+  it('externes xlink:href auf <use> wird als Attribut entfernt, Element bleibt (kein <image>)', () => {
+    const html = '<svg viewBox="0 0 10 10"><use xlink:href="https://evil.example/sprite.svg#icon"></use></svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).not.toContain('evil.example');
+    expect(markup).toContain('<use');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(true);
+  });
+
+  it('inline path/polyline ohne href/src bleiben unangetastet', () => {
+    const html =
+      '<svg viewBox="0 0 10 10"><path d="M0 0 L10 10"></path><polyline points="0,0 10,10"></polyline></svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('M0 0 L10 10');
+    expect(markup).toContain('0,0 10,10');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(false);
+  });
+});
+
 describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hierarchie)', () => {
   it('Button in einer Card → component-ref MIT Variante und Fallback, Card steigt NICHT weiter in den Button ab', () => {
     const html = '<div class="rounded-lg bg-white p-4"><button class="btn btn-primary">Save</button></div>';
