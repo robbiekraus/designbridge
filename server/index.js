@@ -11,7 +11,9 @@ const app = express();
 const PORT = process.env.PORT || 3047;
 
 app.use(cors({ origin: 'http://localhost:5173' }));
-app.use(express.json());
+// 2mb statt 100kb-Default: der Figma-Export-Payload (v2, angereicherte Pläne + SVG-Markup,
+// je SVG bis 20k Zeichen gekappt) liegt real bei ~150kb — Default-Limit warf 413 (E2E-Fund 13.07.).
+app.use(express.json({ limit: '2mb' }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use('/demo', express.static(path.join(__dirname, '../demo-site')));

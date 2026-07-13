@@ -40,6 +40,10 @@ async function renderText(
   }
   t.characters = el.content;
   t.fontSize = el.fontSize;
+  t.textAlignHorizontal = el.align === 'center' ? 'CENTER' : el.align === 'right' ? 'RIGHT' : 'LEFT';
+  if (el.lineHeight !== null) {
+    t.lineHeight = { value: el.lineHeight, unit: 'PIXELS' };
+  }
   await applyFill(t, el.color, paintByName);
   return t;
 }
@@ -166,8 +170,9 @@ export async function renderPlan(
     frame.layoutMode = plan.layout === 'column' ? 'VERTICAL' : 'HORIZONTAL';
     frame.primaryAxisSizingMode = 'AUTO';
     frame.counterAxisSizingMode = 'AUTO';
-    frame.counterAxisAlignItems = 'CENTER';
-    frame.itemSpacing = 8;
+    frame.primaryAxisAlignItems = plan.primaryAlign;
+    frame.counterAxisAlignItems = plan.counterAlign;
+    frame.itemSpacing = plan.gap;
     const [pt, pr, pb, pl] = plan.padding;
     frame.paddingTop = pt; frame.paddingRight = pr; frame.paddingBottom = pb; frame.paddingLeft = pl;
     frame.cornerRadius = plan.radius;
@@ -175,11 +180,25 @@ export async function renderPlan(
     if (plan.fill) await applyFill(frame, plan.fill, paintByName);
     if (plan.stroke) {
       frame.strokes = [solidPaint(plan.stroke)];
-      frame.strokeWeight = 1;
+      frame.strokeWeight = plan.strokeWeight;
     }
     for (const child of plan.children) {
       const node = await renderNode(child, paintByName, warnings, sections);
       frame.appendChild(node);
+    }
+    // Fixe Größen erst NACH layoutMode + Kindern anwenden: erst die betroffene Achse
+    // (primary vs. counter, abhängig von row/column) auf FIXED umstellen, dann resizen.
+    // Die jeweils andere, weiterhin AUTO-Achse liefert über frame.width/height den
+    // aktuell gehuggten Wert, der beim resize()-Aufruf durchgereicht wird (bleibt HUG).
+    if (plan.width !== null || plan.height !== null) {
+      if (plan.layout === 'row') {
+        if (plan.width !== null) frame.primaryAxisSizingMode = 'FIXED';
+        if (plan.height !== null) frame.counterAxisSizingMode = 'FIXED';
+      } else {
+        if (plan.height !== null) frame.primaryAxisSizingMode = 'FIXED';
+        if (plan.width !== null) frame.counterAxisSizingMode = 'FIXED';
+      }
+      frame.resize(plan.width ?? frame.width, plan.height ?? frame.height);
     }
     return frame;
   } catch (err) {

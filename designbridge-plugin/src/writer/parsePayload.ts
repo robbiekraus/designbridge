@@ -17,13 +17,20 @@ export interface ColorRef {
   hex: string;
 }
 
+export type PlanTextAlign = 'left' | 'center' | 'right';
+
 export interface PlanText {
   type: 'text';
   content: string;
   fontSize: number;
   fontWeight: number;
   color: ColorRef;
+  align: PlanTextAlign;
+  lineHeight: number | null;
 }
+
+export type PlanPrimaryAlign = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
+export type PlanCounterAlign = 'MIN' | 'CENTER' | 'MAX';
 
 export interface PlanBox {
   type: 'box';
@@ -33,6 +40,12 @@ export interface PlanBox {
   fill: ColorRef | null;
   stroke: ColorRef | null;
   children: PlanNode[];
+  width: number | null;
+  height: number | null;
+  gap: number;
+  strokeWeight: number;
+  primaryAlign: PlanPrimaryAlign;
+  counterAlign: PlanCounterAlign;
 }
 
 export interface PlanSvg {
@@ -101,6 +114,15 @@ function parseColorRef(v: unknown): ColorRef | null {
   return { token: typeof r.token === 'string' ? r.token : null, hex: r.hex };
 }
 
+const TEXT_ALIGNS = ['left', 'center', 'right'] as const;
+const PRIMARY_ALIGNS = ['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN'] as const;
+const COUNTER_ALIGNS = ['MIN', 'CENTER', 'MAX'] as const;
+
+/** number|null-Feld validieren: gültige Zahl → durchreichen, alles andere (fehlend, falscher Typ) → null (HUG/AUTO). */
+function parseNullableNumber(v: unknown): number | null {
+  return typeof v === 'number' ? v : null;
+}
+
 /** svg-Node validieren: markup muss ein String sein und wie SVG-Markup aussehen. */
 function parseSvgNode(r: Record<string, unknown>): PlanSvg | null {
   if (typeof r.markup !== 'string') return null;
@@ -132,6 +154,8 @@ function parsePlanNode(c: unknown): PlanNode | null {
       fontSize: typeof r.fontSize === 'number' ? r.fontSize : 14,
       fontWeight: typeof r.fontWeight === 'number' ? r.fontWeight : 400,
       color,
+      align: TEXT_ALIGNS.includes(r.align as (typeof TEXT_ALIGNS)[number]) ? (r.align as PlanTextAlign) : 'left',
+      lineHeight: parseNullableNumber(r.lineHeight),
     };
   }
   if (r.type === 'svg') return parseSvgNode(r);
@@ -160,6 +184,16 @@ function parsePlan(v: unknown): PlanBox | null {
     fill: parseColorRef(r.fill),
     stroke: parseColorRef(r.stroke),
     children,
+    width: parseNullableNumber(r.width),
+    height: parseNullableNumber(r.height),
+    gap: typeof r.gap === 'number' ? r.gap : 0,
+    strokeWeight: typeof r.strokeWeight === 'number' ? r.strokeWeight : 1,
+    primaryAlign: PRIMARY_ALIGNS.includes(r.primaryAlign as (typeof PRIMARY_ALIGNS)[number])
+      ? (r.primaryAlign as PlanPrimaryAlign)
+      : 'MIN',
+    counterAlign: COUNTER_ALIGNS.includes(r.counterAlign as (typeof COUNTER_ALIGNS)[number])
+      ? (r.counterAlign as PlanCounterAlign)
+      : 'CENTER',
   };
 }
 

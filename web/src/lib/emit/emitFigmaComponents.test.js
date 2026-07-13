@@ -67,7 +67,9 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
         patterns: [],
       },
       interpretations: {
-        'Stat Card': { html: '<div class="rounded-xl bg-white p-4"><p class="text-xs">Total Sales</p></div>', jsx: '<div />' },
+        // Langform border-top-left-radius statt Shorthand border-radius: jsdom expandiert den
+        // Shorthand nicht in getComputedStyle (echter Browser schon) — Spec §jsdom-Testgrenze.
+        'Stat Card': { html: '<div style="border-top-left-radius:12px;background:#ffffff;padding:16px"><p style="font-size:12px">Total Sales</p></div>', jsx: '<div />' },
       },
     };
     const out = emitFigmaComponents(withInterp);
@@ -147,18 +149,21 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
   });
 
   it('Konverter-Warnungen werden in raw.warnings durchgereicht (bestehender Warnungs-Kanal)', () => {
+    // v2 kennt keine „Klasse ignoriert"-Warnung mehr (kein Klassen-Raten). Ein echter, parser-
+    // unabhängiger v2-Warnfall ist die SVG-Längenkappung (>20000 Zeichen).
+    const bigSvg = '<svg viewBox="0 0 100 100">' + '<rect x="0" y="0" width="1" height="1"/>'.repeat(700) + '</svg>';
     const withWarning = {
       raw: {
         tokens: {}, atomics: [{ name: 'Weird Box', variants: [], confidence: null, source: null, notes: null }],
         components: [], patterns: [], warnings: ['bestehende Scan-Warnung'],
       },
       interpretations: {
-        'Weird Box': { html: '<div class="bg-totally-unknown-thing"></div>', jsx: '<div />' },
+        'Weird Box': { html: bigSvg, jsx: '<div />' },
       },
     };
     emitFigmaComponents(withWarning);
     expect(withWarning.raw.warnings).toContain('bestehende Scan-Warnung');
-    expect(withWarning.raw.warnings).toContain('Klasse ignoriert: bg-totally-unknown-thing');
+    expect(withWarning.raw.warnings.some((w) => /gekappt/i.test(w))).toBe(true);
   });
 
   it('keine Konverter-Warnungen → raw.warnings bleibt unverändert (kein leeres Feld angehängt)', () => {
@@ -167,7 +172,7 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
         tokens: {}, atomics: [{ name: 'Clean Box', variants: [], confidence: null, source: null, notes: null }],
         components: [], patterns: [],
       },
-      interpretations: { 'Clean Box': { html: '<div class="p-4"></div>', jsx: '<div />' } },
+      interpretations: { 'Clean Box': { html: '<div style="padding:16px"></div>', jsx: '<div />' } },
     };
     emitFigmaComponents(clean);
     expect(clean.raw.warnings).toBeUndefined();
@@ -193,7 +198,7 @@ describe('emitFigmaComponents — Token-Bindung gegen disambiguierte Namen (Revi
         patterns: [],
       },
       interpretations: {
-        'Stat Card': { html: '<div class="bg-[#222222]"></div>', jsx: '<div />' },
+        'Stat Card': { html: '<div style="background:#222222"></div>', jsx: '<div />' },
       },
     };
     const out = emitFigmaComponents(withCollision);

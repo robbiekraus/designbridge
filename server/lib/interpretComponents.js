@@ -31,14 +31,16 @@ For EACH component, reconstruct it as faithfully as possible to how it appears i
 Return ONLY valid JSON, no markdown, no preamble, in this shape:
 {
   "interpretations": [
-    { "name": "<exact component name>", "html": "<self-contained HTML using ONLY Tailwind utility classes>", "jsx": "<the same component as a React function component in shadcn/Tailwind style, exported with a PascalCase name>" }
+    { "name": "<exact component name>", "html": "<self-contained HTML styled with INLINE style attributes and real CSS values>", "jsx": "<the same component as a React function component in shadcn/Tailwind style, exported with a PascalCase name>" }
   ]
 }
 
 Rules:
-- Stay as close to the original as possible: copy the visible colors (as Tailwind arbitrary values like bg-[#4263EB]), spacing, radii, typography and REAL text content.
+- The "html" field MUST style every element with inline style="..." attributes using concrete CSS values only — hex colors (e.g. style="background:#4263EB;color:#ffffff"), px padding/gap/border-radius, px font-size, font-weight, and flex layout (display:flex;flex-direction;align-items;justify-content). Do NOT use CSS class names or Tailwind utilities in "html": there is no stylesheet, so only inline styles render. (The separate "jsx" field DOES use shadcn/Tailwind — keep that.)
+- Stay as close to the original as possible: copy the visible colors, spacing, radii, typography and REAL text content.
 - Reproduce ALL text and NUMBERS visible in the crop verbatim — headings, labels, values, percentages, currency, units, dates. Do not invent placeholders and do not omit numbers.
-- html must be fully self-contained: Tailwind classes only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
+- html must be fully self-contained: inline styles only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
+- Give charts and their containers explicit px sizes so bars/lines/segments have real dimensions (e.g. a bar container style="display:flex;align-items:flex-end;height:96px;gap:8px" with each bar carrying its own px height like style="height:64px;background:#4263EB").
 - For charts, reconstruct a recognizable static SVG (bars/line/donut) AND include the data details visible in the crop: axis tick labels, value/data labels on points or segments, the legend, and any center or total value. Not a live chart library, but not a bare shape either.
 - Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element).${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into clean Tailwind — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}
 - Keep each html snippet compact (one component).

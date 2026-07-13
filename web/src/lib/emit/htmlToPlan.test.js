@@ -1,6 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { htmlToPlan } from './htmlToPlan.js';
 
+// ---------------------------------------------------------------------------
+// jsdom-Testgrenze (Spec §jsdom-Testgrenze & Verifikation, verbindlich für diese Datei):
+//
+// vitest läuft hier unter jsdom, das KEINE Layout-Engine hat. getComputedStyle() löst in
+// jsdom `%`-Werte und Flex-Verteilung (flex-basis → tatsächliche Breite, justify-content-
+// Verteilung über mehrere Kinder, Prozent-Höhen relativ zum Elternelement) NICHT auf — das
+// braucht einen echten Renderer. Was jsdom SEHR WOHL korrekt durchreicht: explizite Inline-
+// Styles mit absoluten Einheiten (px), Farben (auch als Hex → rgb() normalisiert), einfache
+// Kaskaden-Eigenschaften (padding, border, border-top-left-radius, gap/column-gap/row-gap,
+// font-*, text-align, line-height mit px-Wert, justify-content/align-items als Strings).
+// Empirisch geprüft (node -e mit jsdom, Stand dieser Umsetzung):
+//   - `border-radius` KURZFORM wird von jsdoms CSSOM NICHT unterstützt (bleibt 0) —
+//     Fixtures nutzen deshalb die Langform `border-top-left-radius`.
+//   - `border: Npx solid #hex` KURZFORM funktioniert.
+//   - explizite `style="width:...;height:..."` werden von getComputedStyle korrekt als px
+//     zurückgegeben (kein Layout nötig für einen bereits literalen px-Wert).
+//   - `flex-basis` wird zwar als gesetzter Wert erkannt, aber die daraus resultierende
+//     `width`/`height` bleibt in jsdom `auto` (echte Flex-Verteilung fehlt) — dieser Zweig
+//     der width/height-Heuristik ist NUR im echten Browser verifizierbar (Spec §Risiken).
+//
+// Diese Datei prüft deshalb die MECHANIK (liest Inline-/kaskadierte Stile, rgb→hex,
+// Token-Rückbindung, Enum-Mapping, Knoten-Erzeugung, Container-Cleanup, Nie-Werfen) —
+// NICHT die tatsächliche Wiedergabetreue von %/Flex-Layouts. Die wird manuell im laufenden
+// Browser gegen html.to.design verifiziert (Spec §Umsetzungsschritte Punkt 4).
+// ---------------------------------------------------------------------------
+
 describe('htmlToPlan — leer/kaputt (nie werfen)', () => {
   it('leerer String → plan:null, keine Warnungen', () => {
     expect(htmlToPlan('')).toEqual({ plan: null, warnings: [] });
@@ -21,25 +47,25 @@ describe('htmlToPlan — leer/kaputt (nie werfen)', () => {
     expect(htmlToPlan('irgendein kaputter Fetzen Text')).toEqual({ plan: null, warnings: [] });
   });
 
-  it('unbalancierte/kaputte Tags werfen nie, egal was jsdom daraus macht', () => {
-    expect(() => htmlToPlan('<div class="p-4"><span>Unclosed')).not.toThrow();
-    const { warnings } = htmlToPlan('<div class="p-4"><span>Unclosed');
+  it('unbalancierte/kaputte Tags werfen nie, egal was der Live-DOM-Parser daraus macht', () => {
+    expect(() => htmlToPlan('<div style="padding:16px"><span>Unclosed')).not.toThrow();
+    const { warnings } = htmlToPlan('<div style="padding:16px"><span>Unclosed');
     expect(Array.isArray(warnings)).toBe(true);
   });
 
   it('funktioniert ohne options-Argument (Defaults greifen)', () => {
-    expect(() => htmlToPlan('<div class="p-4"></div>')).not.toThrow();
+    expect(() => htmlToPlan('<div style="padding:16px"></div>')).not.toThrow();
   });
 });
 
 describe('htmlToPlan — Root-Form', () => {
   it('einzelnes Root-Element → PlanBox direkt', () => {
-    const { plan } = htmlToPlan('<div class="p-4"></div>');
+    const { plan } = htmlToPlan('<div style="padding:16px"></div>');
     expect(plan.type).toBe('box');
   });
 
   it('mehrere Root-Geschwister → in eine Wrapper-Box gepackt, Reihenfolge erhalten', () => {
-    const { plan } = htmlToPlan('<div class="p-4">A</div><div class="p-8">B</div>');
+    const { plan } = htmlToPlan('<div style="padding:16px">A</div><div style="padding:32px">B</div>');
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(2);
     expect(plan.children[0].padding).toEqual([16, 16, 16, 16]);
@@ -50,216 +76,406 @@ describe('htmlToPlan — Root-Form', () => {
     const { plan } = htmlToPlan('<span>Hallo</span>');
     expect(plan.type).toBe('box');
     expect(plan.children).toEqual([
-      { type: 'text', content: 'Hallo', fontSize: 16, fontWeight: 400, color: { hex: '#000000', token: null } },
+      {
+        type: 'text',
+        content: 'Hallo',
+        fontSize: 16,
+        fontWeight: 400,
+        color: { hex: '#000000', token: null },
+        align: 'left',
+        lineHeight: null,
+      },
     ]);
   });
 });
 
-describe('htmlToPlan — padding (Tailwind-Skala ×4px, Tupel [t,r,b,l])', () => {
-  it('p-4 setzt alle vier Seiten', () => {
-    const { plan } = htmlToPlan('<div class="p-4"></div>');
+describe('htmlToPlan — padding (computed, direkt in px, kein Klassen-Faktor mehr)', () => {
+  it('padding:16px setzt alle vier Seiten', () => {
+    const { plan } = htmlToPlan('<div style="padding:16px"></div>');
     expect(plan.padding).toEqual([16, 16, 16, 16]);
   });
 
-  it('py-1.5 → 6px auf top/bottom, Dezimalwerte funktionieren', () => {
-    const { plan } = htmlToPlan('<div class="py-1.5"></div>');
+  it('padding:6px 0 → 6px auf top/bottom, 0 auf left/right', () => {
+    const { plan } = htmlToPlan('<div style="padding:6px 0"></div>');
     expect(plan.padding).toEqual([6, 0, 6, 0]);
   });
 
-  it('px-2 → 8px auf left/right', () => {
-    const { plan } = htmlToPlan('<div class="px-2"></div>');
+  it('padding-left/-right → nur left/right gesetzt', () => {
+    const { plan } = htmlToPlan('<div style="padding-left:8px;padding-right:8px"></div>');
     expect(plan.padding).toEqual([0, 8, 0, 8]);
   });
 
-  it('einzelne Seiten pt/pr/pb/pl korrekt auf das Tupel gemappt', () => {
-    const { plan } = htmlToPlan('<div class="pt-2 pr-4 pb-6 pl-8"></div>');
+  it('einzelne Longhands korrekt auf das Tupel [top,right,bottom,left] gemappt', () => {
+    const { plan } = htmlToPlan(
+      '<div style="padding-top:8px;padding-right:16px;padding-bottom:24px;padding-left:32px"></div>'
+    );
     expect(plan.padding).toEqual([8, 16, 24, 32]);
+  });
+
+  it('kein padding-Style → [0,0,0,0] (Default)', () => {
+    const { plan } = htmlToPlan('<div></div>');
+    expect(plan.padding).toEqual([0, 0, 0, 0]);
   });
 });
 
-describe('htmlToPlan — radius (rounded-*)', () => {
+describe('htmlToPlan — radius (border-top-left-radius, computed)', () => {
+  // border-radius KURZFORM wird von jsdoms CSSOM nicht unterstützt (empirisch geprüft) —
+  // Fixtures nutzen deshalb die Langform. Im echten Browser funktioniert die Kurzform genauso.
   const cases = [
-    ['rounded-none', 0],
-    ['rounded-sm', 2],
-    ['rounded', 4],
-    ['rounded-md', 6],
-    ['rounded-lg', 8],
-    ['rounded-xl', 12],
-    ['rounded-2xl', 16],
-    ['rounded-3xl', 24],
-    ['rounded-full', 9999],
+    ['border-top-left-radius:0px', 0],
+    ['border-top-left-radius:2px', 2],
+    ['border-top-left-radius:6px', 6],
+    ['border-top-left-radius:8px', 8],
+    ['border-top-left-radius:12px', 12],
+    ['border-top-left-radius:16px', 16],
+    ['border-top-left-radius:24px', 24],
   ];
-  for (const [cls, expected] of cases) {
-    it(`${cls} → radius ${expected}`, () => {
-      const { plan } = htmlToPlan(`<div class="${cls}"></div>`);
+  for (const [style, expected] of cases) {
+    it(`${style} → radius ${expected}`, () => {
+      const { plan } = htmlToPlan(`<div style="${style}"></div>`);
       expect(plan.radius).toBe(expected);
     });
   }
 
-  it('kein rounded-* Klasse → radius 0 (Default)', () => {
+  it('kein border-radius-Style → radius 0 (Default)', () => {
     const { plan } = htmlToPlan('<div></div>');
     expect(plan.radius).toBe(0);
   });
+
+  it('border-top-left-radius:9999px → radius exakt 9999 ("full"-Fall)', () => {
+    const { plan } = htmlToPlan('<div style="border-top-left-radius:9999px"></div>');
+    expect(plan.radius).toBe(9999);
+  });
+
+  it('sehr große Radien werden auf 9999 gekappt', () => {
+    const { plan } = htmlToPlan('<div style="border-top-left-radius:50000px"></div>');
+    expect(plan.radius).toBe(9999);
+  });
 });
 
-describe('htmlToPlan — Farben (arbitrary Hex immer, benannt nur white/black)', () => {
-  it('bg-[#4263EB] → fill mit rohem Hex, token:null (Token-Bindung folgt in Task 3)', () => {
-    const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>');
-    expect(plan.fill).toEqual({ hex: '#4263EB', token: null });
+describe('htmlToPlan — Farben (background-color/color, rgb()→hex, Spec §Mapping)', () => {
+  it('background-color als Hex → fill mit normalisiertem (lowercase) Hex, token:null ohne tokens-Option', () => {
+    const { plan } = htmlToPlan('<div style="background-color:#4263EB"></div>');
+    expect(plan.fill).toEqual({ hex: '#4263eb', token: null });
   });
 
-  it('bg-white / bg-black werden als benannte Farben erkannt', () => {
-    expect(htmlToPlan('<div class="bg-white"></div>').plan.fill).toEqual({ hex: '#ffffff', token: null });
-    expect(htmlToPlan('<div class="bg-black"></div>').plan.fill).toEqual({ hex: '#000000', token: null });
+  it('background-color als rgb()-Literal → identisch zu Hex-Eingabe normalisiert', () => {
+    const { plan } = htmlToPlan('<div style="background-color:rgb(66, 99, 235)"></div>');
+    expect(plan.fill).toEqual({ hex: '#4263eb', token: null });
   });
 
-  it('kein bg-* Klasse → fill:null', () => {
+  it('background-color:transparent → fill:null', () => {
+    const { plan } = htmlToPlan('<div style="background-color:transparent"></div>');
+    expect(plan.fill).toBeNull();
+  });
+
+  it('kein background-color-Style → fill:null (Default-Hintergrund ist transparent)', () => {
     expect(htmlToPlan('<div></div>').plan.fill).toBeNull();
   });
 
-  it('text-[#111827] → Textfarbe des Text-Kinds', () => {
-    const { plan } = htmlToPlan('<p class="text-[#111827]">Hi</p>');
+  it('color auf einem Text-Blatt → PlanText.color', () => {
+    const { plan } = htmlToPlan('<p style="color:#111827">Hi</p>');
     expect(plan.children[0].color).toEqual({ hex: '#111827', token: null });
   });
 
-  it('andere benannte Tailwind-Farben (nicht white/black) → ignoriert + Warnung, kein fill', () => {
-    const { plan, warnings } = htmlToPlan('<div class="bg-gray-100"></div>');
-    expect(plan.fill).toBeNull();
-    expect(warnings).toContain('Klasse ignoriert: bg-gray-100');
+  it('kein color-Style auf Text → Default-Schwarz (#000000)', () => {
+    const { plan } = htmlToPlan('<p>Hi</p>');
+    expect(plan.children[0].color).toEqual({ hex: '#000000', token: null });
   });
 });
 
-describe('htmlToPlan — fontSize / fontWeight', () => {
+describe('htmlToPlan — fontSize / fontWeight (computed)', () => {
   const sizeCases = [
-    ['text-xs', 12],
-    ['text-sm', 14],
-    ['text-base', 16],
-    ['text-lg', 18],
-    ['text-xl', 20],
-    ['text-2xl', 24],
-    ['text-3xl', 30],
+    ['font-size:12px', 12],
+    ['font-size:14px', 14],
+    ['font-size:16px', 16],
+    ['font-size:18px', 18],
+    ['font-size:20px', 20],
+    ['font-size:24px', 24],
+    ['font-size:30px', 30],
   ];
-  for (const [cls, expected] of sizeCases) {
-    it(`${cls} → fontSize ${expected}`, () => {
-      const { plan } = htmlToPlan(`<p class="${cls}">Hi</p>`);
+  for (const [style, expected] of sizeCases) {
+    it(`${style} → fontSize ${expected}`, () => {
+      const { plan } = htmlToPlan(`<p style="${style}">Hi</p>`);
       expect(plan.children[0].fontSize).toBe(expected);
     });
   }
 
+  it('kein font-size-Style → fontSize 16 (jsdom-Default ist das Keyword "medium", kein px-Wert)', () => {
+    const { plan } = htmlToPlan('<p>Hi</p>');
+    expect(plan.children[0].fontSize).toBe(16);
+  });
+
   const weightCases = [
-    ['font-medium', 500],
-    ['font-semibold', 600],
-    ['font-bold', 700],
+    ['font-weight:500', 500],
+    ['font-weight:600', 600],
+    ['font-weight:700', 700],
+    ['font-weight:bold', 700],
   ];
-  for (const [cls, expected] of weightCases) {
-    it(`${cls} → fontWeight ${expected}`, () => {
-      const { plan } = htmlToPlan(`<p class="${cls}">Hi</p>`);
+  for (const [style, expected] of weightCases) {
+    it(`${style} → fontWeight ${expected}`, () => {
+      const { plan } = htmlToPlan(`<p style="${style}">Hi</p>`);
       expect(plan.children[0].fontWeight).toBe(expected);
     });
   }
 
-  it('kein font-* Klasse → fontWeight 400 (Default "sonst")', () => {
+  it('kein font-weight-Style → fontWeight 400 (Default "normal")', () => {
     const { plan } = htmlToPlan('<p>Hi</p>');
     expect(plan.children[0].fontWeight).toBe(400);
   });
 });
 
-describe('htmlToPlan — Layout (flex/flex-col)', () => {
-  it('flex-col → layout column', () => {
-    const { plan } = htmlToPlan('<div class="flex flex-col"><span>A</span><span>B</span></div>');
+describe('htmlToPlan — text-align → PlanText.align (Spec §Vertrags-Erweiterung)', () => {
+  it('text-align:center → align "center"', () => {
+    const { plan } = htmlToPlan('<p style="text-align:center">Hi</p>');
+    expect(plan.children[0].align).toBe('center');
+  });
+
+  it('text-align:right → align "right"', () => {
+    const { plan } = htmlToPlan('<p style="text-align:right">Hi</p>');
+    expect(plan.children[0].align).toBe('right');
+  });
+
+  it('kein text-align-Style → align "left" (Default)', () => {
+    const { plan } = htmlToPlan('<p>Hi</p>');
+    expect(plan.children[0].align).toBe('left');
+  });
+});
+
+describe('htmlToPlan — line-height → PlanText.lineHeight (Spec §Vertrags-Erweiterung)', () => {
+  it('line-height:24px → lineHeight 24', () => {
+    const { plan } = htmlToPlan('<p style="line-height:24px">Hi</p>');
+    expect(plan.children[0].lineHeight).toBe(24);
+  });
+
+  it('kein line-height-Style → lineHeight null ("normal" → null)', () => {
+    const { plan } = htmlToPlan('<p>Hi</p>');
+    expect(plan.children[0].lineHeight).toBeNull();
+  });
+});
+
+describe('htmlToPlan — Layout (display:flex + flex-direction, computed)', () => {
+  it('display:flex;flex-direction:column → layout column', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;flex-direction:column"><span>A</span><span>B</span></div>');
     expect(plan.layout).toBe('column');
   });
 
-  it('flex ohne flex-col → layout row (Default)', () => {
-    const { plan } = htmlToPlan('<div class="flex"><span>A</span><span>B</span></div>');
+  it('display:flex ohne flex-direction → layout row (Default "row")', () => {
+    const { plan } = htmlToPlan('<div style="display:flex"><span>A</span><span>B</span></div>');
     expect(plan.layout).toBe('row');
   });
 
-  it('gar keine Layout-Klasse → layout row (Default)', () => {
+  it('gar kein display-Style → layout row (Default)', () => {
     const { plan } = htmlToPlan('<div><span>A</span></div>');
     expect(plan.layout).toBe('row');
   });
 });
 
-describe('htmlToPlan — gap-* (kein itemSpacing-Feld im Plan → weglassen + Warnung)', () => {
-  it('gap-4 erzeugt eine eigene Warnung statt eines itemSpacing-Felds', () => {
-    const { plan, warnings } = htmlToPlan('<div class="flex gap-4"><span>A</span></div>');
-    expect(plan.itemSpacing).toBeUndefined();
-    expect(warnings.some((w) => w.includes('gap-*') && w.includes('gap-4'))).toBe(true);
+describe('htmlToPlan — primaryAlign / counterAlign (justify-content/align-items, Spec §Vertrags-Erweiterung)', () => {
+  it('justify-content:center → primaryAlign CENTER', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;justify-content:center"></div>');
+    expect(plan.primaryAlign).toBe('CENTER');
+  });
+
+  it('justify-content:flex-end → primaryAlign MAX', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;justify-content:flex-end"></div>');
+    expect(plan.primaryAlign).toBe('MAX');
+  });
+
+  it('justify-content:space-between → primaryAlign SPACE_BETWEEN', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;justify-content:space-between"></div>');
+    expect(plan.primaryAlign).toBe('SPACE_BETWEEN');
+  });
+
+  it('align-items:flex-end → counterAlign MAX', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;align-items:flex-end"></div>');
+    expect(plan.counterAlign).toBe('MAX');
+  });
+
+  it('align-items:center → counterAlign CENTER', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;align-items:center"></div>');
+    expect(plan.counterAlign).toBe('CENTER');
+  });
+
+  it('display:flex ohne justify-content/align-items → primaryAlign MIN, counterAlign CENTER (Defaults)', () => {
+    const { plan } = htmlToPlan('<div style="display:flex"></div>');
+    expect(plan.primaryAlign).toBe('MIN');
+    expect(plan.counterAlign).toBe('CENTER');
+  });
+
+  it('kein flex/grid-Display → primaryAlign MIN, counterAlign CENTER (Defaults, unabhängig vom Rest)', () => {
+    const { plan } = htmlToPlan('<div style="padding:8px"></div>');
+    expect(plan.primaryAlign).toBe('MIN');
+    expect(plan.counterAlign).toBe('CENTER');
   });
 });
 
-describe('htmlToPlan — unbekannte Klassen: gesammelt + dedupliziert, nie fatal', () => {
-  it('dieselbe unbekannte Klasse auf mehreren Elementen erscheint nur einmal in warnings', () => {
-    const { warnings } = htmlToPlan(
-      '<div class="items-center"><span class="items-center">A</span><span class="items-center">B</span></div>'
+describe('htmlToPlan — gap (jetzt abgebildet statt nur gewarnt, Spec §Vertrags-Erweiterung)', () => {
+  it('column-gap:16px auf einer row-Box → gap 16', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;column-gap:16px"><span>A</span></div>');
+    expect(plan.gap).toBe(16);
+  });
+
+  it('row-gap:24px auf einer column-Box → gap 24 (Primärachse bestimmt, welcher Shorthand-Teil zählt)', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex;flex-direction:column;row-gap:24px;column-gap:4px"><span>A</span></div>'
     );
-    const occurrences = warnings.filter((w) => w === 'Klasse ignoriert: items-center');
-    expect(occurrences).toHaveLength(1);
+    expect(plan.gap).toBe(24);
   });
 
-  it('mehrere verschiedene unbekannte Klassen landen alle in warnings', () => {
-    const { warnings } = htmlToPlan('<div class="w-9 h-9 justify-center"></div>');
-    expect(warnings).toContain('Klasse ignoriert: w-9');
-    expect(warnings).toContain('Klasse ignoriert: h-9');
-    expect(warnings).toContain('Klasse ignoriert: justify-center');
+  it('kein gap-Style → gap 0 (Default)', () => {
+    const { plan } = htmlToPlan('<div style="display:flex"></div>');
+    expect(plan.gap).toBe(0);
   });
 });
 
-describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures)', () => {
-  it('Container mit Kind-Elementen wird immer zur Box, auch ohne eigene Box-Klassen', () => {
+describe('htmlToPlan — border-* → stroke + strokeWeight (Spec §Mapping)', () => {
+  it('sichtbarer Rahmen (Breite>0, Farbe nicht transparent) → stroke gesetzt, strokeWeight aus Breite', () => {
+    const { plan } = htmlToPlan('<div style="border:2px solid #e5e7eb"></div>');
+    expect(plan.stroke).toEqual({ hex: '#e5e7eb', token: null });
+    expect(plan.strokeWeight).toBe(2);
+  });
+
+  it('kein border-Style → stroke:null, strokeWeight bleibt Default 1 (unwirksam ohne stroke)', () => {
+    const { plan } = htmlToPlan('<div></div>');
+    expect(plan.stroke).toBeNull();
+    expect(plan.strokeWeight).toBe(1);
+  });
+
+  it('border-width:0 → stroke:null (kein sichtbarer Rahmen)', () => {
+    const { plan } = htmlToPlan('<div style="border:0px solid #000000"></div>');
+    expect(plan.stroke).toBeNull();
+  });
+
+  it('border mit transparenter Farbe → stroke:null, obwohl width>0', () => {
+    const { plan } = htmlToPlan('<div style="border:2px solid transparent"></div>');
+    expect(plan.stroke).toBeNull();
+  });
+});
+
+describe('htmlToPlan — width/height (Spec §Mapping: NUR explizit gesetzte Größe, sonst null=HUG)', () => {
+  it('explizites style="width:...;height:..." → width/height in px', () => {
+    const { plan } = htmlToPlan('<div style="width:120px;height:40px"></div>');
+    expect(plan.width).toBe(120);
+    expect(plan.height).toBe(40);
+  });
+
+  it('kein width/height-Style → beide null (HUG, Default)', () => {
+    const { plan } = htmlToPlan('<div style="padding:8px"></div>');
+    expect(plan.width).toBeNull();
+    expect(plan.height).toBeNull();
+  });
+
+  it('nur width gesetzt → height bleibt null', () => {
+    const { plan } = htmlToPlan('<div style="width:200px"></div>');
+    expect(plan.width).toBe(200);
+    expect(plan.height).toBeNull();
+  });
+
+  // Der flex-basis-Zweig der Heuristik (Spec §Mapping: "…oder Flex-Basis") lässt sich in jsdom
+  // NICHT sinnvoll testen: flex-basis wird als gesetzter Wert erkannt, aber die daraus
+  // resultierende width/height bleibt in jsdom "auto" (keine echte Flex-Verteilung, s. Kopf-
+  // kommentar dieser Datei) — der Code degradiert dort bewusst zu null statt zu raten. Wird
+  // im echten Browser verifiziert (Spec §Umsetzungsschritte Punkt 4), nicht hier.
+});
+
+describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures, jetzt aus computed style statt Klassen)', () => {
+  it('Container mit Kind-Elementen wird immer zur Box, auch ohne eigene Box-Stile', () => {
     const { plan } = htmlToPlan('<div><span>A</span></div>');
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(1);
     expect(plan.children[0]).toEqual({
-      type: 'text', content: 'A', fontSize: 16, fontWeight: 400, color: { hex: '#000000', token: null },
+      type: 'text',
+      content: 'A',
+      fontSize: 16,
+      fontWeight: 400,
+      color: { hex: '#000000', token: null },
+      align: 'left',
+      lineHeight: null,
     });
   });
 
-  it('reiner Textknoten ohne Box-Trigger-Klassen wird direkt zu PlanText (kein Box-Wrapper als Kind)', () => {
-    const { plan } = htmlToPlan('<div><p class="text-xs text-[#6b7280]">Total Sales</p></div>');
+  it('reiner Textknoten ohne Box-Trigger-Stile wird direkt zu PlanText (kein Box-Wrapper als Kind)', () => {
+    const { plan } = htmlToPlan('<div><p style="font-size:12px;color:#6b7280">Total Sales</p></div>');
     expect(plan.children[0]).toEqual({
-      type: 'text', content: 'Total Sales', fontSize: 12, fontWeight: 400, color: { hex: '#6b7280', token: null },
+      type: 'text',
+      content: 'Total Sales',
+      fontSize: 12,
+      fontWeight: 400,
+      color: { hex: '#6b7280', token: null },
+      align: 'left',
+      lineHeight: null,
     });
   });
 
-  it('Blatt-Element MIT Box-Trigger-Klassen (bg/rounded) UND eigenem Text wird zur Box mit Text-Kind (Avatar-Fall)', () => {
-    // Fixture-nah: server/fixtures/demo-interpretations.json → "Avatar"
-    const { plan } = htmlToPlan(
-      '<div class="h-9 w-9 rounded-full bg-[#4263EB] text-white flex items-center justify-center text-sm font-medium">RK</div>'
-    );
+  it('Blatt-Element MIT Box-Trigger-Stilen (bg/radius) UND eigenem Text wird zur Box mit Text-Kind (Avatar-Fall)', () => {
+    const html =
+      '<div style="height:36px;width:36px;border-top-left-radius:9999px;background-color:#4263eb;' +
+      'color:#ffffff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500">RK</div>';
+    const { plan } = htmlToPlan(html);
     expect(plan.type).toBe('box');
     expect(plan.radius).toBe(9999);
-    expect(plan.fill).toEqual({ hex: '#4263EB', token: null });
+    expect(plan.fill).toEqual({ hex: '#4263eb', token: null });
+    expect(plan.width).toBe(36);
+    expect(plan.height).toBe(36);
     expect(plan.children).toEqual([
-      { type: 'text', content: 'RK', fontSize: 14, fontWeight: 500, color: { hex: '#ffffff', token: null } },
+      {
+        type: 'text',
+        content: 'RK',
+        fontSize: 14,
+        fontWeight: 500,
+        color: { hex: '#ffffff', token: null },
+        align: 'left',
+        lineHeight: null,
+      },
     ]);
   });
 
-  it('leeres Blatt-Element mit Box-Trigger-Klassen (Status-Dot) → Box ohne Kinder', () => {
-    const { plan } = htmlToPlan('<span class="h-2 w-2 rounded-full bg-[#51CF66]"></span>');
+  it('leeres Blatt-Element mit Box-Trigger-Stilen (Status-Dot) → Box ohne Kinder', () => {
+    const { plan } = htmlToPlan(
+      '<span style="height:8px;width:8px;border-top-left-radius:9999px;background-color:#51cf66"></span>'
+    );
     expect(plan.type).toBe('box');
     expect(plan.radius).toBe(9999);
-    expect(plan.fill).toEqual({ hex: '#51CF66', token: null });
+    expect(plan.fill).toEqual({ hex: '#51cf66', token: null });
     expect(plan.children).toEqual([]);
   });
 
-  it('vollständig leeres Blatt ohne jede Klasse/Text → leere Box (harmlos)', () => {
+  it('vollständig leeres Blatt ohne jeden Stil/Text → leere Box mit alle-Defaults (harmlos)', () => {
     const { plan } = htmlToPlan('<div></div>');
     expect(plan).toEqual({
-      type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: null, stroke: null, children: [],
+      type: 'box',
+      layout: 'row',
+      padding: [0, 0, 0, 0],
+      radius: 0,
+      fill: null,
+      stroke: null,
+      strokeWeight: 1,
+      gap: 0,
+      width: null,
+      height: null,
+      primaryAlign: 'MIN',
+      counterAlign: 'CENTER',
+      children: [],
     });
   });
 
   it('gemischter Inhalt (Element-Kind + direkter Text daneben) verliert den Text nicht', () => {
     const { plan } = htmlToPlan(
-      '<span class="flex items-center gap-1.5"><span class="h-2 w-2 rounded-full bg-[#51CF66]"></span>Aktiv</span>'
+      '<span style="display:flex;align-items:center;column-gap:6px">' +
+        '<span style="height:8px;width:8px;border-top-left-radius:9999px;background-color:#51cf66"></span>Aktiv</span>'
     );
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(2);
     expect(plan.children[0].type).toBe('box'); // der Dot
     expect(plan.children[1]).toEqual({
-      type: 'text', content: 'Aktiv', fontSize: 16, fontWeight: 400, color: { hex: '#000000', token: null },
+      type: 'text',
+      content: 'Aktiv',
+      fontSize: 16,
+      fontWeight: 400,
+      color: { hex: '#000000', token: null },
+      align: 'left',
+      lineHeight: null,
     });
   });
 });
@@ -267,26 +483,40 @@ describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures)', () => {
 describe('htmlToPlan — Stat-Card-Integration (realistische Fixture, mehrere Regeln gemeinsam)', () => {
   it('verschachtelte Card mit mehreren Text-Kindern', () => {
     const html =
-      '<div class="rounded-xl border border-[#e5e7eb] bg-white p-4 w-56">' +
-      '<p class="text-xs text-[#6b7280]">Total Sales</p>' +
-      '<p class="mt-1 text-2xl font-semibold text-[#111827]">$12,480</p>' +
+      '<div style="border-top-left-radius:12px;border:1px solid #e5e7eb;background-color:#ffffff;padding:16px;width:224px">' +
+      '<p style="font-size:12px;color:#6b7280">Total Sales</p>' +
+      '<p style="margin-top:4px;font-size:24px;font-weight:600;color:#111827">$12,480</p>' +
       '</div>';
     const { plan } = htmlToPlan(html);
     expect(plan.type).toBe('box');
     expect(plan.radius).toBe(12);
     expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+    expect(plan.stroke).toEqual({ hex: '#e5e7eb', token: null });
     expect(plan.padding).toEqual([16, 16, 16, 16]);
+    expect(plan.width).toBe(224);
     expect(plan.children).toHaveLength(2);
     expect(plan.children[0]).toEqual({
-      type: 'text', content: 'Total Sales', fontSize: 12, fontWeight: 400, color: { hex: '#6b7280', token: null },
+      type: 'text',
+      content: 'Total Sales',
+      fontSize: 12,
+      fontWeight: 400,
+      color: { hex: '#6b7280', token: null },
+      align: 'left',
+      lineHeight: null,
     });
     expect(plan.children[1]).toEqual({
-      type: 'text', content: '$12,480', fontSize: 24, fontWeight: 600, color: { hex: '#111827', token: null },
+      type: 'text',
+      content: '$12,480',
+      fontSize: 24,
+      fontWeight: 600,
+      color: { hex: '#111827', token: null },
+      align: 'left',
+      lineHeight: null,
     });
   });
 });
 
-describe('htmlToPlan — SVG-Extraktion (Spec §Konverter Punkt 3)', () => {
+describe('htmlToPlan — SVG-Extraktion (unverändert: Vektor-Passthrough, kein Stil-Lesen im SVG-Subtree)', () => {
   it('svg als Root-Element → PlanSvg-Node (in Wrapper-Box, wie jedes nicht-box Root)', () => {
     const { plan } = htmlToPlan('<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></svg>');
     expect(plan.type).toBe('box');
@@ -299,7 +529,7 @@ describe('htmlToPlan — SVG-Extraktion (Spec §Konverter Punkt 3)', () => {
 
   it('svg verschachtelt in einer Box → svg-Kind, kein box/text-Abstieg in den svg-Inhalt', () => {
     const { plan } = htmlToPlan(
-      '<div class="rounded-lg bg-white p-4"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" stroke="#4263EB"></circle></svg></div>'
+      '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" stroke="#4263EB"></circle></svg></div>'
     );
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(1);
@@ -331,7 +561,7 @@ describe('htmlToPlan — SVG-Extraktion (Spec §Konverter Punkt 3)', () => {
   });
 });
 
-describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix: kein SSRF/Remote-Leak über Figma-Import)', () => {
+describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix v1 + v2: kein SSRF/Remote-Leak, jetzt auch beim Offscreen-Mount)', () => {
   it('<image> mit externer http(s)-Quelle wird komplett entfernt + Warnung', () => {
     const html =
       '<svg viewBox="0 0 10 10">' +
@@ -407,9 +637,14 @@ describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix: kein SSRF/
   });
 });
 
-describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hierarchie)', () => {
+describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverändert klassenbasiert)', () => {
   it('Button in einer Card → component-ref MIT Variante und Fallback, Card steigt NICHT weiter in den Button ab', () => {
-    const html = '<div class="rounded-lg bg-white p-4"><button class="btn btn-primary">Save</button></div>';
+    // text-align:left explizit gesetzt, um den Test unabhängig von jsdoms UA-Default für
+    // <button> zu machen (jsdom zentriert Button-Text standardmäßig, echte Browser nicht
+    // unbedingt identisch — hier geht es um die component-ref-Hierarchie, nicht um Text-Defaults).
+    const html =
+      '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px">' +
+      '<button class="btn btn-primary" style="text-align:left">Save</button></div>';
     const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(1);
@@ -425,15 +660,29 @@ describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hier
         radius: 0,
         fill: null,
         stroke: null,
+        strokeWeight: 1,
+        gap: 0,
+        width: null,
+        height: null,
+        primaryAlign: 'MIN',
+        counterAlign: 'CENTER',
         children: [
-          { type: 'text', content: 'Save', fontSize: 16, fontWeight: 400, color: { hex: '#000000', token: null } },
+          {
+            type: 'text',
+            content: 'Save',
+            fontSize: 16,
+            fontWeight: 400,
+            color: { hex: '#000000', token: null },
+            align: 'left',
+            lineHeight: null,
+          },
         ],
       },
     });
   });
 
   it('<input type="search"> → component-ref "Suche" wenn bekannt', () => {
-    const { plan } = htmlToPlan('<input type="search" class="p-2">', {
+    const { plan } = htmlToPlan('<input type="search">', {
       knownComponents: [{ name: 'Suche', kind: 'atomic' }],
     });
     expect(plan.children[0].type).toBe('component-ref');
@@ -441,7 +690,7 @@ describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hier
   });
 
   it('<input> (nicht search) / <select> → component-ref "Input" wenn bekannt', () => {
-    const { plan } = htmlToPlan('<div><input class="p-2"><select></select></div>', {
+    const { plan } = htmlToPlan('<div><input><select></select></div>', {
       knownComponents: [{ name: 'Input', kind: 'atomic' }],
     });
     expect(plan.children).toHaveLength(2);
@@ -460,7 +709,7 @@ describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hier
   });
 
   it('unbekannter Baustein (Name nicht in knownComponents) → normaler box/text-Nachbau, KEIN component-ref', () => {
-    const html = '<div class="rounded-lg bg-white p-4"><button class="btn btn-primary">Save</button></div>';
+    const html = '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px"><button class="btn btn-primary">Save</button></div>';
     const { plan } = htmlToPlan(html, { knownComponents: [] });
     expect(plan.children[0].type).toBe('text');
     expect(plan.children[0].content).toBe('Save');
@@ -473,8 +722,8 @@ describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hier
 
   it('Hierarchie: Organismus referenziert Molekül, das selbst wieder ein Atom referenziert', () => {
     const html =
-      '<div class="rounded-lg bg-white p-4">' + // Organismus (unbekannt)
-      '<div class="rounded-md bg-white p-2"><button class="btn">Save</button></div>' + // Molekül "Card" wäre bekannt, hier einfach unbekannte Box
+      '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px">' + // Organismus (unbekannt)
+      '<div style="border-top-left-radius:6px;background-color:#ffffff;padding:8px"><button class="btn">Save</button></div>' + // Molekül "Card" wäre bekannt, hier einfach unbekannte Box
       '</div>';
     const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
     // Organismus bleibt Box (kein Match), steigt normal ab, sein Kind (Box) enthält den erkannten Button als component-ref.
@@ -486,40 +735,62 @@ describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hier
   });
 });
 
-describe('htmlToPlan — Token-Bindung (Spec §Konverter Punkt 5)', () => {
+describe('htmlToPlan — Token-Bindung (unverändert, Eingabe jetzt rgb→hex statt Tailwind-Arbitrary-Hex)', () => {
   it('Hex-Treffer gegen tokens.colors (case-insensitiv) → ColorRef.token gesetzt', () => {
-    const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>', {
+    const { plan } = htmlToPlan('<div style="background-color:#4263EB"></div>', {
       tokens: { colors: [{ hex: '#4263eb', role: 'Primary' }] },
     });
-    expect(plan.fill).toEqual({ hex: '#4263EB', token: 'primary' });
+    expect(plan.fill).toEqual({ hex: '#4263eb', token: 'primary' });
   });
 
-  it('kein Treffer → token:null, roher Hex bleibt erhalten', () => {
-    const { plan } = htmlToPlan('<div class="bg-[#123456]"></div>', {
+  it('kein Treffer → token:null, roher (normalisierter) Hex bleibt erhalten', () => {
+    const { plan } = htmlToPlan('<div style="background-color:#123456"></div>', {
       tokens: { colors: [{ hex: '#4263EB', role: 'primary' }] },
     });
     expect(plan.fill).toEqual({ hex: '#123456', token: null });
   });
 
-  it('Token-Bindung gilt auch für text-* (PlanText.color)', () => {
-    const { plan } = htmlToPlan('<p class="text-[#111827]">Hi</p>', {
+  it('Token-Bindung gilt auch für PlanText.color', () => {
+    const { plan } = htmlToPlan('<p style="color:#111827">Hi</p>', {
       tokens: { colors: [{ hex: '#111827', role: 'text-default' }] },
     });
     expect(plan.children[0].color).toEqual({ hex: '#111827', token: 'text-default' });
   });
 
   it('ohne tokens-Option (Default {}) → token bleibt null wie bisher', () => {
-    const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>');
-    expect(plan.fill).toEqual({ hex: '#4263EB', token: null });
+    const { plan } = htmlToPlan('<div style="background-color:#4263EB"></div>');
+    expect(plan.fill).toEqual({ hex: '#4263eb', token: null });
   });
 
   it('vorab vergebener .name gewinnt gegenüber slugify(role) (Bindung an disambiguierte Figma-Style-Namen)', () => {
     // emitFigmaComponents reicht die bereits von normalizeTokens.assignNames disambiguierten
     // Namen durch (z. B. "primary-2" bei Kollision) — matchColorToken darf role nicht erneut
     // slugifien und muss stattdessen den mitgelieferten Namen 1:1 durchreichen.
-    const { plan } = htmlToPlan('<div class="bg-[#222222]"></div>', {
+    const { plan } = htmlToPlan('<div style="background-color:#222222"></div>', {
       tokens: { colors: [{ hex: '#222222', role: 'primary', name: 'primary-2' }] },
     });
     expect(plan.fill).toEqual({ hex: '#222222', token: 'primary-2' });
+  });
+});
+
+describe('htmlToPlan — Offscreen-Container-Cleanup (Spec §Kernidee Schritt 4: immer entfernen, try/finally)', () => {
+  it('Container wird nach einem erfolgreichen Aufruf wieder aus dem Live-DOM entfernt', () => {
+    const before = document.body.children.length;
+    htmlToPlan('<div style="padding:16px"><p>Hi</p></div>');
+    expect(document.body.children.length).toBe(before);
+  });
+
+  it('Container wird auch bei plan:null (leeres HTML) entfernt', () => {
+    const before = document.body.children.length;
+    htmlToPlan('   ');
+    expect(document.body.children.length).toBe(before);
+  });
+
+  it('Container akkumuliert nicht über mehrere aufeinanderfolgende Aufrufe', () => {
+    const before = document.body.children.length;
+    for (let i = 0; i < 5; i += 1) {
+      htmlToPlan(`<div style="padding:${i}px"><span>${i}</span></div>`);
+    }
+    expect(document.body.children.length).toBe(before);
   });
 });
