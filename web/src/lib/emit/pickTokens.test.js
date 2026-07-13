@@ -45,4 +45,32 @@ describe('pickTokens', () => {
     expect(p.onPrimary).toBe('#e8fff9');
     expect(p.surfaceMuted).toBe('#f0f0f0');
   });
+
+  // Fix 13.07. — Spiegel zu pickTokenRefs.test.js (Regexe MÜSSEN identisch bleiben):
+  // surfaceMuted darf keine foreground-Rolle greifen; Font-Slot nimmt Body statt erstes Token.
+  it('surfaceMuted ignoriert foreground-muted (Textfarbe), fällt hell zurück', () => {
+    const tokens = normalizeTokens({
+      colors: [
+        { hex: '#4263EB', role: 'brand-primary', confidence: 'high' },
+        { hex: '#495057', role: 'foreground-muted', confidence: 'high' },
+        { hex: '#F8F9FA', role: 'background-app', confidence: 'high' },
+      ],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    });
+    expect(pickTokens(tokens).surfaceMuted).toBe('#f4f4f5');
+  });
+
+  it('Font-Slot bevorzugt body-Rolle vor dem ersten (Display-)Token', () => {
+    const tokens = normalizeTokens({
+      colors: [],
+      typography: [
+        { size: 32, weight: 700, role: 'display-xl', confidence: 'high' },
+        { size: 14, weight: 400, role: 'body-default', confidence: 'high' },
+      ],
+      spacing: [], border_radius: [], shadows: [],
+    });
+    const p = pickTokens(tokens);
+    expect(p.fontSize).toBe('14px');
+    expect(p.fontWeight).toBe('400');
+  });
 });
