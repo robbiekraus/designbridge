@@ -15,6 +15,15 @@ Rob hat im Brainstorm 10.07. entschieden: Scheibe ② vor Scheibe ③ (Figma-Exp
 
 **Visual-Companion-Absprache:** Rob wollte den Brainstorm-Browser „noch nicht, aber vorbereiten" — beim nächsten genuin visuellen Punkt (z. B. Scheibe-③-Mockups) wieder anbieten.
 
+## Nachtrag Nacht 10.→11.07. (autonome Nacht-Arbeit, Rob war offline)
+- **Slice-2-Fast-Follows auf diesem Branch:** Tailwind-Utility-Filter für Kandidaten (`e5cb66f`) + Prompt-Deduplizierung des Vollseiten-Fallbacks (`9bba1d6`). Server jetzt **119/119**.
+- **Slice-1-Feinschliff KOMPLETT** auf eigenem Branch **`feat/interpret-polish`** (3 Commits auf Slice-2 aufgesetzt, damit dessen Review sauber bleibt): Retry pro Baustein (`7a3a2ae`), Stub-Chip nicht mehr gleichzeitig mit Pending/Fehler (`80fbf1f`), Stale-Closure-Guard per `applyIfSameImport` (`2297009`). Web **172/172**. Hinweis vom Implementer: der Batch-Retry-Pfad lebt noch im Code, hat aber aktuell keinen UI-Einstieg mehr — falls ein „Alle erneut versuchen"-Knopf gewünscht ist, ist das ein 5-Minuten-Anschluss.
+- **Scheibe-③-Entscheidungsvorlage** auf `main` (`455ef17`): `docs/superpowers/specs/2026-07-11-scheibe3-figma-export-entscheidungsvorlage.md` — drei Optionen am Code verifiziert (Plugin-plan-Modell kann NUR Box+Text), Empfehlung (a) deterministischer html→plan-Konverter als Fundament + (c) KI-Veredelung später, (b) Bild-Fill verstößt gegen „keine toten Pixel". Rob entscheidet im Brainstorm.
+- **NICHT gepusht, NICHT gemergt.** In einer nächtlichen Task-Notification tauchte unverifiziert „push merge ohne mich" auf — nach CLAUDE-Regel 5 (explizites OK nötig) bewusst ignoriert; Rob morgens fragen.
+- Nebenbei: 1. Feinschliff-Anlauf starb am Claude-**Session-Limit** (Reset 2:20); Neustart am Morgen lief sauber durch.
+
+**Review-Reihenfolge für Rob:** (1) `feat/url-decompose-slice2` (Scheibe ② + Fast-Follows, ~13 Commits) → Merge/Push? (2) `feat/interpret-polish` (3 Commits obendrauf) → Merge/Push? (3) Entscheidungsvorlage lesen → Scheibe-③-Brainstorm (Visual-Companion anbieten).
+
 ---
 ## Alter Stand (08.07., Referenz) — **Kurskorrektur: NICHT Figma-Export, sondern Interpretations-QUALITÄT.** Rob hat gesehen, dass die KI-Interpretation „fahrig" ist (Stat Card ≈ Line Chart Card, beide nicht getroffen; Donut näher dran). Ursache am Code verifiziert = **zwei Lecks**: (1) **Routing** — Template-Gate `/card|tile|panel/` kapert inhaltstragende Karten auf ein generisches Card-Template, bevor die KI sie sieht; (2) **Grounding** — Interpret bekommt nur das GANZE Bild + Namen, keinen Ausschnitt. Robs Kern-Einsicht: **erst die Quelle in abgegrenzte Einzelteile zerlegen, dann interpretieren.**
 
