@@ -285,3 +285,155 @@ describe('htmlToPlan — Stat-Card-Integration (realistische Fixture, mehrere Re
     });
   });
 });
+
+describe('htmlToPlan — SVG-Extraktion (Spec §Konverter Punkt 3)', () => {
+  it('svg als Root-Element → PlanSvg-Node (in Wrapper-Box, wie jedes nicht-box Root)', () => {
+    const { plan } = htmlToPlan('<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4"></circle></svg>');
+    expect(plan.type).toBe('box');
+    expect(plan.children).toHaveLength(1);
+    const svgNode = plan.children[0];
+    expect(svgNode.type).toBe('svg');
+    expect(svgNode.markup.startsWith('<svg')).toBe(true);
+    expect(svgNode.markup).toContain('<circle');
+  });
+
+  it('svg verschachtelt in einer Box → svg-Kind, kein box/text-Abstieg in den svg-Inhalt', () => {
+    const { plan } = htmlToPlan(
+      '<div class="rounded-lg bg-white p-4"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" stroke="#4263EB"></circle></svg></div>'
+    );
+    expect(plan.type).toBe('box');
+    expect(plan.children).toHaveLength(1);
+    expect(plan.children[0].type).toBe('svg');
+    expect(plan.children[0].markup).toContain('stroke="#4263EB"');
+  });
+
+  it('<foreignObject> wird vor dem Senden entfernt (kann beliebiges HTML/CSS enthalten)', () => {
+    const html =
+      '<svg viewBox="0 0 100 100">' +
+      '<foreignObject width="100" height="100"><div>Hallo Fremdkoerper</div></foreignObject>' +
+      '<rect width="10" height="10"></rect>' +
+      '</svg>';
+    const { plan } = htmlToPlan(html);
+    const svgNode = plan.children[0];
+    expect(svgNode.markup).not.toContain('foreignObject');
+    expect(svgNode.markup).not.toContain('Hallo Fremdkoerper');
+    expect(svgNode.markup).toContain('<rect');
+  });
+
+  it('Markup > 20000 Zeichen wird gekappt + Warnung, wirft nicht', () => {
+    const bigPath = 'M0 0 '.repeat(5000); // 25000 Zeichen, garantiert > 20000 im finalen Markup
+    const html = `<svg viewBox="0 0 10 10"><path d="${bigPath}"></path></svg>`;
+    const { plan, warnings } = htmlToPlan(html);
+    const svgNode = plan.children[0];
+    expect(svgNode.type).toBe('svg');
+    expect(svgNode.markup.length).toBe(20000);
+    expect(warnings.some((w) => w.includes('gekappt'))).toBe(true);
+  });
+});
+
+describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hierarchie)', () => {
+  it('Button in einer Card → component-ref MIT Variante und Fallback, Card steigt NICHT weiter in den Button ab', () => {
+    const html = '<div class="rounded-lg bg-white p-4"><button class="btn btn-primary">Save</button></div>';
+    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    expect(plan.type).toBe('box');
+    expect(plan.children).toHaveLength(1);
+    const ref = plan.children[0];
+    expect(ref).toEqual({
+      type: 'component-ref',
+      name: 'Button',
+      variant: 'primary',
+      fallback: {
+        type: 'box',
+        layout: 'row',
+        padding: [0, 0, 0, 0],
+        radius: 0,
+        fill: null,
+        stroke: null,
+        children: [
+          { type: 'text', content: 'Save', fontSize: 16, fontWeight: 400, color: { hex: '#000000', token: null } },
+        ],
+      },
+    });
+  });
+
+  it('<input type="search"> → component-ref "Suche" wenn bekannt', () => {
+    const { plan } = htmlToPlan('<input type="search" class="p-2">', {
+      knownComponents: [{ name: 'Suche', kind: 'atomic' }],
+    });
+    expect(plan.children[0].type).toBe('component-ref');
+    expect(plan.children[0].name).toBe('Suche');
+  });
+
+  it('<input> (nicht search) / <select> → component-ref "Input" wenn bekannt', () => {
+    const { plan } = htmlToPlan('<div><input class="p-2"><select></select></div>', {
+      knownComponents: [{ name: 'Input', kind: 'atomic' }],
+    });
+    expect(plan.children).toHaveLength(2);
+    expect(plan.children[0].type).toBe('component-ref');
+    expect(plan.children[0].name).toBe('Input');
+    expect(plan.children[1].type).toBe('component-ref');
+    expect(plan.children[1].name).toBe('Input');
+  });
+
+  it('Klasse "badge"/"chip"/"tag" → component-ref "Badge" wenn bekannt', () => {
+    const { plan } = htmlToPlan('<span class="badge">Neu</span>', {
+      knownComponents: [{ name: 'Badge', kind: 'atomic' }],
+    });
+    expect(plan.children[0].type).toBe('component-ref');
+    expect(plan.children[0].name).toBe('Badge');
+  });
+
+  it('unbekannter Baustein (Name nicht in knownComponents) → normaler box/text-Nachbau, KEIN component-ref', () => {
+    const html = '<div class="rounded-lg bg-white p-4"><button class="btn btn-primary">Save</button></div>';
+    const { plan } = htmlToPlan(html, { knownComponents: [] });
+    expect(plan.children[0].type).toBe('text');
+    expect(plan.children[0].content).toBe('Save');
+  });
+
+  it('Button ohne Variant-Wort-Klasse → variant:null', () => {
+    const { plan } = htmlToPlan('<button>Save</button>', { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    expect(plan.children[0]).toMatchObject({ type: 'component-ref', name: 'Button', variant: null });
+  });
+
+  it('Hierarchie: Organismus referenziert Molekül, das selbst wieder ein Atom referenziert', () => {
+    const html =
+      '<div class="rounded-lg bg-white p-4">' + // Organismus (unbekannt)
+      '<div class="rounded-md bg-white p-2"><button class="btn">Save</button></div>' + // Molekül "Card" wäre bekannt, hier einfach unbekannte Box
+      '</div>';
+    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    // Organismus bleibt Box (kein Match), steigt normal ab, sein Kind (Box) enthält den erkannten Button als component-ref.
+    expect(plan.type).toBe('box');
+    const inner = plan.children[0];
+    expect(inner.type).toBe('box');
+    expect(inner.children[0].type).toBe('component-ref');
+    expect(inner.children[0].name).toBe('Button');
+  });
+});
+
+describe('htmlToPlan — Token-Bindung (Spec §Konverter Punkt 5)', () => {
+  it('Hex-Treffer gegen tokens.colors (case-insensitiv) → ColorRef.token gesetzt', () => {
+    const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>', {
+      tokens: { colors: [{ hex: '#4263eb', role: 'Primary' }] },
+    });
+    expect(plan.fill).toEqual({ hex: '#4263EB', token: 'primary' });
+  });
+
+  it('kein Treffer → token:null, roher Hex bleibt erhalten', () => {
+    const { plan } = htmlToPlan('<div class="bg-[#123456]"></div>', {
+      tokens: { colors: [{ hex: '#4263EB', role: 'primary' }] },
+    });
+    expect(plan.fill).toEqual({ hex: '#123456', token: null });
+  });
+
+  it('Token-Bindung gilt auch für text-* (PlanText.color)', () => {
+    const { plan } = htmlToPlan('<p class="text-[#111827]">Hi</p>', {
+      tokens: { colors: [{ hex: '#111827', role: 'text-default' }] },
+    });
+    expect(plan.children[0].color).toEqual({ hex: '#111827', token: 'text-default' });
+  });
+
+  it('ohne tokens-Option (Default {}) → token bleibt null wie bisher', () => {
+    const { plan } = htmlToPlan('<div class="bg-[#4263EB]"></div>');
+    expect(plan.fill).toEqual({ hex: '#4263EB', token: null });
+  });
+});

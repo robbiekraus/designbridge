@@ -1,11 +1,20 @@
 // Deterministischer HTML→plan-Konverter (Spec: docs/superpowers/specs/2026-07-13-scheibe3-figma-export-design.md, §Konverter).
-// Übersetzt sanitisiertes KI-HTML in den Figma-Plan-Baum (PlanBox/PlanText, siehe designbridge-plugin/src/writer/parsePayload.ts).
-// Kein Netz, kein Claude, wirft nie.
+// Übersetzt sanitisiertes KI-HTML in den Figma-Plan-Baum (PlanBox/PlanText/PlanSvg/PlanRef, siehe
+// designbridge-plugin/src/writer/parsePayload.ts). Kein Netz, kein Claude, wirft nie.
 //
-// Scope dieser Datei (Task 2 des Slice-3-Plans): Tailwind-Subset-Mapping für box/text.
-// NICHT hier: svg-Erkennung, component-ref-Erkennung/Hierarchie, Token-Bindung — das ist Task 3
-// (Hook-Punkte sind unten in convertElement markiert, damit Task 3 dort andocken kann, ohne die
-// Traversal-Struktur neu zu bauen).
+// Task 2 (Kern): Tailwind-Subset-Mapping für box/text.
+// Task 3 (diese Erweiterung): svg-Subtrees, component-ref-Erkennung/Hierarchie (Port der
+// server/lib/recognizeComponents.js-Heuristik), Token-Bindung gegen tokens.colors.
+
+import { slugify } from './slugify.js';
+
+const SVG_MAX_CHARS = 20000;
+
+// Port von server/lib/recognizeComponents.js — dieselben Muster, damit Web und Server
+// dieselben Bausteine erkennen (Spec §Konverter Punkt 2).
+const VARIANT_WORDS = ['primary', 'secondary', 'ghost', 'outline', 'danger', 'link'];
+const BUTTON_CLASS_RE = /\bbtn\b|button/;
+const BADGE_CLASS_RE = /badge|chip|\btag\b/;
 
 const SPACING_SIDES = {
   p: [0, 1, 2, 3],
@@ -42,12 +51,31 @@ function getClasses(el) {
   return raw.split(/\s+/).filter(Boolean);
 }
 
-/** Farb-Utility-Klasse (bg-* oder text-*) auflösen. Arbitrary-Hex immer, benannt nur white/black. */
-function resolveColorClass(prefix, rest) {
+/** Farb-Utility-Klasse (bg-* oder text-*) auflösen. Arbitrary-Hex immer, benannt nur white/black.
+ *  Liefert rohes Hex — Token-Bindung passiert separat in resolveColor() (siehe unten), damit
+ *  dieselbe Auflösung sowohl für bg-* (fill) als auch text-* (color) die Tokens matcht. */
+function resolveRawColor(rest) {
   const arbitrary = rest.match(ARBITRARY_HEX_RE);
-  if (arbitrary) return { hex: arbitrary[1], token: null };
-  if (NAMED_COLORS[rest]) return { hex: NAMED_COLORS[rest], token: null };
+  if (arbitrary) return arbitrary[1];
+  if (NAMED_COLORS[rest]) return NAMED_COLORS[rest];
   return null;
+}
+
+/** Hex case-insensitiv gegen ctx.tokens.colors matchen (Shape: [{ hex, role }], siehe
+ *  web/src/lib/emit/normalizeTokens.js). Treffer → slugifizierter Token-Name (dieselbe
+ *  Namensvergabe wie normalizeTokens), sonst null. Spec §Konverter Punkt 5. */
+function matchColorToken(hex, ctx) {
+  const list = Array.isArray(ctx?.tokens?.colors) ? ctx.tokens.colors : [];
+  const found = list.find((t) => typeof t?.hex === 'string' && t.hex.toLowerCase() === hex.toLowerCase());
+  if (!found) return null;
+  return slugify(found.role) || null;
+}
+
+/** Farb-Utility-Klasse auflösen UND gegen Tokens binden — exakte ColorRef-Shape für applyFill. */
+function resolveColorClass(rest, ctx) {
+  const hex = resolveRawColor(rest);
+  if (hex === null) return null;
+  return { hex, token: matchColorToken(hex, ctx) };
 }
 
 /**
@@ -100,7 +128,7 @@ function classify(classes, ctx) {
     }
 
     if (cls.startsWith('bg-')) {
-      const color = resolveColorClass('bg', cls.slice(3));
+      const color = resolveColorClass(cls.slice(3), ctx);
       if (color) {
         result.fill = color;
         result.boxTrigger = true;
@@ -110,7 +138,7 @@ function classify(classes, ctx) {
 
     if (cls.startsWith('text-')) {
       const rest = cls.slice(5);
-      const color = resolveColorClass('text', rest);
+      const color = resolveColorClass(rest, ctx);
       if (color) {
         result.color = color;
         continue;
@@ -163,20 +191,79 @@ function buildBoxNode(classified, children) {
   };
 }
 
+const EMPTY_BOX = () => ({
+  type: 'box',
+  layout: 'row',
+  padding: [0, 0, 0, 0],
+  radius: 0,
+  fill: null,
+  stroke: null,
+  children: [],
+});
+
+/** PlanRef.fallback muss laut Vertrag PlanBox|null sein (parsePayload.parseRefNode nutzt den
+ *  Box-Parser) — ein rein-textuelles Subtree-Ergebnis wird wie am plan-Root in eine Box gepackt. */
+function ensureBox(node) {
+  if (node.type === 'box') return node;
+  return { ...EMPTY_BOX(), children: [node] };
+}
+
+function isSvgElement(el) {
+  return (el.tagName || '').toLowerCase() === 'svg';
+}
+
+/** SVG-Subtree → PlanSvg (Spec §Konverter Punkt 3). Markup verbatim (inkl. eigener Tags/Attribute),
+ *  `<foreignObject>` vorher entfernt (kann beliebiges HTML/CSS enthalten, das Figma nicht rendert),
+ *  >20000 Zeichen gekappt + Warnung statt fatal. */
+function convertSvgElement(el, ctx) {
+  const clone = el.cloneNode(true);
+  for (const fo of Array.from(clone.querySelectorAll?.('foreignObject') || [])) {
+    fo.remove();
+  }
+  let markup = clone.outerHTML;
+  if (markup.length > SVG_MAX_CHARS) {
+    markup = markup.slice(0, SVG_MAX_CHARS);
+    ctx.warnings.add(`SVG-Markup > ${SVG_MAX_CHARS} Zeichen — gekappt.`);
+  }
+  return { type: 'svg', markup };
+}
+
 /**
- * Ein DOM-Element rekursiv in einen PlanNode übersetzen.
- *
- * Hook-Punkte für Task 3 (Hierarchie/svg/Token-Bindung) — hier andocken, ohne diese Funktion
- * umzubauen:
- *   1. SVG-Subtree-Erkennung: `if (el.tagName?.toLowerCase() === 'svg') return { type: 'svg', markup: ... }`
- *      (inkl. foreignObject-Entfernung + 20kB-Kappung).
- *   2. component-ref-Erkennung: VOR der box/text-Entscheidung gegen `ctx.knownComponents` matchen
- *      (Tag/Rolle/Klassen-Heuristik + VARIANT_WORDS) — bei Treffer `{ type:'component-ref', name,
- *      variant, fallback: <dieser Box-Nachbau> }` zurückgeben und NICHT weiter absteigen.
- *   3. Token-Bindung: `classify()` löst Farben aktuell immer als `{ hex, token: null }` auf — Task 3
- *      matcht `hex` gegen `ctx.tokens` und befüllt `token`.
+ * Bekannten Baustein-Namen für ein Element ermitteln (Port von server/lib/recognizeComponents.js —
+ * Tag/Rolle/Klassen-Heuristik, dieselbe Reihenfolge: Button vor Suche vor Input vor Badge).
+ * Liefert nur den Kandidaten-Namen/-Variante; ob er tatsächlich als component-ref gilt, hängt von
+ * `ctx.knownComponents` ab (Spec §Konverter Punkt 2: nur exportierte Bausteine dürfen referenziert werden).
  */
-function convertElement(el, ctx) {
+function matchKnownComponent(el) {
+  const tag = (el.tagName || '').toLowerCase();
+  const classes = getClasses(el);
+  const classStr = classes.join(' ').toLowerCase();
+  const role = (el.getAttribute?.('role') || '').toLowerCase();
+  const type = (el.getAttribute?.('type') || '').toLowerCase();
+
+  if (tag === 'button' || role === 'button' || (tag === 'a' && BUTTON_CLASS_RE.test(classStr))) {
+    const variant = VARIANT_WORDS.find((w) => classStr.includes(w)) ?? null;
+    return { name: 'Button', variant };
+  }
+
+  if ((tag === 'input' && type === 'search') || role === 'search') {
+    return { name: 'Suche', variant: null };
+  }
+
+  if ((tag === 'input' && type !== 'search') || tag === 'textarea' || tag === 'select') {
+    return { name: 'Input', variant: null };
+  }
+
+  if (BADGE_CLASS_RE.test(classStr)) {
+    return { name: 'Badge', variant: null };
+  }
+
+  return null;
+}
+
+/** Der eigentliche box/text-Nachbau (Task-2-Kernlogik) — ausgelagert, damit sowohl der normale
+ *  Pfad als auch der component-ref-Fallback (Spec §Konverter Punkt 2) ihn nutzen können. */
+function buildNormalNode(el, ctx) {
   const classes = getClasses(el);
   const classified = classify(classes, ctx);
   const elementChildren = Array.from(el.children || []);
@@ -200,15 +287,24 @@ function convertElement(el, ctx) {
   return buildBoxNode(classified, children);
 }
 
-const EMPTY_BOX = () => ({
-  type: 'box',
-  layout: 'row',
-  padding: [0, 0, 0, 0],
-  radius: 0,
-  fill: null,
-  stroke: null,
-  children: [],
-});
+/**
+ * Ein DOM-Element rekursiv in einen PlanNode übersetzen. Reihenfolge (Spec §Konverter):
+ *   1. SVG-Subtree → PlanSvg, kein weiterer Abstieg.
+ *   2. Bekannter Baustein (component-ref) → PlanRef mit Box/Text-Fallback, kein weiterer Abstieg
+ *      IN DEN HAUPTBAUM (der Fallback selbst baut normal weiter — das ist, was Organismen dazu
+ *      bringt, Moleküle/Atome zu referenzieren: der Matcher läuft bei jedem Kind erneut).
+ *   3. Sonst normaler box/text-Nachbau (Task 2).
+ */
+function convertElement(el, ctx) {
+  if (isSvgElement(el)) return convertSvgElement(el, ctx);
+
+  const match = matchKnownComponent(el);
+  if (match && ctx.knownComponents.some((c) => c.name === match.name)) {
+    return { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx)) };
+  }
+
+  return buildNormalNode(el, ctx);
+}
 
 /**
  * @param {string} html Sanitisiertes KI-HTML.
