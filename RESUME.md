@@ -1,6 +1,25 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **10.07.2026 (spät)** — **✅ SCHEIBE ② (URL/DOM-Decompose) FERTIG GEBAUT, wartet auf Robs Review.**
+Stand: **13.07.2026** — **✅ SCHEIBE ③ (Figma-Export der KI-Bausteine) FERTIG GEBAUT, wartet auf Robs Figma-Rundlauf.** Scheibe ② wurde am 13.07. mit Robs OK gemergt & gepusht (`origin/main`); Slice-1-Feinschliff ebenfalls gemergt.
+
+## Scheibe ③ — KI-Bausteine → echte Figma-Komponenten (Branch `feat/figma-export-slice3`, LOKAL, ungepusht)
+Brainstorm 13.07. mit Visual-Companion (Options-Mockups im Browser). Rob wählte **Option A + SVG** (deterministischer html→plan-Konverter, KEIN Bild-Fill/„tote Pixel", kein KI-generierter plan). Robs Leitplanke: **volle Atomic-Design-Hierarchie mitdenken** — Tokens → Atome → Moleküle → Organismen, jede Ebene bindet an die darunter; vorhandene Bausteine werden wiederverwendet (Instanzen), nicht nachgebaut. Spec `docs/superpowers/specs/2026-07-13-scheibe3-figma-export-design.md` + Plan (5 Tasks, schlanke Kontrakte) auf `main`.
+
+**Was gebaut wurde (subagent-getrieben, Sonnet-Implementer, Opus/Fable-Koordination, Diff-Check statt Einzel-Reviewer für Tempo):**
+- **Plugin** (`designbridge-plugin/src/writer/`): zwei neue PlanNode-Typen — `svg` → `figma.createNodeFromSvg` (Charts als **editierbare Vektoren**, kein Fidelity-Verlust — genau Robs Kernanliegen) und `component-ref` → `createInstance` der in Phase 5.2 erzeugten Komponenten, mit weichem `fallback`-Nachbau bei fehlender Komponente/Variante. Neue minimale Test-Infra (`npm run test:writer`, node:test + esbuild, KEINE neuen Deps) — Plugin hatte vorher gar keine Tests.
+- **Konverter** `web/src/lib/emit/htmlToPlan.js` (NEU, deterministisch, 0 Credits, DOMParser/jsdom): Tailwind-Subset→box/text (Spacing ×4, rounded/fontSize/fontWeight-Tabellen, arbitrary-Hex-Farben) · `<svg>`→svg-Node (foreignObject entfernt, 20k-Kappung) · **component-ref-Erkennung VOR box/text** (Port der Server-Heuristik: button→Button+Variante, input→Input/Suche, badge/chip/tag→Badge; nur wenn Name in `knownComponents`) → Atome-in-Molekülen-in-Organismen werden echte Instanzen · **Token-Bindung** (Farb-Hex→`{hex, token}` gegen `tokens.colors`, Style-Verknüpfung in Figma via bestehendem `applyFill`).
+- **Emitter** `emitFigmaComponents.js`: KI-Bausteine → `plan` statt `placeholder:true`, `source:'ai-interpreted'`, Reihenfolge Atome→Moleküle→Organismen (damit Verwender ihre Bausteine vorfinden), Konverter-Warnungen in den bestehenden Kanal.
+
+**Stand grün:** Server **119/119** · Web **247/247** · Plugin typecheck+build + **11/11** Writer-Tests. **Smoke (echte Demo-Fixture, nicht handgeschrieben) bestätigt:** „Line Chart Card"-html → plan mit echtem `svg`-Node (Chart bleibt Vektor); Button-im-Card → `component-ref` mit fallback (Hierarchie greift).
+
+**Bekannte Limitierungen (akzeptiert, Fast-Follow):** (1) **Token-Slug-Kollision** — kollidieren zwei Farb-Rollen im Slug, disambiguiert `normalizeTokens` mit `-2/-3`, `htmlToPlan` aber nicht → Farbe bindet dann nicht an den Figma-Style, rendert aber korrekt per Roh-Hex (graceful, kein Crash). (2) `matchKnownComponent` prüft nur das Element selbst, keine Mehr-Element-Compound-Muster (portiert vom Server, kein Regress). (3) **Live-Figma-Rundlauf offen** — der echte Import ins Figma-Plugin ist nur manuell durch Rob verifizierbar (wie Phase 5.2); Payload-Struktur ist geprüft, das Rendern in Figma nicht.
+
+**Nächste Schritte für Rob:** (1) Diff/Spec/Plan reviewen (Branch `feat/figma-export-slice3`, 5 Commits) → Merge/Push? (2) **Manueller Figma-Rundlauf**: Plugin bauen, Payload importieren, prüfen ob svg-Charts als Vektoren + component-refs als Instanzen ankommen. (3) Danach LETZTE Scheibe: Repo-Decompose. Optional: Token-Slug-Kollision als Fast-Follow, Varianten-Generierung für KI-Bausteine (Struktur liegt an).
+
+---
+## Alter Stand (Referenz)
+
+Stand: **10.07.2026 (spät)** — Scheibe ② fertig (siehe unten, inzwischen gemergt).
 
 ## Scheibe ② — URL-Import bekommt KI-Interpretation (Branch `feat/url-decompose-slice2`, LOKAL, ungepusht)
 Rob hat im Brainstorm 10.07. entschieden: Scheibe ② vor Scheibe ③ (Figma-Export), Repo-Decompose kommt als LETZTE Scheibe. Spec `docs/superpowers/specs/2026-07-10-url-decompose-slice2-design.md` + Plan (8 Tasks) liegen auf `main` (mit gepusht). Slice 1 wurde vorher mit Robs OK auf `main` gemergt UND gepusht (`origin/main` = `146c33a`ff).
