@@ -79,3 +79,52 @@ export async function runInterpretation(result) {
     };
   }
 }
+
+/** Findet den rohen Baustein (gleiche Form wie componentsNeedingInterpretation) über alle Kinds hinweg. */
+function findRawComponent(raw, name) {
+  for (const [rawKey, kind] of KINDS) {
+    for (const item of raw[rawKey] ?? []) {
+      if (item.name === name) {
+        return {
+          name: item.name,
+          kind,
+          variants: item.variants ?? [],
+          notes: item.notes ?? '',
+          bbox: item.bbox ?? null,
+          selector: item.selector ?? null,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Retry für genau EINEN Baustein (per-row retry) — anders als runInterpretation
+ * rührt das nicht an den interpretFailed-Einträgen der anderen Bausteine: bei
+ * Erfolg wird nur `name` aus interpretFailed entfernt, bei Fehler bleibt (bzw.
+ * kommt wieder) nur `name` rein. Wirft nie.
+ */
+export async function retryInterpretation(result, name) {
+  const raw = result?.raw;
+  const importId = raw?.meta?.import_id;
+  const comp = raw ? findRawComponent(raw, name) : null;
+  const existingFailed = result?.interpretFailed ?? [];
+  if (!importId || !comp) return result;
+  try {
+    const data = await requestInterpretations(importId, [comp]);
+    const merged = attachInterpretations(result, data);
+    const stillFailed = (data.failed ?? []).includes(name);
+    const nextFailed = stillFailed
+      ? (existingFailed.includes(name) ? existingFailed : [...existingFailed, name])
+      : existingFailed.filter((n) => n !== name);
+    return { ...merged, interpretFailed: nextFailed };
+  } catch (e) {
+    return {
+      ...result,
+      interpretPending: false,
+      interpretError: e.message || String(e),
+      interpretFailed: existingFailed.includes(name) ? existingFailed : [...existingFailed, name],
+    };
+  }
+}

@@ -84,7 +84,7 @@ function Row({ item, picks, onRetryInterpret }) {
               <span>Interpretation fehlgeschlagen.</span>
               {onRetryInterpret && (
                 <button
-                  onClick={onRetryInterpret}
+                  onClick={() => onRetryInterpret(item.name)}
                   className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
                 >
                   Erneut versuchen

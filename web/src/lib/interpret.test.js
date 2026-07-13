@@ -5,6 +5,7 @@ import {
   requestInterpretations,
   attachInterpretations,
   runInterpretation,
+  retryInterpretation,
 } from './interpret.js';
 
 const RESULT = {
@@ -150,5 +151,72 @@ describe('runInterpretation', () => {
     expect(next.interpretError).toBe('kaputt');
     expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
     expect(next.interpretPending).toBe(false);
+  });
+});
+
+describe('retryInterpretation', () => {
+  const FAILED_RESULT = {
+    ...RESULT,
+    interpretFailed: ['Avatar', 'Stat Card'],
+    interpretError: 'kaputt',
+  };
+
+  it('POSTet genau den einen Baustein (inkl. bbox/selector)', async () => {
+    let sentBody = null;
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      sentBody = JSON.parse(opts.body);
+      return {
+        ok: true,
+        json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
+      };
+    }));
+    await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(sentBody.import_id).toBe('abc123');
+    expect(sentBody.components).toHaveLength(1);
+    expect(sentBody.components[0]).toEqual({
+      name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null,
+    });
+  });
+
+  it('Erfolg: entfernt nur den einen Namen aus interpretFailed, andere bleiben', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
+    })));
+    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '' });
+    expect(next.interpretFailed).toEqual(['Stat Card']);
+    expect(next.interpretError).toBeNull();
+  });
+
+  it('Fehler: behält den Namen (und die anderen) in interpretFailed, setzt interpretError', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'immer noch kaputt' }) })));
+    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
+    expect(next.interpretError).toBe('immer noch kaputt');
+    expect(next.interpretPending).toBe(false);
+  });
+
+  it('Server meldet den Namen weiterhin als failed: bleibt drin, andere bleiben unberührt', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ interpretations: [], failed: ['Avatar'] }),
+    })));
+    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
+  });
+
+  it('wirft nie und gibt das Result unverändert zurück, wenn der Baustein unbekannt ist', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const next = await retryInterpretation(FAILED_RESULT, 'Unbekannt');
+    expect(next).toBe(FAILED_RESULT);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('wirft nie ohne import_id', async () => {
+    const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
+    const next = await retryInterpretation(noImportId, 'Avatar');
+    expect(next).toBe(noImportId);
   });
 });

@@ -85,7 +85,7 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     expect(screen.getByText(/Wird interpretiert/)).toBeTruthy();
   });
 
-  it('failed: Fehlerzeile + „Erneut versuchen" ruft onRetryInterpret', () => {
+  it('failed: Fehlerzeile + „Erneut versuchen" ruft onRetryInterpret mit dem Namen der Zeile', () => {
     const retry = vi.fn();
     render(
       <LibraryObjectList
@@ -98,6 +98,7 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     expect(screen.getByText(/Interpretation fehlgeschlagen/)).toBeTruthy();
     fireEvent.click(screen.getByText('Erneut versuchen'));
     expect(retry).toHaveBeenCalledTimes(1);
+    expect(retry).toHaveBeenCalledWith('Avatar');
   });
 
   it('Template-Vorschau bleibt Vorrang (hasPreview schlägt interpretedHtml)', () => {
