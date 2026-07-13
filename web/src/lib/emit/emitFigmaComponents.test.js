@@ -49,4 +49,127 @@ describe('emitFigmaComponents', () => {
     const out = emitFigmaComponents({ raw: { tokens: {}, atomics: [{ name: 'Avatar', variants: [] }], components: [], patterns: [] } });
     expect(out[0].variants).toEqual([{ name: 'default', plan: null }]);
   });
+
+  it('Export-Reihenfolge im Payload ist atomics → components → patterns', () => {
+    const out = emitFigmaComponents(result);
+    expect(out.map((c) => c.kind)).toEqual(['atomic', 'atomic', 'component', 'pattern']);
+    expect(out.map((c) => c.name)).toEqual(['Primary Button', 'Avatar', 'Card', 'Navbar']);
+  });
+});
+
+describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => {
+  it('Baustein ohne Template, aber mit result.interpretations[name] → echter plan statt placeholder', () => {
+    const withInterp = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atomics: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        components: [],
+        patterns: [],
+      },
+      interpretations: {
+        'Stat Card': { html: '<div class="rounded-xl bg-white p-4"><p class="text-xs">Total Sales</p></div>', jsx: '<div />' },
+      },
+    };
+    const out = emitFigmaComponents(withInterp);
+    const card = out.find((c) => c.name === 'Stat Card');
+    expect(card.placeholder).toBe(false);
+    expect(card.source).toBe('ai-interpreted');
+    expect(card.variants).toHaveLength(1);
+    expect(card.variants[0].name).toBe('default');
+    expect(card.variants[0].plan.type).toBe('box');
+    expect(card.variants[0].plan.radius).toBe(12);
+  });
+
+  it('Template-Baustein bleibt unverändert, auch wenn zusätzlich eine Interpretation vorliegt', () => {
+    const withBoth = {
+      raw: {
+        tokens: { colors: [{ hex: '#4263EB', role: 'primary' }], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atomics: [{ name: 'Primary Button', variants: ['primary'], confidence: 'high', source: 'rules', notes: null }],
+        components: [],
+        patterns: [],
+      },
+      interpretations: {
+        'Primary Button': { html: '<button>Sollte ignoriert werden</button>', jsx: '<button />' },
+      },
+    };
+    const out = emitFigmaComponents(withBoth);
+    const btn = out.find((c) => c.name === 'Primary Button');
+    expect(btn.placeholder).toBe(false);
+    expect(btn.source).toBe('rules'); // Template-Pfad — Scan-source bleibt, KEIN 'ai-interpreted'
+    expect(btn.variants.map((v) => v.name)).toEqual(['primary', 'secondary', 'ghost']);
+  });
+
+  it('Baustein ohne Template UND ohne Interpretation bleibt Platzhalter (unverändert)', () => {
+    const noInterp = {
+      raw: {
+        tokens: {}, atomics: [{ name: 'Avatar', variants: ['sm'], confidence: 'low', source: 'ai', notes: null }],
+        components: [], patterns: [],
+      },
+    };
+    const out = emitFigmaComponents(noInterp);
+    expect(out[0].placeholder).toBe(true);
+    expect(out[0].variants).toEqual([{ name: 'sm', plan: null }]);
+  });
+
+  it('leeres/kaputtes Interpretations-HTML (plan:null) → Platzhalter wie bisher, keine Exception', () => {
+    const brokenInterp = {
+      raw: {
+        tokens: {}, atomics: [{ name: 'Weirdo', variants: [], confidence: null, source: null, notes: null }],
+        components: [], patterns: [],
+      },
+      interpretations: { Weirdo: { html: '   ', jsx: '' } },
+    };
+    expect(() => emitFigmaComponents(brokenInterp)).not.toThrow();
+    const out = emitFigmaComponents(brokenInterp);
+    expect(out[0].placeholder).toBe(true);
+    expect(out[0].variants).toEqual([{ name: 'default', plan: null }]);
+  });
+
+  it('knownComponents wird über alle Ebenen gebaut → Organismus referenziert Molekül als component-ref', () => {
+    const hierarchy = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atomics: [],
+        components: [{ name: 'Button', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        patterns: [{ name: 'Toolbar', variants: [], confidence: 'high', source: 'ai', notes: null }],
+      },
+      interpretations: {
+        Button: { html: '<button class="btn">Save</button>', jsx: '<button />' },
+        Toolbar: { html: '<div class="flex p-2"><button class="btn">Save</button></div>', jsx: '<div />' },
+      },
+    };
+    const out = emitFigmaComponents(hierarchy);
+    const toolbar = out.find((c) => c.name === 'Toolbar');
+    expect(toolbar.placeholder).toBe(false);
+    const plan = toolbar.variants[0].plan;
+    expect(plan.children[0].type).toBe('component-ref');
+    expect(plan.children[0].name).toBe('Button');
+  });
+
+  it('Konverter-Warnungen werden in raw.warnings durchgereicht (bestehender Warnungs-Kanal)', () => {
+    const withWarning = {
+      raw: {
+        tokens: {}, atomics: [{ name: 'Weird Box', variants: [], confidence: null, source: null, notes: null }],
+        components: [], patterns: [], warnings: ['bestehende Scan-Warnung'],
+      },
+      interpretations: {
+        'Weird Box': { html: '<div class="bg-totally-unknown-thing"></div>', jsx: '<div />' },
+      },
+    };
+    emitFigmaComponents(withWarning);
+    expect(withWarning.raw.warnings).toContain('bestehende Scan-Warnung');
+    expect(withWarning.raw.warnings).toContain('Klasse ignoriert: bg-totally-unknown-thing');
+  });
+
+  it('keine Konverter-Warnungen → raw.warnings bleibt unverändert (kein leeres Feld angehängt)', () => {
+    const clean = {
+      raw: {
+        tokens: {}, atomics: [{ name: 'Clean Box', variants: [], confidence: null, source: null, notes: null }],
+        components: [], patterns: [],
+      },
+      interpretations: { 'Clean Box': { html: '<div class="p-4"></div>', jsx: '<div />' } },
+    };
+    emitFigmaComponents(clean);
+    expect(clean.raw.warnings).toBeUndefined();
+  });
 });
