@@ -220,13 +220,17 @@ function isSvgElement(el) {
   return (el.tagName || '').toLowerCase() === 'svg';
 }
 
-/** true, wenn der Attributwert eine externe Ressourcen-Referenz ist (nicht data:) — deckt
- *  http(s):, protokoll-relative (//) und jeden anderen Remote-Ref ab. Security-Hardening
- *  (Review-Fix): importiertes KI-HTML/SVG darf keine Remote-Requests aus Figma triggern. */
+/** true, wenn der Attributwert eine ECHT EXTERNE Ressourcen-Referenz ist — deckt http(s):,
+ *  protokoll-relative (//) und jeden anderen Remote-Scheme ab. Security-Hardening (Review-Fix):
+ *  importiertes KI-HTML/SVG darf keine Remote-Requests aus Figma triggern.
+ *  Bewusst NICHT extern (bleiben erhalten): `data:`-URIs und reine Fragment-Refs (mit `#`),
+ *  die interne SVG-Verweise sind — z. B. `<use href="#grad1">`/`fill="url(#grad1)"` in Chart-SVGs
+ *  auf lokale Gradienten/clipPaths. Diese zu strippen würde genau die SVGs brechen, die wir erhalten wollen. */
 function isExternalRef(value) {
   if (typeof value !== 'string') return false;
   const trimmed = value.trim();
   if (trimmed === '') return false;
+  if (trimmed.startsWith('#')) return false;
   return !DATA_URI_RE.test(trimmed);
 }
 

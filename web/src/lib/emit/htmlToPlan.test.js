@@ -381,6 +381,30 @@ describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix: kein SSRF/
     expect(markup).toContain('0,0 10,10');
     expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(false);
   });
+
+  it('interne Fragment-Refs (<use href="#grad1"> + <linearGradient id="grad1">) bleiben erhalten, kein Strip/keine Warnung', () => {
+    // Chart-SVGs referenzieren Gradienten/clipPaths intern über #-Fragmente — das ist KEINE
+    // externe Ressource und darf nicht entfernt werden (sonst brechen genau die SVGs, die wir erhalten wollen).
+    const html =
+      '<svg viewBox="0 0 10 10">' +
+      '<defs><linearGradient id="grad1"><stop offset="0%"></stop></linearGradient></defs>' +
+      '<use href="#grad1"></use>' +
+      '<rect fill="url(#grad1)" width="10" height="10"></rect>' +
+      '</svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('href="#grad1"');
+    expect(markup).toContain('id="grad1"');
+    expect(markup).toContain('<use');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(false);
+  });
+
+  it('interner xlink:href auf <use> (#icon) bleibt erhalten', () => {
+    const html = '<svg viewBox="0 0 10 10"><use xlink:href="#icon"></use></svg>';
+    const { plan, warnings } = htmlToPlan(html);
+    expect(plan.children[0].markup).toContain('#icon');
+    expect(warnings.some((w) => w.toLowerCase().includes('extern'))).toBe(false);
+  });
 });
 
 describe('htmlToPlan — component-ref-Erkennung (Spec §Konverter Punkt 2, Hierarchie)', () => {
