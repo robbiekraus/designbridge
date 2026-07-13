@@ -35,7 +35,19 @@ export interface PlanBox {
   children: PlanNode[];
 }
 
-export type PlanNode = PlanBox | PlanText;
+export interface PlanSvg {
+  type: 'svg';
+  markup: string;
+}
+
+export interface PlanRef {
+  type: 'component-ref';
+  name: string;
+  variant: string | null;
+  fallback: PlanBox | null;
+}
+
+export type PlanNode = PlanBox | PlanText | PlanSvg | PlanRef;
 
 export interface ImportVariant {
   name: string;
@@ -89,6 +101,44 @@ function parseColorRef(v: unknown): ColorRef | null {
   return { token: typeof r.token === 'string' ? r.token : null, hex: r.hex };
 }
 
+/** svg-Node validieren: markup muss ein String sein und wie SVG-Markup aussehen. */
+function parseSvgNode(r: Record<string, unknown>): PlanSvg | null {
+  if (typeof r.markup !== 'string') return null;
+  if (!r.markup.trim().startsWith('<svg')) return null;
+  return { type: 'svg', markup: r.markup };
+}
+
+/** component-ref-Node validieren: name Pflicht, variant optional, fallback rekursiv über den Box-Parser. */
+function parseRefNode(r: Record<string, unknown>): PlanRef | null {
+  if (typeof r.name !== 'string' || !r.name) return null;
+  return {
+    type: 'component-ref',
+    name: r.name,
+    variant: typeof r.variant === 'string' ? r.variant : null,
+    fallback: parsePlan(r.fallback),
+  };
+}
+
+/** Ein einzelnes Kind-Node validieren — dispatcht auf text/svg/component-ref/box. Ungültig → null (Node wird übersprungen). */
+function parsePlanNode(c: unknown): PlanNode | null {
+  if (!c || typeof c !== 'object') return null;
+  const r = c as Record<string, unknown>;
+  if (r.type === 'text') {
+    const color = parseColorRef(r.color);
+    if (typeof r.content !== 'string' || !color) return null;
+    return {
+      type: 'text',
+      content: r.content,
+      fontSize: typeof r.fontSize === 'number' ? r.fontSize : 14,
+      fontWeight: typeof r.fontWeight === 'number' ? r.fontWeight : 400,
+      color,
+    };
+  }
+  if (r.type === 'svg') return parseSvgNode(r);
+  if (r.type === 'component-ref') return parseRefNode(r);
+  return parsePlan(c);
+}
+
 function parsePlan(v: unknown): PlanBox | null {
   if (!v || typeof v !== 'object') return null;
   const r = v as Record<string, unknown>;
@@ -99,22 +149,8 @@ function parsePlan(v: unknown): PlanBox | null {
       : ([0, 0, 0, 0] as [number, number, number, number]);
   const children: PlanNode[] = [];
   for (const c of Array.isArray(r.children) ? r.children : []) {
-    if (c && typeof c === 'object' && (c as Record<string, unknown>).type === 'text') {
-      const t = c as Record<string, unknown>;
-      const color = parseColorRef(t.color);
-      if (typeof t.content === 'string' && color) {
-        children.push({
-          type: 'text',
-          content: t.content,
-          fontSize: typeof t.fontSize === 'number' ? t.fontSize : 14,
-          fontWeight: typeof t.fontWeight === 'number' ? t.fontWeight : 400,
-          color,
-        });
-      }
-    } else {
-      const nested = parsePlan(c);
-      if (nested) children.push(nested);
-    }
+    const node = parsePlanNode(c);
+    if (node) children.push(node);
   }
   return {
     type: 'box',

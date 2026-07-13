@@ -132,7 +132,7 @@ export async function buildComponents(
         // aufgenommenen Node, damit der catch ihn abräumt: renderPlan gibt seinen
         // Frame lebend zurück; wirft createComponentFromNode oder c.name danach,
         // wäre er sonst eine Waise (weder in pending noch in variantComponents).
-        pending = await renderPlan(v.plan, paintByName, result.skipped);
+        pending = await renderPlan(v.plan, paintByName, result.skipped, sections);
         const c = figma.createComponentFromNode(pending);
         pending = c; // Frame konsumiert → jetzt die Komponente tracken (falls c.name wirft)
         c.name = `Variant=${v.name}`;
