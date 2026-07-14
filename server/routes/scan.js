@@ -201,7 +201,13 @@ router.post('/repo/ai', async (req, res) => {
     result.components = merged.components;
     result.patterns = merged.patterns;
     result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
-    result.meta = { ...result.meta, model: 'repo-ingest+ai', ai_deepened: true };
+    // Wie /repo: Code heben + Dateien im Store — sonst verliert „Mit KI vertiefen"
+    // den gehobenen Code UND das import_id (→ Interpretation danach unmöglich).
+    await liftRepoInventory(files, [...result.atomics, ...result.components]);
+    result.meta = {
+      ...result.meta, model: 'repo-ingest+ai', ai_deepened: true,
+      import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }),
+    };
     res.json(result);
   } catch (err) {
     console.error('[scan/repo/ai] Error:', err.message);

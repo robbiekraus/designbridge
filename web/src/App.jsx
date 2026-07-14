@@ -73,7 +73,9 @@ export default function App() {
     setLastImport(pending);
     runInterpretation(pending).then((next) => {
       setLastImport((cur) => {
-        const applied = applyIfSameImport(cur, next);
+        // next === null: nichts zu tun (z. B. kein import_id) → pending zurücksetzen,
+        // sonst bliebe die Leiste dauerhaft in „wird interpretiert …" hängen.
+        const applied = next ? applyIfSameImport(cur, next) : { ...cur, interpretPending: false };
         if (applied !== cur) saveLastImport(applied);
         return applied;
       });
