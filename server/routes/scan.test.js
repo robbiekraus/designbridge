@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import scanRouter from './scan.js';
+import { liftRepoInventory } from '../lib/decompose/repoDecomposer.js';
 
 // Router in einer frischen App auf einem Ephemeral-Port hochziehen — testet die
 // echte Middleware-Kette inkl. Multer, ohne den Produktions-Server zu starten.
@@ -30,4 +31,12 @@ test('POST /api/scan/image mit Nicht-Bild antwortet 400 + JSON (kein HTML-500)',
     const data = await res.json();
     assert.match(data.error, /Only PNG, JPG and WebP/);
   });
+});
+
+test('liftRepoInventory hebt Scan-Inventar-Code (Verdrahtung /repo)', async () => {
+  const files = [{ path: 'src/components/ui/button.tsx', content: 'export const Button=()=><button/>;' }];
+  const inv = [{ name: 'Button', path: 'src/components/ui/button.tsx', source: 'rules' }];
+  await liftRepoInventory(files, inv);
+  assert.equal(inv[0].sourceCode, files[0].content);
+  assert.equal(inv[0].lang, 'tsx');
 });

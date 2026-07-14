@@ -15,6 +15,8 @@ import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
 import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
 import { putImage } from '../lib/imageStore.js';
 import { putPage } from '../lib/pageStore.js';
+import { putRepo } from '../lib/repoStore.js';
+import { liftRepoInventory } from '../lib/decompose/repoDecomposer.js';
 
 const router = express.Router();
 
@@ -167,6 +169,10 @@ router.post('/repo', async (req, res) => {
     const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
     const files = await extractRepoFiles(buffer);
     const result = ingestRepoFiles(files, { sourceUrl: req.body.url, branch: usedBranch });
+    // Echten Quellcode (capped) in atomics/components heben — patterns tragen keinen Code.
+    await liftRepoInventory(files, [...result.atomics, ...result.components]);
+    // Volle Dateien im Store für die spätere on-demand-Interpretation.
+    result.meta = { ...result.meta, import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }) };
     res.json(result);
   } catch (err) {
     console.error('[scan/repo] Error:', err.message);
