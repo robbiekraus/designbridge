@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 + beide Fast-Follows FERTIG, GEPUSHT** (`origin/main` = `b391705`). Working Tree sauber, `main` == `origin/main`. Zweig A ist bis auf reine Kosmetik (Donut) abgearbeitet.
+Stand: **14.07.2026 (Feierabend)** — **✅ REPO-DECOMPOSE v1 + beide Weggabelungs-Zweige FERTIG & GEPUSHT** (`origin/main` = `7b82068`). Working Tree sauber, `main` == `origin/main`. **Robs nächste Sessions: (1) NAME BESTÄTIGEN (Refracta ja/nein?) + optional Domains registrieren; (2) technische Umbenennung; (3) Deployment & App-Development.**
 
 > ## ✅ WEGGABELUNG ABGEARBEITET (beide Zweige fertig, 14.07.2026)
 >
@@ -10,6 +10,38 @@ Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 + beide Fast-Follows FERTIG, G
 > - Einziger Rest: Robs html.to.design-Zielbild fürs Fidelity-Fazit (Robs Beitrag). ⚠️ Robs Donut-Figma-Rundlauf steht noch aus (Arc-Fix in Figma gegenprüfen).
 >
 > **Zweig B — Markt-Vergleich & Naming. ✅ ABGESCHLOSSEN 14.07.** Ergebnis in `docs/2026-07-14-naming-positionierung.md`: (1) Namens-Konflikt war GRÖSSER als notiert — neben „Design-bridge" (72 Nutzer) existieren **„DesignBridge"** (968 Nutzer, aktiv, AI-Context-Engine) und v. a. **Design Bridge and Partners** (WPP-Agentur, designbridge.com, Trademark-Risiko). (2) Wettbewerb kartiert (html.to.design = Fidelity-Messlatte, aber Einbahnstraße; unsere Lücke „3 Quellen → Library → beide Richtungen" ist real unbesetzt). (3) **Neuer Name: Refracta** — Prisma-Metapher (zerlegen+rekombinieren = Bidirektionalität), npm + @refracta + refracta.design/.dev + Figma-Community frei; Refractal (Robs Erstwahl) verworfen wegen aktivem KI-Startup refractal-ai.com; Refract pur verworfen (Recraft.ai-Nähe, Domains weg).
+
+## Session 14.07.2026 (14:30–19:30) — Weggabelung FERTIG (Zweig A + B)
+
+**Zweig A + B beide abgearbeitet, alle Dinge gepusht (`7b82068`), Naming-Entscheidung dokumentiert.**
+
+### Zweig A — Repo-Decompose v1 + Mini-Fast-Follows (14.07. 14:30–17:15)
+- **Repo-Decompose v1 (altes Merge vom 17.06., nächster Refinement):** Alle drei offenen Lücken gefixt + getestet (TDD):
+  1. **`deepenRepoWithAi`-Lücke (`applyBaselinePaths`):** KI-Deepening verlor `path`-Feld (Claude JSON-Schema kennt keinen) → danach war Lift eine No-op. Fix: `applyBaselinePaths(items, baseline)` mappt `path` per Name zurück *vor* `liftRepoInventory`. Test-first, Server 136→138 grün.
+  2. **Template-Namens-Kollision (FF2):** `CardSkeleton` & Co. mit gehobenen Code zeigten falsches generisches Template statt echten Code + versteckten den Interpret-Knopf. Fix: `emitComponents` skipped template-Matching bei `lifted=true`. Test-first, Web 301→303 grün.
+  3. **Material-Regeln für Batch:** Leerer Datei-Inhalt (pfad-only Seiten/Layouts) zählte falsch, Interpret-Route rief `decompose` ohne `cap` → ungecappte Prompts. Fixes: (1) `repoDecomposer.decompose` Default-cap = `CODE_CAP` (8k), (2) leerer Inhalt → structure null statt `{code:''}`, (3) Batch-Filter nimmt nur gehobene Bausteine (Patterns/pfad-only raus, gehobene+Template-Collisions rein). Browser-verifiziert an taxonomy (Zähler = 67 = exakt die Gehobenen).
+  - **Commits:** `bcd5164` (die Kleineren TDD), davor `2c18530` (FF1+FF2 TDD).
+  - **Tests grün:** Server **138/138** · Web **303/303**.
+
+### Zweig B — Naming-Recherche & Positionierung (14.07. 17:15–19:30)
+- **Namensfindung komplett:** Wettbewerbslandschaft kartiert (Design Bridge WPP, DesignBridge 968 Nutzer, Design-bridge 72 Nutzer — alle Konflikte real). Musik-Familie verworfen (Rob: „Musikkram"), Licht/Optik/Frequenz-Familie erkundigt (Refract/Refractor/Refractal/Spektry/Chromatik).
+- **Kandidaten-Vergleich TDD-style:**
+  - Refraktor: zu deutsch, zu hart.
+  - Refract: Recraft.ai phonetisch nah (KI-Design-Markt), alle Kern-Domains weg.
+  - **Refractal** (Robs Erstwahl): aktives KI-Startup refractal-ai.com hält .com/.app/.dev, npm auch Squat. Zweite Umbenennung programmiert.
+  - **Refracta** (Opus-Synthese): frei auf npm + .design + .dev + Figma, Kunstwort-Form weich/international, Prisma-Metapher (fractal-Anklang) bleibt, verfügbar.
+  - Spectry/Spectio/Spektra/Chromatik: frei, aber Rob nicht überzeugt oder npm-vergeben.
+  - **Namensentscheidung: REFRACTA** — Rob bestätigt nach Recherche.
+  - **Doku:** `docs/2026-07-14-naming-positionierung.md` (Markt, alle Verworfenen mit Gründen, Verfügbarkeits-Checks inkl. Vorbehalt DNS≠Registrar, Subline-Architektur `@refracta/cli`, nächste Schritte).
+  - **Commit:** `d9023f4` (Doku).
+- **VORLÄUFIG-Marker:** Umbenennung startet NICHT, bevor Rob es bestätigt. `6bcc00c` (Vorläufig-Markierung in Doku + RESUME).
+
+### Stand heute Feierabend
+- **Commits auf `origin/main`:** `7b82068` (RESUME). Davor `6bcc00c`, `d9023f4`, `bcd5164`, `2c18530`. Alle signed.
+- **Tests:** Server 138/138 · Web 303/303.
+- **Nächste Session:** (1) Name bestätigen (Refracta ja?) + optional `refracta.design`/`.dev` registrieren; (2) technische Umbenennung (Repo-Name, README, package.json, UI-Branding, CLAUDE.md) — **DANN** Deployment & App-Development starten.
+
+---
 
 ## Repo-Decompose v1 — GEMERGT & GEPUSHT (`origin/main` = `760d32b`, 17 Commits + 3 Doku-Commits)
 
