@@ -40,6 +40,9 @@ test('Prompt verlangt Daten-Treue: Zahlen, Achsen/Legende, Tooltip, aktive Zust�
   assert.match(prompt, /legend/i);
   assert.match(prompt, /tooltip/i);
   assert.match(prompt, /highlighted|selected|active/i);
+  // Donut/Ring-Segmente als echte Arc-Pfade — dasharray-Tricks streifen im Figma-SVG-Import.
+  assert.match(prompt, /arc paths/i);
+  assert.match(prompt, /NEVER with stroke-dasharray/i);
 });
 
 test('liefert Interpretationen für angefragte Bausteine', async () => {
