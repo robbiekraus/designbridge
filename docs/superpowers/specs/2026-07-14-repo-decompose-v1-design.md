@@ -30,7 +30,7 @@ Folge: Repo-Bausteine ohne Hand-Template zeigen in der Library nur den „Vorlag
 |---|---|
 | Komponente ohne Hand-Template → was tun? | **C) Hybrid nach Prinzip:** erkennbares DS → echten Code **heben**; Interpretation nur als Fallback. |
 | Wie wird eine gehobene Komponente in v1 zur Vorschau? | **C) pragmatisch:** echten Quellcode als Wahrheit zeigen · gerenderte Vorschau nur für die 4 Templates (Token-Render, existiert) · gerenderte Vorschau des Rests = KI-Interpretation. **Kein deterministischer tsx-Parser in v1.** |
-| Wann läuft die KI-Interpretation? | **Auf Knopfdruck pro Baustein** (nicht automatisch wie bei Bild/URL). Repo hat schon echten Code → Interpretation ist Kür. |
+| Wann läuft die KI-Interpretation? | **Auf Knopfdruck** (nicht automatisch wie bei Bild/URL) — Repo hat schon echten Code, Interpretation ist Kür. Zwei Auslöser: **„Alle interpretieren"** (ein Knopf → alle offenen Bausteine auf einmal, für „ein Klick → volle visuelle Library") **und** ein Per-Baustein-Knopf für gezielte Kontrolle. |
 | Patterns/Seiten/Layouts heben? | **Nein — nur Namen** wie heute. Eine Next.js-Seite/Layout ist keine einzelne renderbare Einheit. |
 | Code beim Import mitliefern oder lazy? | **Beim Import mit**, mit Größen-Cap pro Datei (`CODE_CAP = 8000` Zeichen). Lazy-Nachladen ist eine spätere Optimierung. |
 
@@ -102,8 +102,11 @@ Kein neuer Endpoint nötig — Interpretation läuft über die bestehende `/api/
 ## Datenfluss (end-to-end)
 
 1. **Import:** `POST /api/scan/repo` → Tokens + Inventar (jeder gehobene Baustein trägt bereits `code` + `lang`, capped) + `meta.import_id`; volle Dateien liegen zusätzlich im `repoStore` (für die spätere Interpretation).
-2. **Library rendert sofort (0 Credits):** Tokens wie heute · die 4 Templates als Token-Render · jeder gehobene Baustein zeigt seinen **echten Quellcode** (`code` aus dem Import-Response) + Pille **„aus Repo gehoben"** + Knopf **„Mit KI interpretieren"**.
-3. **Opt-in Interpretation:** Klick auf einen gehobenen Baustein → `POST /api/interpret/components` mit genau diesem einen Baustein → `repoDecomposer` liefert (aus `repoStore`) das Code-Segment mit vollem, ungekürztem Code → `interpretComponents` → gerenderte iframe-Vorschau + jsx → Karte tauscht Platzhalter gegen Vorschau, Pille wird **„von KI interpretiert"** (gelb).
+2. **Library rendert sofort (0 Credits):** Tokens wie heute · die 4 Templates als Token-Render · jeder gehobene Baustein zeigt seinen **echten Quellcode** (`code` aus dem Import-Response) + Pille **„aus Repo gehoben"** + Knopf **„Mit KI interpretieren"**; oben ein **„Alle interpretieren"**-Knopf.
+3. **Opt-in Interpretation:**
+   - *Per Baustein:* Klick → `POST /api/interpret/components` mit genau diesem einen Baustein.
+   - *Alle:* Klick auf „Alle interpretieren" → dieselbe Route mit allen offenen (noch nicht interpretierten) Bausteinen in `components` → **ein** Call, Batch-Ergebnis wird auf die Karten verteilt.
+   - In beiden Fällen: `repoDecomposer` liefert (aus `repoStore`) die Code-Segmente mit vollem, ungekürztem Code → `interpretComponents` → gerenderte iframe-Vorschau + jsx → Karte tauscht Platzhalter gegen Vorschau, Pille wird **„von KI interpretiert"** (gelb).
 
 **Cap-Logik:** Der Import-Response trägt `code` auf `CODE_CAP` (8000) beschnitten (schlanker Response, reicht zum Lesen). Die on-demand-Interpretation liest den **vollen** Datei-Inhalt frisch aus `repoStore` (dort ungekürzt abgelegt), damit die KI den ganzen Kontext bekommt.
 
@@ -125,13 +128,13 @@ Kein neuer Endpoint nötig — Interpretation läuft über die bestehende `/api/
 
 **Web (Vitest):**
 - `SourcePill`: neue Variante „aus Repo gehoben".
-- `LibraryObjectList`: gehobener Baustein zeigt Code + Interpret-Knopf; nach Interpret Vorschau + Pillenwechsel; Gating (`source:'repo'` durchlassen in `interpret.js` **und** `App.jsx` — beide Gates, s. Slice-2-Bug `0566cc8`).
+- `LibraryObjectList`: gehobener Baustein zeigt Code + Per-Baustein-Interpret-Knopf; „Alle interpretieren"-Knopf löst Batch für alle offenen Bausteine aus; nach Interpret Vorschau + Pillenwechsel; Gating (`source:'repo'` durchlassen in `interpret.js` **und** `App.jsx` — beide Gates, s. Slice-2-Bug `0566cc8`).
 
 **Browser-Smoke (`DEMO_FALLBACK=1`):** echtes Public-Repo (`shadcn-ui/taxonomy`, wie im Phase-4-Smoke) importieren → Tokens + Inventar; gehobene Bausteine zeigen echten Code + „aus Repo gehoben"; Klick „Mit KI interpretieren" an einem Nicht-Template-Baustein → Fixture-Vorschau + Pillenwechsel; keine Konsolenfehler.
 
 ## Scope / YAGNI
 
-**Drin (v1):** `repoStore`, `repoDecomposer`, `path`-Feld im Inventar, `structure.code`, `code`/`lang` im Scan-Response, Code-Prompt-Variante, `SourcePill`-Variante, Per-Baustein-Interpret-Knopf in der Library, Demo-Fixtures.
+**Drin (v1):** `repoStore`, `repoDecomposer`, `path`-Feld im Inventar, `structure.code`, `code`/`lang` im Scan-Response, Code-Prompt-Variante, `SourcePill`-Variante, Per-Baustein- **und** „Alle interpretieren"-Knopf in der Library (Batch-Pfad existiert schon, nur UI-Einstieg neu), Demo-Fixtures.
 
 **Bewusst draußen (später):** deterministischer tsx→HTML-Parser (die „Kür" statt KI) · Auto-Interpret · statische Render-Vorschau von rohem Code ohne KI · Heben von Patterns/Seiten · Lazy-Code-Nachladen pro Karte · private Repos / Monorepo-Unterpfade (schon bei Repo-Ingester offen).
 
