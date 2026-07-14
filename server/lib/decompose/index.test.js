@@ -16,3 +16,8 @@ test('throws for unknown source kinds', () => {
   assert.throws(() => getDecomposer('pdf'), /kein Decomposer/i);
   assert.throws(() => getDecomposer('nope'), /kein Decomposer/i);
 });
+
+test('getDecomposer("repo") liefert den repoDecomposer', () => {
+  const d = getDecomposer('repo');
+  assert.equal(typeof d.decompose, 'function');
+});
