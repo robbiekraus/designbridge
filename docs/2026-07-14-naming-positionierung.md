@@ -1,6 +1,7 @@
-# Naming & Positionierung — Entscheidung: **Refracta**
+# Naming & Positionierung — Entscheidung: **Refracta** (VORLÄUFIG)
 
-Stand: 14.07.2026 · Entschieden von Rob nach Recherche + Verifikation (Session „Zweig B")
+Stand: 14.07.2026 · Von Rob nach Recherche + Verifikation gewählt (Session „Zweig B") —
+**Rob schläft noch eine Nacht darüber; Umbenennung NICHT starten, bevor er bestätigt.**
 
 ---
 
