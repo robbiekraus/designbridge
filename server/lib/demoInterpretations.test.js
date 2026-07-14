@@ -44,3 +44,13 @@ test('fixture covers newly-routed content cards distinctly', () => {
   assert.ok(byName['Stat Card'] && byName['Line Chart Card']);
   assert.notEqual(byName['Stat Card'].html, byName['Line Chart Card'].html);
 });
+
+// Fix 14.07.: Der Tooltip-Schwanz war ein rotiertes Quadrat (transform:rotate) —
+// der Konverter kennt kein transform, in Figma kam ein Viereck an. Vektor-Pflicht:
+test('Tooltip-Schwanz ist ein SVG-Dreieck, kein CSS-Trick (rotate/border)', () => {
+  const all = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
+  const tooltip = all.find((e) => e.name === 'Tooltip');
+  assert.ok(tooltip, 'Tooltip-Eintrag fehlt');
+  assert.match(tooltip.html, /<svg[^>]*>[\s\S]*<polygon/i, 'Schwanz muss SVG-polygon sein');
+  assert.doesNotMatch(tooltip.html, /rotate\(/i, 'kein transform:rotate-Trick');
+});

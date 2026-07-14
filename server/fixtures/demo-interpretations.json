@@ -31,7 +31,7 @@
   },
   {
     "name": "Tooltip",
-    "html": "<div style=\"display:flex;flex-direction:column;align-items:center\"><div style=\"background:#1A1B1E;color:#ffffff;font-size:12px;padding-top:6px;padding-right:8px;padding-bottom:6px;padding-left:8px;border-top-left-radius:6px;border-top-right-radius:6px;border-bottom-right-radius:6px;border-bottom-left-radius:6px\">Details anzeigen</div><div style=\"width:8px;height:8px;margin-top:-4px;background:#1A1B1E;transform:rotate(45deg)\"></div></div>",
+    "html": "<div style=\"display:flex;flex-direction:column;align-items:center\"><div style=\"background:#1A1B1E;color:#ffffff;font-size:12px;padding-top:6px;padding-right:8px;padding-bottom:6px;padding-left:8px;border-top-left-radius:6px;border-top-right-radius:6px;border-bottom-right-radius:6px;border-bottom-left-radius:6px\">Details anzeigen</div><svg width=\"12\" height=\"6\" viewBox=\"0 0 12 6\"><polygon points=\"0,0 12,0 6,6\" fill=\"#1A1B1E\"/></svg></div>",
     "jsx": "export function Tooltip({ label = \"Details anzeigen\" }) {\n  return (\n    <div className=\"inline-flex flex-col items-center\">\n      <div className=\"rounded bg-[#1A1B1E] px-2 py-1 text-xs text-white\">{label}</div>\n      <div className=\"h-2 w-2 -mt-1 rotate-45 bg-[#1A1B1E]\" />\n    </div>\n  );\n}\n"
   },
   {
