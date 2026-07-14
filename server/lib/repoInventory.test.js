@@ -70,3 +70,14 @@ test('dedupes by name per level and returns empty arrays when nothing matches', 
   const none = recognizeRepoInventory([f('README.md')]);
   assert.deepEqual(none, { atomics: [], components: [], patterns: [] });
 });
+
+test('atomics/components tragen path, patterns nicht', () => {
+  const inv = recognizeRepoInventory([
+    { path: 'src/components/ui/button.tsx', content: '' },
+    { path: 'src/components/PricingCard.tsx', content: '' },
+    { path: 'src/app/dashboard/page.tsx', content: '' },
+  ]);
+  assert.equal(inv.atomics[0].path, 'src/components/ui/button.tsx');
+  assert.equal(inv.components[0].path, 'src/components/PricingCard.tsx');
+  assert.equal(inv.patterns[0].path, undefined);
+});

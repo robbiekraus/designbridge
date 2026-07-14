@@ -17,10 +17,10 @@ export function recognizeRepoInventory(files) {
     const base = path.split('/').pop();
     if (isUiComponent(path)) {
       put(atomics, {
-        name: pascal(base), variants: [], confidence: 'high', source: 'rules', notes: `aus ${path}`,
+        name: pascal(base), variants: [], confidence: 'high', source: 'rules', notes: `aus ${path}`, path,
       });
     } else if (isComponentFile(path)) {
-      put(components, { name: pascal(base), confidence: 'low', source: 'rules', notes: `aus ${path}` });
+      put(components, { name: pascal(base), confidence: 'low', source: 'rules', notes: `aus ${path}`, path });
     } else if (isLayoutFile(path)) {
       put(patterns, { name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}` });
     } else if (isPageFile(path)) {
