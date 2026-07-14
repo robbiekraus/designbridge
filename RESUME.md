@@ -1,15 +1,13 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG, GEMERGT & GEPUSHT** (`origin/main` = `760d32b`, ff-Merge, Branch gelöscht). Working Tree sauber, `main` == `origin/main`. Die zwei Vorgänger-Branches (Scheibe ③ v2 + scan-Fix) wurden ebenfalls in dieser Session gemergt & gepusht.
+Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 + beide Fast-Follows FERTIG, GEPUSHT** (`origin/main` = `b391705`). Working Tree sauber, `main` == `origin/main`. Zweig A ist bis auf reine Kosmetik (Donut) abgearbeitet.
 
 > ## 🔀 WEGGABELUNG — hier startet die nächste Session (Rob wählt EINEN Zweig)
 > Die letzte *funktionale* Lücke ist zu (alle 3 Quellen Bild/URL/Repo haben die interpretierte Referenz). Ab hier zwei mögliche Richtungen — Rob entscheidet zu Beginn:
 >
-> **Zweig A — App verbessern (Code).** Feinschliff & Fast-Follows am bestehenden Produkt. Konkret verfügbar:
-> - Fast-Follow 1: `deepenRepoWithAi` droppt `path` → „Mit KI vertiefen" bei Repo verliert gehobenen Code (nur mit Credits; Fix: `path` per Name aus Rule-Baseline in `/repo/ai` zurückmappen, DANN liften).
-> - Fast-Follow 2: Template-Namens-Kollision (`CardSkeleton`, `ui/card.tsx`…) → generische Vorschau statt Code-Vorschau + versteckter Interpret-Knopf.
-> - Ältere Kandidaten: Donut-Feinschliff (Fixture-Kosmetik), Plugin-Panel sagt noch „Sprint 2", Robs html.to.design-Zielbild fürs Fidelity-Fazit.
-> - Startet direkt mit Code (kein Brainstorm nötig) — die Fixes sind klein & spezifiziert.
+> **Zweig A — App verbessern (Code).** ✅ Beide dokumentierten Fast-Follows sind erledigt & gepusht (14.07., `2c18530`): FF1 `deepenRepoWithAi`/`path` (neue `applyBaselinePaths`, per Name aus Baseline zurückgemappt, dann geliftet — server 136/136) und FF2 Template-Namens-Kollision (`lifted` überspringt `matchTemplate` → kein generisches Template, Interpret-Knopf sichtbar, echter Code maßgeblich — web 301/301, im Browser an `CardSkeleton`/taxonomy bestätigt). Auch erledigt: Plugin-„Sprint 2"-Branding entfernt (`b391705`). **Noch offen (reine Kosmetik):**
+> - Donut-Feinschliff (Fixture-Kosmetik): Ring gestreift statt drei sauberer Bögen 55/25/20 — Segment-SVG in `demo-interpretations.json`. Braucht Robs visuelles OK.
+> - Robs html.to.design-Zielbild fürs Fidelity-Fazit (Robs Beitrag).
 >
 > **Zweig B — Markt-Vergleich & Naming (Strategie, kein Code).** Positionierung, bevor irgendwas veröffentlicht wird:
 > - **Naming-Konflikt (WICHTIG):** auf Figma existiert schon ein Plugin **„Design-bridge"** („Stop rebuilding design systems by hand", 72 Nutzer) — quasi identischer Name + Versprechen; dazu „BI Bridge - Design to Data". → evtl. neuer App-Name, um nicht in Querelen zu geraten.
@@ -30,10 +28,10 @@ Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG, GEMERGT & GEPUSHT** (`
 
 **Final-Review (frische Augen) → mergefähig.** Ein Hang-Blocker gefunden & gefixt (`ea5466b`): „Mit KI vertiefen" bei Repo verlor `import_id` → Batch hing in „wird interpretiert …"; Fix (A) `/repo/ai` hebt Code + `import_id` wie `/repo`, Fix (B) Batch-Handler setzt `interpretPending` zurück wenn `runInterpretation`→null.
 
-**OFFENE Fast-Follows (dokumentiert, NICHT blockierend, triggern nicht in der credit-losen Demo):**
-1. **`deepenRepoWithAi` droppt `path`** (`server/lib/deepenRepoWithAi.js`): Claudes JSON-Schema hat kein `path`, daher ist der `liftRepoInventory`-Aufruf in `/repo/ai` (Fix A) ein No-op → nach einem *erfolgreichen* „Mit KI vertiefen" (nur mit Credits) verlieren Repo-Komponenten ihren gehobenen Code + Interpretation degradiert. Fix: in `/repo/ai` `path` per Name aus der Rule-Baseline auf die merged Items zurückmappen, DANN liften. Demo-sicher, weil `/repo/ai` ohne Credits mit 502 scheitert (kein Demo-Fallback).
-2. **Template-Namens-Kollision:** ein gehobener Baustein, dessen Name ein Hand-Template matcht (`card|tile|panel|button|badge|input`, z. B. `CardSkeleton`, `components/ui/card.tsx`), zeigt die generische Template-Vorschau statt einer Vorschau des echten Codes, und der „Mit KI interpretieren"-Knopf ist versteckt (`emitComponents` setzt `hasPreview` nur nach `matchTemplate(name)`, unabhängig von `lifted`). Echter Code bleibt im Code-Panel korrekt. Fix fasst die Nicht-Repo-Preview-Logik breiter an → bewusst für v1 vertagt.
-3. Kleinere: leerer Datei-Inhalt (`''`) → `lifted=false` (Boolean-Falle in `emitComponents`); Interpret-Route ruft `decompose` ohne `cap` (effektiv durch extractRepoFiles ~8k begrenzt); Patterns landen ohne Material im Batch-Todo (→ „failed", kein Crash).
+**Fast-Follows — Stand:**
+1. ✅ **ERLEDIGT (`2c18530`) — `deepenRepoWithAi` droppt `path`:** neue `applyBaselinePaths(items, baseline)` in `repoDecomposer.js` mappt `path` per Name aus der Rule-Baseline auf die merged Items zurück, `/repo/ai` ruft sie vor `liftRepoInventory`. Grenze: KI-*umbenannte* Bausteine (Name ≠ Baseline-Name) matchen nicht und verlieren ihren Code — akzeptiert (credit-gated & optional). Test-first (server 136/136).
+2. ✅ **ERLEDIGT (`2c18530`) — Template-Namens-Kollision:** `emitComponents` überspringt `matchTemplate` bei `lifted` (`tpl = lifted ? null : matchTemplate(name)`) → `hasPreview=false`, Interpret-Pfad offen, echter Code + Dateiname maßgeblich. Test-first (web 301/301) + im Browser an `CardSkeleton`/taxonomy bestätigt.
+3. **NOCH OFFEN, kleinere:** leerer Datei-Inhalt (`''`) → `lifted=false` (Boolean-Falle in `emitComponents`); Interpret-Route ruft `decompose` ohne `cap` (effektiv durch extractRepoFiles ~8k begrenzt); Patterns landen ohne Material im Batch-Todo (→ „failed", kein Crash).
 
 **Wiedereinstieg: siehe die 🔀 WEGGABELUNG oben** — Rob wählt Zweig A (App verbessern / Fast-Follows) oder Zweig B (Markt-Vergleich & Naming). Beides ist gepusht-unabhängig; nichts hängt mehr.
 
