@@ -1,8 +1,24 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG GEBAUT, BROWSER-SMOKE BESTANDEN, MERGEFÄHIG.** Wartet auf Robs Merge/Push-OK (Regel 5). Die zwei Vorgänger-Branches (`feat/scheibe3-v2-computed-style` + `fix/scan-upload-error-handling`) wurden zu Beginn dieser Session gemergt & gepusht (`origin/main` = `c98fcff`).
+Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG, GEMERGT & GEPUSHT** (`origin/main` = `760d32b`, ff-Merge, Branch gelöscht). Working Tree sauber, `main` == `origin/main`. Die zwei Vorgänger-Branches (Scheibe ③ v2 + scan-Fix) wurden ebenfalls in dieser Session gemergt & gepusht.
 
-## Repo-Decompose v1 (Branch `feat/repo-decompose-v1`, LOKAL, ungepusht, 16 Commits)
+> ## 🔀 WEGGABELUNG — hier startet die nächste Session (Rob wählt EINEN Zweig)
+> Die letzte *funktionale* Lücke ist zu (alle 3 Quellen Bild/URL/Repo haben die interpretierte Referenz). Ab hier zwei mögliche Richtungen — Rob entscheidet zu Beginn:
+>
+> **Zweig A — App verbessern (Code).** Feinschliff & Fast-Follows am bestehenden Produkt. Konkret verfügbar:
+> - Fast-Follow 1: `deepenRepoWithAi` droppt `path` → „Mit KI vertiefen" bei Repo verliert gehobenen Code (nur mit Credits; Fix: `path` per Name aus Rule-Baseline in `/repo/ai` zurückmappen, DANN liften).
+> - Fast-Follow 2: Template-Namens-Kollision (`CardSkeleton`, `ui/card.tsx`…) → generische Vorschau statt Code-Vorschau + versteckter Interpret-Knopf.
+> - Ältere Kandidaten: Donut-Feinschliff (Fixture-Kosmetik), Plugin-Panel sagt noch „Sprint 2", Robs html.to.design-Zielbild fürs Fidelity-Fazit.
+> - Startet direkt mit Code (kein Brainstorm nötig) — die Fixes sind klein & spezifiziert.
+>
+> **Zweig B — Markt-Vergleich & Naming (Strategie, kein Code).** Positionierung, bevor irgendwas veröffentlicht wird:
+> - **Naming-Konflikt (WICHTIG):** auf Figma existiert schon ein Plugin **„Design-bridge"** („Stop rebuilding design systems by hand", 72 Nutzer) — quasi identischer Name + Versprechen; dazu „BI Bridge - Design to Data". → evtl. neuer App-Name, um nicht in Querelen zu geraten.
+> - **Tool-Vergleich:** html.to.design + das „Design-bridge"-Plugin — was tun sie, was übernehmen wir, wo sind wir besser/schlechter, wie grenzen wir uns ab?
+> - Startet mit Recherche/Brainstorm (Visual Companion anbieten), Output = ein Positionierungs-/Naming-Dokument, kein Code.
+>
+> Beide Zweige sind unabhängig; Reihenfolge ist Robs Wahl. Meine Tendenz: **B zuerst** (ein Name-Konflikt wird teurer, je später man ihn anfasst; die App ist funktional fertig genug, um sie zu positionieren) — aber A ist genauso legitim, wenn Rob lieber am Produkt weiterbaut.
+
+## Repo-Decompose v1 — GEMERGT & GEPUSHT (`origin/main` = `760d32b`, 17 Commits + 3 Doku-Commits)
 
 **Was & warum:** Die letzte offene Quelle — das Code-Repository — bekommt dieselbe „interpretierte Referenz je Baustein" wie Bild/URL, aber nach dem Prinzip **„erkennbares Design-System → echten Code heben, nicht interpretieren"**. Beim Repo-Import wird der echte Quellcode der Komponenten gehoben (Pille „aus Repo gehoben", echter Code + echter Dateiname sichtbar). KI-Interpretation läuft **nur auf Knopfdruck** (pro Baustein „Mit KI interpretieren" + Batch „Alle interpretieren"), nie automatisch. Spec `docs/superpowers/specs/2026-07-14-repo-decompose-v1-design.md`, Plan `docs/superpowers/plans/2026-07-14-repo-decompose-v1.md`. Subagent-getrieben (Sonnet-Implementer + Reviews, Opus-Koordination/Smoke/Abnahme).
 
@@ -19,7 +35,7 @@ Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG GEBAUT, BROWSER-SMOKE B
 2. **Template-Namens-Kollision:** ein gehobener Baustein, dessen Name ein Hand-Template matcht (`card|tile|panel|button|badge|input`, z. B. `CardSkeleton`, `components/ui/card.tsx`), zeigt die generische Template-Vorschau statt einer Vorschau des echten Codes, und der „Mit KI interpretieren"-Knopf ist versteckt (`emitComponents` setzt `hasPreview` nur nach `matchTemplate(name)`, unabhängig von `lifted`). Echter Code bleibt im Code-Panel korrekt. Fix fasst die Nicht-Repo-Preview-Logik breiter an → bewusst für v1 vertagt.
 3. Kleinere: leerer Datei-Inhalt (`''`) → `lifted=false` (Boolean-Falle in `emitComponents`); Interpret-Route ruft `decompose` ohne `cap` (effektiv durch extractRepoFiles ~8k begrenzt); Patterns landen ohne Material im Batch-Todo (→ „failed", kein Crash).
 
-**Wiedereinstieg: Robs Merge/Push-OK für `feat/repo-decompose-v1` einholen.** Danach ggf. Fast-Follow 1 (der einzige echte Datenverlust, sobald Credits da sind). Dann: Wettbewerbs-/Fidelity-Vergleich (html.to.design + das gleichnamige „Design-bridge"-Plugin → Naming/Abgrenzung) — die nächste Phase, die Rob schon angesprochen hat.
+**Wiedereinstieg: siehe die 🔀 WEGGABELUNG oben** — Rob wählt Zweig A (App verbessern / Fast-Follows) oder Zweig B (Markt-Vergleich & Naming). Beides ist gepusht-unabhängig; nichts hängt mehr.
 
 ---
 
