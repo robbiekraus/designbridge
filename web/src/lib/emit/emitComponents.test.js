@@ -145,4 +145,20 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.interpretFailed).toBe(false);
     expect(item.interpretPending).toBe(false);
   });
+
+  it('gehobenes Repo-Item zeigt echten Code + lifted-Flag + echten Dateinamen', () => {
+    const result = {
+      source: 'repo',
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atomics: [], patterns: [],
+        components: [{ name: 'PricingCard', confidence: 'low', source: 'rules',
+          path: 'src/components/PricingCard.tsx', sourceCode: 'export const PricingCard = () => <div>Pro</div>;', lang: 'tsx' }],
+      },
+    };
+    const [item] = emitComponents(result, 'component');
+    expect(item.lifted).toBe(true);
+    expect(item.code).toMatch(/export const PricingCard/);
+    expect(item.filename).toBe('PricingCard.tsx');
+  });
 });

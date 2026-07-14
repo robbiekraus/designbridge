@@ -48,18 +48,20 @@ export function emitComponents(result, kind) {
       const interp = !tpl ? (result?.interpretations?.[item.name] ?? null) : null;
       const unresolved = !tpl && !interp;
       const failedListed = (result?.interpretFailed ?? []).includes(item.name);
+      const lifted = Boolean(item.sourceCode);
       out.push({
         name: item.name,
         slug,
-        filename: `${pascal}.jsx`,
+        filename: lifted && item.path ? item.path.split('/').pop() : `${pascal}.jsx`,
         kind: itemKind,
         templateKey: tpl?.key ?? null,
         variants: tpl?.variants ?? [],
-        code: tpl
-          ? tpl.emit(picks, item)
-          : (interp?.jsx?.trim() ? interp.jsx : genericStub(pascal, item)),
+        code: lifted
+          ? item.sourceCode
+          : (tpl ? tpl.emit(picks, item) : (interp?.jsx?.trim() ? interp.jsx : genericStub(pascal, item))),
         confidence: item.confidence ?? null,
         source: item.source ?? null,
+        lifted,
         notes: item.notes ?? null,
         hasPreview: Boolean(tpl),
         interpretedHtml: interp?.html ?? null,
