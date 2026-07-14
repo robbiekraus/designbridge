@@ -39,6 +39,30 @@ describe('buttonTemplate.planFor', () => {
     expect(plan.stroke).toBeNull();
   });
 
+  // Fix 14.07.: emit() kannte den Icon-Fall längst (JSX mit Plus-Icon-SVG),
+  // planFor ignorierte ihn — Icon Button kam in Figma als Text-Button an.
+  it('Icon-Button (Name enthält "icon"): SVG-Icon statt Text, quadratisches Padding', () => {
+    const plan = buttonTemplate.planFor('primary', refs, { name: 'Icon Button' });
+    expect(plan.fill).toEqual(toRef(refs.primary));
+    expect(plan.padding[0]).toBe(plan.padding[1]); // quadratisch, kein Text-Button-Padding
+    expect(plan.children).toHaveLength(1);
+    expect(plan.children[0].type).toBe('svg');
+    expect(plan.children[0].markup).toContain('<svg');
+    expect(plan.children[0].markup).toContain(refs.onPrimary.value); // Icon in onPrimary
+  });
+
+  it('Icon-Button ghost: Icon in Primärfarbe', () => {
+    const plan = buttonTemplate.planFor('ghost', refs, { name: 'Icon Button' });
+    expect(plan.children[0].type).toBe('svg');
+    expect(plan.children[0].markup).toContain(refs.primary.value);
+  });
+
+  it('normaler Button bleibt Text — auch wenn item übergeben wird', () => {
+    const plan = buttonTemplate.planFor('primary', refs, { name: 'Button' });
+    expect(plan.children[0].type).toBe('text');
+    expect(plan.children[0].content).toBe('Button');
+  });
+
   it('kaputte Zahlwerte fallen auf Defaults zurück', () => {
     const plan = buttonTemplate.planFor('primary', { ...refs, radius: 'auto', fontSize: '', fontWeight: 'bold' });
     expect(plan.radius).toBe(6);

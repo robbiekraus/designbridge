@@ -56,12 +56,20 @@ export const buttonTemplate = {
       return { ...base, background: 'transparent', color: p.primary };
     return { ...base, background: p.primary, color: p.onPrimary };
   },
-  planFor(variant, r) {
-    const base = box({ padding: [8, 16, 8, 16], radius: px(r.radius, 6) });
+  planFor(variant, r, item) {
+    // Icon-Fall wie in emit(): quadratischer Button mit Plus-Icon statt Text-Label
+    // (Fix 14.07. — vorher kam Icon Button in Figma als identische Text-Kopie an).
+    const isIcon = /\bicon\b/i.test(item?.name ?? '');
+    const iconSvg = (slot) => ({
+      type: 'svg',
+      markup: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${slot.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>`,
+    });
+    const base = box({ padding: isIcon ? [10, 10, 10, 10] : [8, 16, 8, 16], radius: px(r.radius, 6) });
+    const content = (slot) => (isIcon ? iconSvg(slot) : textEl('Button', r, slot));
     if (variant === 'secondary')
-      return { ...base, stroke: colorRef(r.border), children: [textEl('Button', r, r.text)] };
+      return { ...base, stroke: colorRef(r.border), children: [content(r.text)] };
     if (variant === 'ghost')
-      return { ...base, children: [textEl('Button', r, r.primary)] };
-    return { ...base, fill: colorRef(r.primary), children: [textEl('Button', r, r.onPrimary)] };
+      return { ...base, children: [content(r.primary)] };
+    return { ...base, fill: colorRef(r.primary), children: [content(r.onPrimary)] };
   },
 };

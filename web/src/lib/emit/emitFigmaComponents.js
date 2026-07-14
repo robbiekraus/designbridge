@@ -62,7 +62,7 @@ export function emitFigmaComponents(result) {
         out.push({
           ...meta,
           placeholder: false,
-          variants: tpl.variants.map((v) => ({ name: v, plan: tpl.planFor(v, refs) })),
+          variants: tpl.variants.map((v) => ({ name: v, plan: tpl.planFor(v, refs, item) })),
         });
         continue;
       }
