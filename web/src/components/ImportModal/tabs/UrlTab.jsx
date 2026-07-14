@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
 
+// Dev: Vite (5173) proxyt nur /api, die Demo-Seite liegt beim Server (3047).
+// Prod: Server liefert Web + /demo same-origin aus → eigene Domain verwenden.
+const DEMO_URL = import.meta.env.DEV
+  ? 'http://localhost:3047/demo'
+  : `${window.location.origin}/demo/`;
+
 export default function UrlTab({ onSubmit, disabled }) {
   const [url, setUrl] = useState('');
   const valid = /^https?:\/\/\S+/.test(url);
@@ -15,7 +21,7 @@ export default function UrlTab({ onSubmit, disabled }) {
       <div className="flex items-center gap-2 text-[10px] text-zinc-500">
         <button
           type="button"
-          onClick={() => setUrl('http://localhost:3047/demo')}
+          onClick={() => setUrl(DEMO_URL)}
           className="px-2 py-1 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
         >
           Demo-Seite verwenden
