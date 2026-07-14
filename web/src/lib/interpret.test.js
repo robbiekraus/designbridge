@@ -32,7 +32,7 @@ describe('componentsNeedingInterpretation', () => {
   it('filtert Template-Treffer raus und behält kind/variants/notes', () => {
     const todo = componentsNeedingInterpretation(RESULT);
     expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
-    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null });
+    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null, path: null });
   });
 
   it('passes bbox through and routes content-bearing cards to interpretation', () => {
@@ -110,7 +110,8 @@ describe('runInterpretation', () => {
 
   it('liefert null ohne import_id oder für nicht unterstützte Quellen', async () => {
     expect(await runInterpretation({ ...RESULT, raw: { ...RESULT.raw, meta: {} } })).toBeNull();
-    expect(await runInterpretation({ ...RESULT, source: 'repo' })).toBeNull();
+    // 'repo' ist jetzt unterstützt (Batch-Knopf) — 'figma' (noch) nicht.
+    expect(await runInterpretation({ ...RESULT, source: 'figma' })).toBeNull();
   });
 
   it('läuft auch für source url und reicht selector durch', async () => {
@@ -175,7 +176,7 @@ describe('retryInterpretation', () => {
     expect(sentBody.import_id).toBe('abc123');
     expect(sentBody.components).toHaveLength(1);
     expect(sentBody.components[0]).toEqual({
-      name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null,
+      name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null, path: null,
     });
   });
 
@@ -219,6 +220,34 @@ describe('retryInterpretation', () => {
     const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
     const next = await retryInterpretation(noImportId, 'Avatar');
     expect(next).toBe(noImportId);
+  });
+});
+
+describe('componentsNeedingInterpretation — repo path', () => {
+  // Name bewusst nicht "…Card/Tile/Panel" o.ä. — würde vom generischen
+  // Card-Template gematcht (matchTemplate) und flöge raus, noch bevor
+  // path je geprüft wird. Siehe web/src/lib/components/templates/card.js.
+  it('componentsNeedingInterpretation reicht path durch', () => {
+    const result = { source: 'repo', raw: { atomics: [], patterns: [],
+      components: [{ name: 'PricingWidget', path: 'src/components/PricingWidget.tsx' }] } };
+    const [c] = componentsNeedingInterpretation(result);
+    expect(c.path).toBe('src/components/PricingWidget.tsx');
+  });
+});
+
+describe('runInterpretation — source repo', () => {
+  it('runInterpretation läuft für source:repo (Batch-Knopf)', async () => {
+    const calls = [];
+    global.fetch = async (url, opts) => {
+      calls.push(JSON.parse(opts.body));
+      return { ok: true, json: async () => ({ interpretations: [{ name: 'PricingWidget', html: '<div/>', jsx: '' }], failed: [] }) };
+    };
+    const result = { source: 'repo', raw: { meta: { import_id: 'id1' }, atomics: [], patterns: [],
+      components: [{ name: 'PricingWidget', path: 'p.tsx' }] } };
+    const next = await runInterpretation(result);
+    expect(next).not.toBe(null);
+    expect(calls[0].components[0].path).toBe('p.tsx');
+    expect(next.interpretations.PricingWidget.html).toBe('<div/>');
   });
 });
 
