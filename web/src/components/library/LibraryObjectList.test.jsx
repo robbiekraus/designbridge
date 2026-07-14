@@ -130,6 +130,8 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     render(<LibraryObjectList items={items} picks={{}} onRetryInterpret={onRetryInterpret} />);
     // Pille ist im Kopf (immer sichtbar):
     expect(screen.getByText('aus Repo gehoben')).toBeInTheDocument();
+    // gehobener Code ist echte Quelle, kein Stub:
+    expect(screen.queryByText('generischer Stub')).not.toBeInTheDocument();
     // Row aufklappen, dann Knopf klicken:
     fireEvent.click(screen.getByText('PricingWidget'));
     fireEvent.click(screen.getByRole('button', { name: /Mit KI interpretieren/ }));

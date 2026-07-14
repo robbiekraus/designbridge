@@ -34,7 +34,7 @@ function Row({ item, picks, onRetryInterpret }) {
         <SourcePill value={item.source} />
         {item.lifted && <SourcePill value="lifted" />}
         {item.interpretedHtml && <SourcePill value="interpreted" />}
-        {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && (
+        {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && !item.lifted && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
             generischer Stub
           </span>
