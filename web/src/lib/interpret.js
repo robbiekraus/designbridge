@@ -17,7 +17,13 @@ export function componentsNeedingInterpretation(result) {
   const out = [];
   for (const [rawKey, kind] of KINDS) {
     for (const item of raw[rawKey] ?? []) {
-      if (matchTemplate(item.name)) continue;
+      const lifted = Boolean(item.sourceCode);
+      // FF2-Konsistenz: bei gehobenem Code zählt der echte Code, nicht ein
+      // zufälliger Template-Namenstreffer (CardSkeleton → card).
+      if (!lifted && matchTemplate(item.name)) continue;
+      // Repo-Bausteine ohne gehobenen Code (Patterns, pfad-only Dateien) haben
+      // kein Material — sie würden im Batch nur als "failed" enden.
+      if (result?.source === 'repo' && !lifted) continue;
       if (have[item.name]) continue;
       out.push({
         name: item.name,

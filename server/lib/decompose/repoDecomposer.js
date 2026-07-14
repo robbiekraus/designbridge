@@ -6,12 +6,16 @@ export const CODE_CAP = 8000;
 const langOf = (p) => (String(p || '').match(/\.(tsx|ts|jsx|js)$/)?.[1]) ?? 'txt';
 
 export const repoDecomposer = {
-  async decompose({ files }, inventory, { cap = null } = {}) {
+  // Default-cap = CODE_CAP: die Interpret-Route ruft decompose ohne Optionen —
+  // ohne Default wandert sonst ungecappter Datei-Inhalt in den Prompt.
+  async decompose({ files }, inventory, { cap = CODE_CAP } = {}) {
     const byPath = new Map((files ?? []).map((f) => [f.path, f.content]));
     return inventory.map((item, i) => {
       const content = item.path ? byPath.get(item.path) : undefined;
-      const truncated = content != null && cap != null && content.length > cap;
-      const code = content == null ? null : (truncated ? content.slice(0, cap) : content);
+      const truncated = Boolean(content) && cap != null && content.length > cap;
+      const code = truncated ? content.slice(0, cap) : content;
+      // Leerer Inhalt ('' = pfad-only Seiten/Layouts aus extractRepoFiles) ist
+      // KEIN Material — wie eine fehlende Datei behandeln, nicht als Code heben.
       return {
         id: `seg_${i}`,
         label: item.name,
@@ -20,7 +24,7 @@ export const repoDecomposer = {
         notes: truncated ? `${item.notes ?? ''} (gekürzt)`.trim() : (item.notes ?? ''),
         bounds: null,
         visual: null,
-        structure: content == null ? null : { code, path: item.path, lang: langOf(item.path) },
+        structure: !content ? null : { code, path: item.path, lang: langOf(item.path) },
       };
     });
   },

@@ -57,6 +57,34 @@ describe('componentsNeedingInterpretation', () => {
   it('liefert [] ohne raw', () => {
     expect(componentsNeedingInterpretation({ source: 'url', raw: null })).toEqual([]);
   });
+
+  it('repo: Bausteine ohne gehobenen Code (Patterns, pfad-only) fliegen aus dem Batch', () => {
+    const result = {
+      source: 'repo',
+      raw: {
+        meta: { import_id: 'r1' },
+        components: [
+          { name: 'Callout', path: 'components/callout.tsx', sourceCode: 'export const Callout=()=>null;' },
+        ],
+        patterns: [{ name: 'Dashboard Layout', confidence: 'low' }], // kein path/sourceCode → kein Material
+      },
+    };
+    expect(componentsNeedingInterpretation(result).map((t) => t.name)).toEqual(['Callout']);
+  });
+
+  it('repo: gehobener Baustein mit Template-Namens-Kollision bleibt im Batch (FF2-Konsistenz)', () => {
+    const result = {
+      source: 'repo',
+      raw: {
+        meta: { import_id: 'r1' },
+        components: [
+          // "CardSkeleton" matcht das card-Template — gehoben zählt der echte Code, nicht das Template.
+          { name: 'CardSkeleton', path: 'ui/card-skeleton.tsx', sourceCode: 'export const CardSkeleton=()=>null;' },
+        ],
+      },
+    };
+    expect(componentsNeedingInterpretation(result).map((t) => t.name)).toEqual(['CardSkeleton']);
+  });
 });
 
 describe('requestInterpretations', () => {
@@ -228,8 +256,10 @@ describe('componentsNeedingInterpretation — repo path', () => {
   // Card-Template gematcht (matchTemplate) und flöge raus, noch bevor
   // path je geprüft wird. Siehe web/src/lib/components/templates/card.js.
   it('componentsNeedingInterpretation reicht path durch', () => {
+    // Reale /repo-Shape: Items mit Datei-Inhalt tragen immer sourceCode
+    // (liftRepoInventory läuft vor res.json) — ohne sourceCode = kein Material.
     const result = { source: 'repo', raw: { atomics: [], patterns: [],
-      components: [{ name: 'PricingWidget', path: 'src/components/PricingWidget.tsx' }] } };
+      components: [{ name: 'PricingWidget', path: 'src/components/PricingWidget.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
     const [c] = componentsNeedingInterpretation(result);
     expect(c.path).toBe('src/components/PricingWidget.tsx');
   });
@@ -243,7 +273,7 @@ describe('runInterpretation — source repo', () => {
       return { ok: true, json: async () => ({ interpretations: [{ name: 'PricingWidget', html: '<div/>', jsx: '' }], failed: [] }) };
     };
     const result = { source: 'repo', raw: { meta: { import_id: 'id1' }, atomics: [], patterns: [],
-      components: [{ name: 'PricingWidget', path: 'p.tsx' }] } };
+      components: [{ name: 'PricingWidget', path: 'p.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
     const next = await runInterpretation(result);
     expect(next).not.toBe(null);
     expect(calls[0].components[0].path).toBe('p.tsx');
