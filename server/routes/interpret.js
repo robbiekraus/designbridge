@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { getImage } from '../lib/imageStore.js';
 import { getPage } from '../lib/pageStore.js';
+import { getRepo } from '../lib/repoStore.js';
 import { interpretComponents } from '../lib/interpretComponents.js';
 import { getDecomposer } from '../lib/decompose/index.js';
 
@@ -36,16 +37,19 @@ router.post('/components', async (req, res) => {
   }
   const image = getImage(importId);
   const page = image ? null : getPage(importId);
-  if (!image && !page) {
+  const repo = image || page ? null : getRepo(importId);
+  if (!image && !page && !repo) {
     return res.status(410).json({ error: 'Quelle nicht mehr verfügbar — bitte erneut importieren.' });
   }
-  const kind = image ? 'image' : 'url';
+  const kind = image ? 'image' : page ? 'url' : 'repo';
   try {
     console.log(`[interpret] ${components.length} Bausteine für Import ${importId}`);
-    const segments = await getDecomposer(kind).decompose(
-      image ? { imagePath: image.path, mimetype: image.mimetype } : { html: page.html, css: page.css },
-      components,
-    );
+    const source = image
+      ? { imagePath: image.path, mimetype: image.mimetype }
+      : page
+        ? { html: page.html, css: page.css }
+        : { files: repo.files };
+    const segments = await getDecomposer(kind).decompose(source, components);
     const result = await interpretComponents(image?.path ?? null, image?.mimetype ?? null, segments);
     res.json(result);
   } catch (err) {
@@ -53,7 +57,9 @@ router.post('/components', async (req, res) => {
     if (process.env.DEMO_FALLBACK === '1') {
       try {
         console.warn('[interpret] DEMO_FALLBACK active — returning bundled interpretations.');
-        const file = kind === 'url' ? 'demo-url-interpretations.json' : 'demo-interpretations.json';
+        const file = kind === 'url' ? 'demo-url-interpretations.json'
+          : kind === 'repo' ? 'demo-repo-interpretations.json'
+          : 'demo-interpretations.json';
         return res.json(loadDemoInterpretations(components.map((c) => c.name), file));
       } catch (fallbackErr) {
         console.error('[interpret] DEMO_FALLBACK failed:', fallbackErr.message);
