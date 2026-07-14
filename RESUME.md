@@ -1,6 +1,30 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **14.07.2026** — **✅ SCHEIBE ③ v2 (HTML→Figma über berechnete Stile) FERTIG GEBAUT & IM FIGMA-RUNDLAUF VON ROB BESTÄTIGT.** Zwei lokale Branches warten auf Robs Merge/Push-Entscheidung (siehe unten). Scheibe ③ v1 wurde am 13.07. gemergt/gepusht (`origin/main`).
+Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 FERTIG GEBAUT, BROWSER-SMOKE BESTANDEN, MERGEFÄHIG.** Wartet auf Robs Merge/Push-OK (Regel 5). Die zwei Vorgänger-Branches (`feat/scheibe3-v2-computed-style` + `fix/scan-upload-error-handling`) wurden zu Beginn dieser Session gemergt & gepusht (`origin/main` = `c98fcff`).
+
+## Repo-Decompose v1 (Branch `feat/repo-decompose-v1`, LOKAL, ungepusht, 16 Commits)
+
+**Was & warum:** Die letzte offene Quelle — das Code-Repository — bekommt dieselbe „interpretierte Referenz je Baustein" wie Bild/URL, aber nach dem Prinzip **„erkennbares Design-System → echten Code heben, nicht interpretieren"**. Beim Repo-Import wird der echte Quellcode der Komponenten gehoben (Pille „aus Repo gehoben", echter Code + echter Dateiname sichtbar). KI-Interpretation läuft **nur auf Knopfdruck** (pro Baustein „Mit KI interpretieren" + Batch „Alle interpretieren"), nie automatisch. Spec `docs/superpowers/specs/2026-07-14-repo-decompose-v1-design.md`, Plan `docs/superpowers/plans/2026-07-14-repo-decompose-v1.md`. Subagent-getrieben (Sonnet-Implementer + Reviews, Opus-Koordination/Smoke/Abnahme).
+
+**Architektur (Wiederverwendung war der Hebel):** `repoStore` (ephemer, Muster pageStore) · `repoDecomposer` + `liftRepoInventory` (hängt `structure.code` an, capped 8k) · `repoInventory` trägt `path` · `interpretComponents` versteht `structure.code` · Scan `/repo` + `/repo/ai` heben Code + `import_id` · Interpret-Route dritter Zweig `repo` · Web: `emitComponents` (`lifted`-Flag/echter Code/Dateiname), `SourcePill` (`lifted`), `LibraryObjectList` (Pille + Per-Baustein-Knopf), neu `InterpretAllBar` (Batch), `App.jsx` (Auto-Interpret bleibt auf image/url). `htmlToPlan` (Scheibe ③ v2) trägt interpretierte Bausteine automatisch nach Figma.
+
+**Stand grün:** Server **133/133** · Web **300/300** · `vite build` sauber. **Browser-Smoke bestanden** (echtes `shadcn-ui/taxonomy`): 30/30 Components + 37/37 Atomics mit echtem Code gehoben, „aus Repo gehoben"-Pillen + echte Dateinamen (`callout.tsx`…), Per-Baustein-„Mit KI interpretieren" rendert die iframe-Vorschau live (Callout), Batch „Alle interpretieren" feuert (Demo-Fixture deckt 5–6 ab, Rest sauber „failed", kein Crash), kein „generischer Stub"-Chip bei gehobenen Bausteinen. Demo-Fixture `server/fixtures/demo-repo-interpretations.json` (Alert/Avatar/Callout/EmptyPlaceholder/CardSkeleton/BillingForm).
+
+**Smoke-Bugfix (echter, plan-vererbter Bug):** `extractRepoFiles` gab für `isComponentFile` (Kategorie Components) `content:''` zurück — nur `components/ui/*` (Atomics) bekamen Inhalt. Gefixt (`1614161`): Komponenten-Dateien werden jetzt mitgelesen, Seiten/Layouts bleiben pfad-only.
+
+**Final-Review (frische Augen) → mergefähig.** Ein Hang-Blocker gefunden & gefixt (`ea5466b`): „Mit KI vertiefen" bei Repo verlor `import_id` → Batch hing in „wird interpretiert …"; Fix (A) `/repo/ai` hebt Code + `import_id` wie `/repo`, Fix (B) Batch-Handler setzt `interpretPending` zurück wenn `runInterpretation`→null.
+
+**OFFENE Fast-Follows (dokumentiert, NICHT blockierend, triggern nicht in der credit-losen Demo):**
+1. **`deepenRepoWithAi` droppt `path`** (`server/lib/deepenRepoWithAi.js`): Claudes JSON-Schema hat kein `path`, daher ist der `liftRepoInventory`-Aufruf in `/repo/ai` (Fix A) ein No-op → nach einem *erfolgreichen* „Mit KI vertiefen" (nur mit Credits) verlieren Repo-Komponenten ihren gehobenen Code + Interpretation degradiert. Fix: in `/repo/ai` `path` per Name aus der Rule-Baseline auf die merged Items zurückmappen, DANN liften. Demo-sicher, weil `/repo/ai` ohne Credits mit 502 scheitert (kein Demo-Fallback).
+2. **Template-Namens-Kollision:** ein gehobener Baustein, dessen Name ein Hand-Template matcht (`card|tile|panel|button|badge|input`, z. B. `CardSkeleton`, `components/ui/card.tsx`), zeigt die generische Template-Vorschau statt einer Vorschau des echten Codes, und der „Mit KI interpretieren"-Knopf ist versteckt (`emitComponents` setzt `hasPreview` nur nach `matchTemplate(name)`, unabhängig von `lifted`). Echter Code bleibt im Code-Panel korrekt. Fix fasst die Nicht-Repo-Preview-Logik breiter an → bewusst für v1 vertagt.
+3. Kleinere: leerer Datei-Inhalt (`''`) → `lifted=false` (Boolean-Falle in `emitComponents`); Interpret-Route ruft `decompose` ohne `cap` (effektiv durch extractRepoFiles ~8k begrenzt); Patterns landen ohne Material im Batch-Todo (→ „failed", kein Crash).
+
+**Wiedereinstieg: Robs Merge/Push-OK für `feat/repo-decompose-v1` einholen.** Danach ggf. Fast-Follow 1 (der einzige echte Datenverlust, sobald Credits da sind). Dann: Wettbewerbs-/Fidelity-Vergleich (html.to.design + das gleichnamige „Design-bridge"-Plugin → Naming/Abgrenzung) — die nächste Phase, die Rob schon angesprochen hat.
+
+---
+
+## Vorgänger-Referenz — Scheibe ③ v2 (am 14.07. zu Session-Beginn gemergt & gepusht)
+Scheibe ③ v1 wurde am 13.07. gemergt/gepusht. Scheibe ③ v2 (HTML→Figma über berechnete Stile) + der scan-upload-Fix wurden zu Beginn dieser Session per ff-Merge auf `main` gebracht & gepusht (`origin/main` = `c98fcff`). Details unten (historisch).
 
 ## Scheibe ③ v2 — Konverter über computed styles (Branch `feat/scheibe3-v2-computed-style`, LOKAL, ungepusht, 5 Commits)
 
