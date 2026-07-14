@@ -61,8 +61,12 @@ export async function selectRepoFiles(rootDir, caps = CAPS) {
     } else if (isUiComponent(p) && counts.ui < caps.ui) {
       files.push({ path: p, content: await read(p, caps.uiBytes) });
       counts.ui++;
-    } else if ((isComponentFile(p) || isPageFile(p) || isLayoutFile(p)) && counts.other < caps.other) {
-      files.push({ path: p, content: '' }); // nur der Pfad zählt
+    } else if (isComponentFile(p) && counts.other < caps.other) {
+      // Komponenten-Code wird gehoben (Repo-Decompose) → Inhalt lesen, nicht nur den Pfad.
+      files.push({ path: p, content: await read(p, caps.uiBytes) });
+      counts.other++;
+    } else if ((isPageFile(p) || isLayoutFile(p)) && counts.other < caps.other) {
+      files.push({ path: p, content: '' }); // Seiten/Layouts werden nicht gehoben — nur der Pfad zählt
       counts.other++;
     }
   }

@@ -41,6 +41,9 @@ test('selectRepoFiles loads content only where needed', async () => {
   assert.match(byPath['tailwind.config.js'].content, /primary/);
   assert.match(byPath['src/styles.css'].content, /--color-ink/);
   assert.match(byPath['components/ui/button.tsx'].content, /Button/);
+  // Komponenten-Dateien werden jetzt mitgelesen (Repo-Decompose hebt ihren Code).
+  assert.match(byPath['components/Header.tsx'].content, /Header/);
+  // Seiten/Layouts bleiben pfad-only.
   assert.equal(byPath['app/layout.tsx'].content, '');
 });
 
