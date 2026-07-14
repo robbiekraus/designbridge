@@ -1,25 +1,40 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **13.07.2026** — **✅ SCHEIBE ③ (Figma-Export der KI-Bausteine) FERTIG GEBAUT, wartet auf Robs Figma-Rundlauf.** Scheibe ② wurde am 13.07. mit Robs OK gemergt & gepusht (`origin/main`); Slice-1-Feinschliff ebenfalls gemergt.
+Stand: **14.07.2026** — **✅ SCHEIBE ③ v2 (HTML→Figma über berechnete Stile) FERTIG GEBAUT & IM FIGMA-RUNDLAUF VON ROB BESTÄTIGT.** Zwei lokale Branches warten auf Robs Merge/Push-Entscheidung (siehe unten). Scheibe ③ v1 wurde am 13.07. gemergt/gepusht (`origin/main`).
 
-## Scheibe ③ — KI-Bausteine → echte Figma-Komponenten (Branch `feat/figma-export-slice3`, LOKAL, ungepusht)
-Brainstorm 13.07. mit Visual-Companion (Options-Mockups im Browser). Rob wählte **Option A + SVG** (deterministischer html→plan-Konverter, KEIN Bild-Fill/„tote Pixel", kein KI-generierter plan). Robs Leitplanke: **volle Atomic-Design-Hierarchie mitdenken** — Tokens → Atome → Moleküle → Organismen, jede Ebene bindet an die darunter; vorhandene Bausteine werden wiederverwendet (Instanzen), nicht nachgebaut. Spec `docs/superpowers/specs/2026-07-13-scheibe3-figma-export-design.md` + Plan (5 Tasks, schlanke Kontrakte) auf `main`.
+## Scheibe ③ v2 — Konverter über computed styles (Branch `feat/scheibe3-v2-computed-style`, LOKAL, ungepusht, 5 Commits)
 
-**Was gebaut wurde (subagent-getrieben, Sonnet-Implementer, Opus/Fable-Koordination, Diff-Check statt Einzel-Reviewer für Tempo):**
-- **Plugin** (`designbridge-plugin/src/writer/`): zwei neue PlanNode-Typen — `svg` → `figma.createNodeFromSvg` (Charts als **editierbare Vektoren**, kein Fidelity-Verlust — genau Robs Kernanliegen) und `component-ref` → `createInstance` der in Phase 5.2 erzeugten Komponenten, mit weichem `fallback`-Nachbau bei fehlender Komponente/Variante. Neue minimale Test-Infra (`npm run test:writer`, node:test + esbuild, KEINE neuen Deps) — Plugin hatte vorher gar keine Tests.
-- **Konverter** `web/src/lib/emit/htmlToPlan.js` (NEU, deterministisch, 0 Credits, DOMParser/jsdom): Tailwind-Subset→box/text (Spacing ×4, rounded/fontSize/fontWeight-Tabellen, arbitrary-Hex-Farben) · `<svg>`→svg-Node (foreignObject entfernt, 20k-Kappung) · **component-ref-Erkennung VOR box/text** (Port der Server-Heuristik: button→Button+Variante, input→Input/Suche, badge/chip/tag→Badge; nur wenn Name in `knownComponents`) → Atome-in-Molekülen-in-Organismen werden echte Instanzen · **Token-Bindung** (Farb-Hex→`{hex, token}` gegen `tokens.colors`, Style-Verknüpfung in Figma via bestehendem `applyFill`).
-- **Emitter** `emitFigmaComponents.js`: KI-Bausteine → `plan` statt `placeholder:true`, `source:'ai-interpreted'`, Reihenfolge Atome→Moleküle→Organismen (damit Verwender ihre Bausteine vorfinden), Konverter-Warnungen in den bestehenden Kanal.
+**Warum überhaupt v2:** Nach dem v1-Merge machte Rob den Figma-Rundlauf — Ergebnis „miserabel" (Charts leer, Tooltip = schwarzes Quadrat, Balken alle gleich hoch, Buttons/Segmented flach). Ursache am Code + empirisch im Browser verifiziert: v1-`htmlToPlan` las via `DOMParser` (abgekoppeltes Doc, **kein Layout/kein computed style**) nur ein Tailwind-Klassen-Subset. Und: Tailwind-**arbitrary-Werte** (`bg-[#4263EB]`) resolven in der Haupt-App gar nicht (nur die Library-**Vorschau** stimmte, weil sie im iframe die Tailwind-Play-CDN lädt). **Entscheidung Rob (13.07.):** Austauschformat = **Inline-Styles**; Konverter liest echte `getComputedStyle`-Werte. html.to.design als Ziel-/Messlatte (Rob liefert Vergleichsbild — noch offen).
 
-**Stand grün:** Server **119/119** · Web **256/256** · Plugin typecheck+build + **11/11** Writer-Tests. **Smoke (echte Demo-Fixture, nicht handgeschrieben) bestätigt:** „Line Chart Card"-html → plan mit echtem `svg`-Node (Chart bleibt Vektor); Button-im-Card → `component-ref` mit fallback (Hierarchie greift).
+**Was gebaut wurde (Spec `docs/superpowers/specs/2026-07-13-scheibe3-v2-computed-style-design.md`; Sonnet-Implementer parallel Web/Plugin, Opus-Koordination+Review, E2E-Verifikation im echten Browser durch Opus):**
+- **Web-Konverter** `htmlToPlan.js`: Offscreen-Mount in echten DOM + `getComputedStyle`; emittiert width/height/gap/strokeWeight/primaryAlign/counterAlign/align/lineHeight; externe SVG-Refs vor dem Mount gestrippt; wirft nie (try/finally-Cleanup).
+- **Plugin** `parsePayload.ts`+`renderPlan.ts`: Plan-Vertrag um o.g. Felder erweitert (optional, tolerant validiert, rückwärtskompatibel); Renderer setzt Sizing (FIXED+resize nach Kindern), itemSpacing, Alignment, text-align, lineHeight. Statuszeile zeigt jetzt Skip-**Gründe** (vorher nur Anzahl).
+- **Format-Umstellung** `interpretComponents.js`-Prompt (`html`=Inline-Styles, `jsx` bleibt Tailwind) + alle **14 Demo-Fixtures** neu geschrieben & angereichert (Achsen, Wert-Labels, Legenden, Zustände).
+- **E2E-Fund gefixt:** Payload ~150 kb > `express.json`-100kb-Default → 413; Limit auf 2 mb.
 
-**Finaler Gesamt-Review (Sonnet, frische Augen): „ship-ready, ja"** — Suiten selbst bestätigt, Test-Ehrlichkeit + Build-Reihenfolge gelobt, Server-Heuristik-Port sauber. Zwei Important-Findings **direkt gefixt** (Commits `1c4a9f9`, `881db89`, `f960364`): (a) **Falschfarben-Bug** — `htmlToPlan` band bei Slug-Kollision an einen existierenden, aber FALSCHEN Figma-Style (nicht bloß Hex-Rückfall) → jetzt bindet es an die disambiguierten Namen aus `normalizeTokens`, identisch zu `applyImport`; (b) **SVG-Härtung** — externe Bildrefs (`http(s)`, protokoll-relativ) werden aus dem SVG entfernt, interne Fragment-Refs (`#gradient` via `<use>`/`url()`) bleiben erhalten (sonst brächen Chart-Gradienten).
+**Rob-Rundlauf-Fixes (14.07., je test-first + payload-verifiziert):**
+- `1ca54d5` **semantische Slot-Wahl** (`pickTokens`/`pickTokenRefs`): surfaceMuted griff `foreground-muted` (Textfarbe → dunkler „disabled"-Search-Input); Font-Slot nahm das erste (Display-)Token → 32px-Riesen-Labels. Jetzt Flächen-Rollen bzw. Body-Font.
+- `9070c95` **Icon Button** bekommt echtes Plus-Icon-SVG statt Text-Kopie (planFor kannte den Icon-Fall nicht, emit längst).
+- `90b7e11` **Tooltip-Schwanz** als Inline-SVG-Dreieck statt `transform:rotate`-Quadrat (Konverter kennt kein transform); Regel auch im Live-Prompt.
 
-**Bekannte Limitierungen (akzeptiert, dokumentiert):** (1) `matchKnownComponent` prüft nur das Element selbst, keine Mehr-Element-Compound-Muster + nur Atom-Heuristiken portiert (Card/Formular/Navbar etc. werden nicht selbst zu `component-ref`, nur ihre atomaren Inhalte) — portiert vom Server, kein Regress. (2) `component-ref` kann auf einen „Vorlage fehlt"-Platzhalter zeigen (keine Warnung) — selten, kein Crash. (3) **Live-Figma-Rundlauf offen** — der echte Import ins Figma-Plugin ist nur manuell durch Rob verifizierbar (wie Phase 5.2); Payload-Struktur ist geprüft, das Rendern in Figma nicht.
+**Stand grün:** Server **120/120** · Web **291/291** · Plugin **34/34** + typecheck/build. **Von Rob in Figma bestätigt (14.07.):** Tooltip mit echter Sprechblasen-Spitze, Segmented Control mit aktivem Segment, Category-List mit farbigen Fortschrittsbalken, Balkenhöhen individuell, Search-Input hell, Button-Text weiß, Icon Button ≠ Button. Plugin-`dist/` neu gebaut (14.07. 09:57).
 
-**Nächste Schritte für Rob:** (1) Diff/Spec/Plan reviewen (Branch `feat/figma-export-slice3`, 5 Commits) → Merge/Push? (2) **Manueller Figma-Rundlauf**: Plugin bauen, Payload importieren, prüfen ob svg-Charts als Vektoren + component-refs als Instanzen ankommen. (3) Danach LETZTE Scheibe: Repo-Decompose. Optional: Token-Slug-Kollision als Fast-Follow, Varianten-Generierung für KI-Bausteine (Struktur liegt an).
+**Wichtige Betriebsnotiz (Figma-Rundlauf):** Nach API-Neuaufbau der Komponenten zeigt die Seiten-**Canvas** manchmal einen veralteten Raster-Stand, während das **Assets-Panel** korrekt rendert — kein Bug, Canvas mit `Cmd+0`/`Cmd+2` (zoom) oder Datei neu öffnen „wecken". Dev-Plugin nur in **Figma-Desktop**, Start via Rechtsklick-Canvas → Plugins → Entwicklung (Suche zeigt Dev-Plugins unzuverlässig). Bei „Fehlendes Manifest": `manifest.json` neu importieren.
+
+**Offen / nächste Schritte für Rob:**
+1. **Merge/Push-Entscheidung für ZWEI Branches** (Regel 5 — bewusst nicht gepusht): `feat/scheibe3-v2-computed-style` (5 Commits, diese Arbeit) **und** `fix/scan-upload-error-handling` (`95f529a`, Nicht-Bild-Upload → lesbarer 400-Fehler statt Safari-„string did not match"). Reihenfolge egal, beide sauber von `main`.
+2. **Donut-Feinschliff** (Fixture-Kosmetik): Ring ist noch gestreift statt drei sauberer Bögen 55/25/20 — Segment-SVG in `demo-interpretations.json` überarbeiten. Rein optisch, kein Code-Bug.
+3. **html.to.design-Zielbild** danebenlegen für das ehrliche Fidelity-Fazit (Robs Beitrag).
+4. Danach LETZTE Scheibe: **Repo-Decompose**.
+5. Kosmetik-Kleinkram: Plugin-Panel sagt noch „Sprint 2 — Codegen + Sync" (altes Branding).
 
 ---
 ## Alter Stand (Referenz)
+
+### Scheibe ③ v1 (13.07., gemergt/gepusht auf `origin/main`) — Branch war `feat/figma-export-slice3`
+Deterministischer html→plan-Konverter (Klassen-Raten, DOMParser) + Plugin-PlanNodes `svg`/`component-ref`. Von v2 (computed styles) abgelöst, weil das Klassen-Raten in Figma zu dünn war. Details im Git-Log / Spec `2026-07-13-scheibe3-figma-export-design.md`.
+
+### Noch älter
 
 Stand: **10.07.2026 (spät)** — Scheibe ② fertig (siehe unten, inzwischen gemergt).
 
