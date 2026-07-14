@@ -5,6 +5,7 @@ const MAP = {
   ai: { label: 'von KI', cls: 'bg-amber-100 text-amber-800' },
   rules: { label: 'nur Regeln', cls: 'bg-zinc-100 text-zinc-600' },
   interpreted: { label: 'von KI interpretiert', cls: 'bg-amber-100 text-amber-800' },
+  lifted: { label: 'aus Repo gehoben', cls: 'bg-blue-100 text-blue-700' },
 };
 
 export function sourceLabel(source) {

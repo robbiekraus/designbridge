@@ -11,4 +11,10 @@ describe('sourceLabel', () => {
     expect(sourceLabel(null)).toBeNull();
     expect(sourceLabel('xxx')).toBeNull();
   });
+  it('kennt die lifted-Variante', () => {
+    expect(sourceLabel('lifted').label).toBe('aus Repo gehoben');
+  });
+  it('bleibt für unbekannte Werte null', () => {
+    expect(sourceLabel('nope')).toBe(null);
+  });
 });
