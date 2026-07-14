@@ -22,9 +22,9 @@ export function sanitizeHtml(html) {
     .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*javascript:[^\s>]*/gi, '');
 }
 
-function buildPrompt(segments, hasFullImageFallback, hasStructure) {
+function buildPrompt(segments, hasFullImageFallback, hasStructure, hasCode) {
   const labels = segments.map((s) => s.label);
-  return `You are a UI reconstruction engine. Below you receive one cropped image OR the source HTML+CSS per component (in order), each preceded by its name. ${hasFullImageFallback ? 'For any component WITHOUT its own crop, use the full screenshot provided first.' : ''}
+  return `You are a UI reconstruction engine. Below you receive one cropped image OR the source HTML+CSS OR the component SOURCE CODE per component (in order), each preceded by its name. ${hasFullImageFallback ? 'For any component WITHOUT its own crop, use the full screenshot provided first.' : ''}
 
 For EACH component, reconstruct it as faithfully as possible to how it appears in ITS image.
 
@@ -42,7 +42,7 @@ Rules:
 - html must be fully self-contained: inline styles only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
 - Give charts and their containers explicit px sizes so bars/lines/segments have real dimensions (e.g. a bar container style="display:flex;align-items:flex-end;height:96px;gap:8px" with each bar carrying its own px height like style="height:64px;background:#4263EB").
 - For charts, reconstruct a recognizable static SVG (bars/line/donut) AND include the data details visible in the crop: axis tick labels, value/data labels on points or segments, the legend, and any center or total value. Not a live chart library, but not a bare shape either.
-- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element). Draw tooltip/callout pointer tails as a small inline SVG triangle (<svg><polygon .../></svg>) — NEVER with CSS border tricks or transform:rotate, those do not survive the design-tool export.${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into inline-styled html (and shadcn/Tailwind jsx) — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}
+- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element). Draw tooltip/callout pointer tails as a small inline SVG triangle (<svg><polygon .../></svg>) — NEVER with CSS border tricks or transform:rotate, those do not survive the design-tool export.${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into inline-styled html (and shadcn/Tailwind jsx) — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}${hasCode ? '\n- For components given as SOURCE CODE (React/shadcn/Tailwind): read the real component source and render a faithful DEFAULT state — preserve the real class names, cva variants, structure and any literal text; express the resulting look as inline-styled html (and keep the original shadcn/Tailwind flavour in jsx). Do not invent content the source does not imply.' : ''}
 - Keep each html snippet compact (one component).
 - Produce one entry per component, using its EXACT name.
 
@@ -53,8 +53,9 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
   const withStructure = segments.filter((s) => s.structure && s.structure.html);
+  const withCode = segments.filter((s) => s.structure && s.structure.code);
   const bare = segments.filter(
-    (s) => !(s.visual && s.visual.base64) && !(s.structure && s.structure.html)
+    (s) => !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code)
   );
   const hasFullImageFallback = bare.length > 0 && !!imagePath;
 
@@ -87,7 +88,14 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
       text: `${who}\nSOURCE HTML:\n${structure.html}\nRELEVANT CSS:\n${structure.css || '(none)'}`,
     });
   }
-  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0) });
+  // Code-Segmente (Repo-Import): Quellcode direkt als Textblock mitsenden.
+  for (const s of withCode) {
+    content.push({
+      type: 'text',
+      text: `Component: ${s.label}\nSOURCE CODE (${s.structure.lang}):\n${s.structure.code}`,
+    });
+  }
+  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0, withCode.length > 0) });
 
   const response = await c.messages.create({
     model: MODEL,

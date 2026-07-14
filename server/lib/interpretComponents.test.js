@@ -220,3 +220,30 @@ test('identische structure-Blöcke (Vollseiten-Fallback) gehen nur einmal in den
   assert.equal(occurrences, 1, 'Vollseiten-HTML darf nur einmal im Prompt stehen');
   assert.ok(text.includes('A, B'), 'beide Labels müssen am geteilten Block stehen');
 });
+
+test('Code-Segment: sendet SOURCE CODE, liefert html/jsx', async () => {
+  const seen = { text: '' };
+  const fakeClient = {
+    messages: {
+      create: async ({ messages }) => {
+        seen.text = JSON.stringify(messages[0].content);
+        return {
+          content: [{
+            text: JSON.stringify({
+              interpretations: [{ name: 'PricingCard', html: '<div style="color:#111">Pro</div>', jsx: 'export function PricingCard(){return <div/>}' }],
+            }),
+          }],
+        };
+      },
+    },
+  };
+  const segments = [{
+    id: 'seg_0', label: 'PricingCard', kind: 'component',
+    visual: null, structure: { code: 'export const PricingCard = () => <div>Pro</div>;', path: 'x.tsx', lang: 'tsx' },
+  }];
+  const out = await interpretComponents(null, null, segments, { client: fakeClient });
+  assert.match(seen.text, /SOURCE CODE/);
+  assert.equal(out.interpretations[0].name, 'PricingCard');
+  assert.match(out.interpretations[0].html, /Pro/);
+  assert.equal(out.failed.length, 0);
+});
