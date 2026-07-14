@@ -32,6 +32,7 @@ function Row({ item, picks, onRetryInterpret }) {
         <span className="font-medium text-zinc-900">{item.name}</span>
         <ConfidencePill value={item.confidence} />
         <SourcePill value={item.source} />
+        {item.lifted && <SourcePill value="lifted" />}
         {item.interpretedHtml && <SourcePill value="interpreted" />}
         {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
@@ -79,6 +80,16 @@ function Row({ item, picks, onRetryInterpret }) {
               <PreviewPlaceholder label="keine Vorschau" />
             )}
           </div>
+          {item.lifted && !item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && onRetryInterpret && (
+            <div className="pt-2">
+              <button
+                onClick={() => onRetryInterpret(item.name)}
+                className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+              >
+                Mit KI interpretieren
+              </button>
+            </div>
+          )}
           {item.interpretFailed && (
             <div className="flex items-center gap-2 pt-2 text-[11px] text-zinc-500">
               <span>Interpretation fehlgeschlagen.</span>

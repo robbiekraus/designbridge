@@ -118,4 +118,21 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     fireEvent.click(screen.getByText('Avatar'));
     expect(screen.queryByTitle('Vorschau: Avatar')).toBeNull();
   });
+
+  it('gehobener Baustein ohne Vorschau zeigt Pille + Interpret-Knopf', () => {
+    const onRetryInterpret = vi.fn();
+    const items = [{
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
+      lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
+      interpretFailed: false, interpretPending: false,
+    }];
+    render(<LibraryObjectList items={items} picks={{}} onRetryInterpret={onRetryInterpret} />);
+    // Pille ist im Kopf (immer sichtbar):
+    expect(screen.getByText('aus Repo gehoben')).toBeInTheDocument();
+    // Row aufklappen, dann Knopf klicken:
+    fireEvent.click(screen.getByText('PricingWidget'));
+    fireEvent.click(screen.getByRole('button', { name: /Mit KI interpretieren/ }));
+    expect(onRetryInterpret).toHaveBeenCalledWith('PricingWidget');
+  });
 });
