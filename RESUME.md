@@ -2,18 +2,14 @@
 
 Stand: **14.07.2026** — **✅ REPO-DECOMPOSE v1 + beide Fast-Follows FERTIG, GEPUSHT** (`origin/main` = `b391705`). Working Tree sauber, `main` == `origin/main`. Zweig A ist bis auf reine Kosmetik (Donut) abgearbeitet.
 
-> ## 🔀 WEGGABELUNG — hier startet die nächste Session (Rob wählt EINEN Zweig)
-> Die letzte *funktionale* Lücke ist zu (alle 3 Quellen Bild/URL/Repo haben die interpretierte Referenz). Ab hier zwei mögliche Richtungen — Rob entscheidet zu Beginn:
+> ## ✅ WEGGABELUNG ABGEARBEITET (beide Zweige fertig, 14.07.2026)
+>
+> **🏷️ NAMENSENTSCHEIDUNG: Das Produkt heißt künftig „Refracta"** (Rob, 14.07.) — Doku mit Markt, Verworfenen & Verfügbarkeits-Checks: `docs/2026-07-14-naming-positionierung.md`. **Nächstes Arbeitspaket = technische Umbenennung** (Repo, README, package.json, UI-Branding, CLAUDE.md) — bewusst eigene Session. Vorher Rob: Domains `refracta.design`/`.dev` registrieren.
 >
 > **Zweig A — App verbessern (Code). ✅ KOMPLETT ABGEARBEITET 14.07.** (a) FF1 `deepenRepoWithAi`/`path` + (b) FF2 Template-Namens-Kollision (`2c18530`, s.u.); (c) Plugin-„Sprint 2"-Branding entfernt (`b391705`); (d) **Donut gefixt (`458c09e`):** Ursache war NICHT die HTML-Optik (die stimmte), sondern Figmas SVG-Import rendert `stroke-dasharray` als Strichel-Muster → drei dasharray-Kreise durch echte Arc-Pfade (55/25/20) ersetzt (html+jsx) + Prompt-Regel „Donut/Ring/Pie = Arc-Pfade, nie dasharray" + Prompt-Test; (e) **URL-Fixtures repariert (`458c09e`):** alle 6 `html`-Felder waren noch v1-Tailwind-Klassen (beim 13.07.-Umbau übersehen) → Riesen-Lupe/nackte Elemente ohne Stylesheet + leerer Figma-Export; auf v2-Inline-Styles umgestellt, treu zur Demo-Site, `jsx` bleibt Tailwind; E2E-verifiziert (URL-Import in der App). Server 136/136 · Web 301/301.
 > - Einziger Rest: Robs html.to.design-Zielbild fürs Fidelity-Fazit (Robs Beitrag). ⚠️ Robs Donut-Figma-Rundlauf steht noch aus (Arc-Fix in Figma gegenprüfen).
 >
-> **Zweig B — Markt-Vergleich & Naming (Strategie, kein Code).** Positionierung, bevor irgendwas veröffentlicht wird:
-> - **Naming-Konflikt (WICHTIG):** auf Figma existiert schon ein Plugin **„Design-bridge"** („Stop rebuilding design systems by hand", 72 Nutzer) — quasi identischer Name + Versprechen; dazu „BI Bridge - Design to Data". → evtl. neuer App-Name, um nicht in Querelen zu geraten.
-> - **Tool-Vergleich:** html.to.design + das „Design-bridge"-Plugin — was tun sie, was übernehmen wir, wo sind wir besser/schlechter, wie grenzen wir uns ab?
-> - Startet mit Recherche/Brainstorm (Visual Companion anbieten), Output = ein Positionierungs-/Naming-Dokument, kein Code.
->
-> Beide Zweige sind unabhängig; Reihenfolge ist Robs Wahl. Meine Tendenz: **B zuerst** (ein Name-Konflikt wird teurer, je später man ihn anfasst; die App ist funktional fertig genug, um sie zu positionieren) — aber A ist genauso legitim, wenn Rob lieber am Produkt weiterbaut.
+> **Zweig B — Markt-Vergleich & Naming. ✅ ABGESCHLOSSEN 14.07.** Ergebnis in `docs/2026-07-14-naming-positionierung.md`: (1) Namens-Konflikt war GRÖSSER als notiert — neben „Design-bridge" (72 Nutzer) existieren **„DesignBridge"** (968 Nutzer, aktiv, AI-Context-Engine) und v. a. **Design Bridge and Partners** (WPP-Agentur, designbridge.com, Trademark-Risiko). (2) Wettbewerb kartiert (html.to.design = Fidelity-Messlatte, aber Einbahnstraße; unsere Lücke „3 Quellen → Library → beide Richtungen" ist real unbesetzt). (3) **Neuer Name: Refracta** — Prisma-Metapher (zerlegen+rekombinieren = Bidirektionalität), npm + @refracta + refracta.design/.dev + Figma-Community frei; Refractal (Robs Erstwahl) verworfen wegen aktivem KI-Startup refractal-ai.com; Refract pur verworfen (Recraft.ai-Nähe, Domains weg).
 
 ## Repo-Decompose v1 — GEMERGT & GEPUSHT (`origin/main` = `760d32b`, 17 Commits + 3 Doku-Commits)
 
