@@ -9,7 +9,12 @@
     "server": "node --watch server/index.js",
     "web": "cd web && npm run dev",
     "install:all": "npm install && cd web && npm install",
-    "test:server": "node --test 'server/**/*.test.js'"
+    "test:server": "node --test 'server/**/*.test.js'",
+    "build": "cd web && npm install && npm run build",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
