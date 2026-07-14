@@ -9,6 +9,7 @@ import Patterns from './pages/Patterns.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
+import InterpretAllBar from './components/library/InterpretAllBar.jsx';
 import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport } from './lib/interpret.js';
 
 export default function App() {
@@ -150,6 +151,9 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
           <div className="p-8">
             {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
+            {lastImport && ['Atomics', 'Components', 'Patterns'].includes(page) && (
+              <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} />
+            )}
             {renderPage()}
           </div>
         </main>
