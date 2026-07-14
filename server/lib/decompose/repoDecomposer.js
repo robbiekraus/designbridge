@@ -26,6 +26,25 @@ export const repoDecomposer = {
   },
 };
 
+// deepenRepoWithAi liefert Items ohne `path` (Claudes JSON-Schema kennt keinen).
+// Ohne path liftet liftRepoInventory nichts. Diese Funktion mappt den path per
+// Name aus der regelbasierten Baseline auf die merged Items zurück (mutiert sie),
+// damit danach der echte Code gehoben werden kann. KI-ergänzte Items ohne
+// Baseline-Match bleiben path-los (kein realer Quellcode zum Heben). Ein bereits
+// gesetzter path wird nie überschrieben.
+// Grenze: von der KI umbenannte Bausteine (Name ≠ Baseline-Name) matchen nicht
+// und verlieren ihren Code — akzeptiert, da /repo/ai credit-gated & optional ist.
+export function applyBaselinePaths(items, baseline) {
+  const pathByName = new Map();
+  for (const b of baseline ?? []) {
+    if (b?.name && b.path && !pathByName.has(b.name)) pathByName.set(b.name, b.path);
+  }
+  for (const item of items ?? []) {
+    if (!item.path && pathByName.has(item.name)) item.path = pathByName.get(item.name);
+  }
+  return items;
+}
+
 // Für die Scan-Route: hebt den (capped) Code direkt in die Inventar-Items.
 // Mutiert die übergebenen Items (gleiche Referenzen wie result.atomics/components).
 export async function liftRepoInventory(files, inventory, { cap = CODE_CAP } = {}) {

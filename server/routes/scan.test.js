@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import scanRouter from './scan.js';
-import { liftRepoInventory } from '../lib/decompose/repoDecomposer.js';
+import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
 
 // Router in einer frischen App auf einem Ephemeral-Port hochziehen — testet die
 // echte Middleware-Kette inkl. Multer, ohne den Produktions-Server zu starten.
@@ -39,4 +39,30 @@ test('liftRepoInventory hebt Scan-Inventar-Code (Verdrahtung /repo)', async () =
   await liftRepoInventory(files, inv);
   assert.equal(inv[0].sourceCode, files[0].content);
   assert.equal(inv[0].lang, 'tsx');
+});
+
+test('applyBaselinePaths mappt path per Name zurück → KI-merged Items behalten Code (FF1)', async () => {
+  // deepenRepoWithAi liefert Items OHNE path (Schema kennt kein path).
+  const files = [{ path: 'src/ui/button.tsx', content: 'export const Button=()=><button/>;' }];
+  const baseline = [{ name: 'Button', path: 'src/ui/button.tsx', source: 'rules' }];
+  const merged = [{ name: 'Button', source: 'rules+ai', confidence: 'high' }];
+
+  applyBaselinePaths(merged, baseline);
+  await liftRepoInventory(files, merged);
+
+  assert.equal(merged[0].path, 'src/ui/button.tsx');
+  assert.equal(merged[0].sourceCode, files[0].content);
+  assert.equal(merged[0].lang, 'tsx');
+});
+
+test('applyBaselinePaths lässt KI-ergänzte Items ohne Baseline-Match unberührt', () => {
+  const merged = [{ name: 'FrischErfunden', source: 'ai' }];
+  applyBaselinePaths(merged, [{ name: 'Button', path: 'src/ui/button.tsx' }]);
+  assert.equal(merged[0].path, undefined);
+});
+
+test('applyBaselinePaths überschreibt einen bereits vorhandenen path nicht', () => {
+  const merged = [{ name: 'Button', path: 'echter/pfad.tsx' }];
+  applyBaselinePaths(merged, [{ name: 'Button', path: 'baseline/pfad.tsx' }]);
+  assert.equal(merged[0].path, 'echter/pfad.tsx');
 });

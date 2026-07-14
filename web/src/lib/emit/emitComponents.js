@@ -42,13 +42,16 @@ export function emitComponents(result, kind) {
     if (kind && kind !== itemKind) continue;
     const items = Array.isArray(raw[rawKey]) ? raw[rawKey] : [];
     for (const item of items) {
-      const tpl = matchTemplate(item.name);
+      const lifted = Boolean(item.sourceCode);
+      // Gehobener Repo-Code ist maßgeblich — ein zufälliger Template-Namenstreffer
+      // (z. B. "CardSkeleton" → card) darf ihn NICHT auf die generische
+      // Template-Vorschau kapern und den Interpret-Knopf verstecken (FF2).
+      const tpl = lifted ? null : matchTemplate(item.name);
       const slug = slugify(item.name) || 'component';
       const pascal = toPascal(slug) || 'Component';
       const interp = !tpl ? (result?.interpretations?.[item.name] ?? null) : null;
       const unresolved = !tpl && !interp;
       const failedListed = (result?.interpretFailed ?? []).includes(item.name);
-      const lifted = Boolean(item.sourceCode);
       out.push({
         name: item.name,
         slug,

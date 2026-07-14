@@ -16,7 +16,7 @@ import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
 import { putImage } from '../lib/imageStore.js';
 import { putPage } from '../lib/pageStore.js';
 import { putRepo } from '../lib/repoStore.js';
-import { liftRepoInventory } from '../lib/decompose/repoDecomposer.js';
+import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
 
 const router = express.Router();
 
@@ -203,7 +203,11 @@ router.post('/repo/ai', async (req, res) => {
     result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
     // Wie /repo: Code heben + Dateien im Store — sonst verliert „Mit KI vertiefen"
     // den gehobenen Code UND das import_id (→ Interpretation danach unmöglich).
-    await liftRepoInventory(files, [...result.atomics, ...result.components]);
+    // deepenRepoWithAi droppt `path` (Schema kennt keinen) → erst per Name aus der
+    // Baseline zurückmappen, sonst ist der Lift ein No-op (FF1).
+    const mergedInv = [...result.atomics, ...result.components];
+    applyBaselinePaths(mergedInv, [...baseline.atomics, ...baseline.components]);
+    await liftRepoInventory(files, mergedInv);
     result.meta = {
       ...result.meta, model: 'repo-ingest+ai', ai_deepened: true,
       import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }),
