@@ -183,8 +183,17 @@ window.onmessage = (event: MessageEvent) => {
       s.componentsUpdated ? `${s.componentsUpdated} Komponenten aktualisiert` : '',
       s.placeholders ? `${s.placeholders} Platzhalter` : '',
     ].filter(Boolean);
-    const skipped = s.skipped.length ? ` · ${s.skipped.length} übersprungen` : '';
-    setImportStatus(`Fertig — ${parts.join(', ')}${skipped}.`, 'success');
+    // Übersprungene Einträge MIT Grund anzeigen — vorher wurde nur gezählt und die
+    // Fehlermeldungen aus buildComponents (result.skipped) verschluckt (Debug 14.07.).
+    if (s.skipped.length) {
+      const details = s.skipped.map((line) => `• ${line}`).join('\n');
+      setImportStatus(
+        `Fertig — ${parts.join(', ')} · ${s.skipped.length} übersprungen:\n${details}`,
+        'error'
+      );
+    } else {
+      setImportStatus(`Fertig — ${parts.join(', ')}.`, 'success');
+    }
     importBtn.disabled = false;
     importFetchBtn.disabled = false;
     return;
