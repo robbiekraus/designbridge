@@ -73,4 +73,6 @@ Zwei getrennte Zwecke, zwei einfache Wege — kein „Verlinken"/Setup nötig:
 - Repo-Regel 7: nach Datei-Writes `find . -name '._*' -delete` (AppleDouble)
 
 ## Wiedereinstiegs-Prompt (nächste Session)
-> „Testing-Phase Designbridge: Lies RESUME.md. Zuerst Connect-Figma-Stub entschärfen (Option B), dann die E2E-Checkliste auf der Live-App abarbeiten. Mein Test-Repo: <GitHub-URL>. Mein Export-Zielprojekt: <Name>."
+> „Designbridge: Lies RESUME.md. Testing-Phase Runde 1+2 sind durch (8 Fixes live, Stand `443d6c2`). Weiter mit: (a) Export alle 4 Formate + Zip testen und Export-Verifikation in rk-landing lokal, (b) Figma-Rundlauf — vorher Plugin-manifest/allowedDomains auf die Live-URL umstellen."
+
+**Separater Research-Task angelegt (15.07. spät):** „KI-Modell-Research für Designbridge-Interpretationen" — vergleicht Gemini-Tiers/Claude/Alternativen nach Treffsicherheit, Kosten und Payment-Hürde (Robs Anthropic-Payment scheitert an der Bank-Verifizierung; Ausweg prüfen, z. B. bezahlter Gemini-Tier). Deliverable: Entscheidungs-Doc unter docs/. Letzte Fixes Runde 2 (`443d6c2`): gleichnamige Bausteine werden verschmolzen (3× „button" → 1 mit Varianten) + Icon-Regel im Interpret-Prompt (keine grauen Platzhalter-Kästchen mehr). Robs Vergleichs-Import des Contact-Screenshots steht noch aus.
