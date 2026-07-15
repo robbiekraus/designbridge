@@ -47,7 +47,7 @@ export async function deepenRepoWithAi(files, ruleList, { client } = {}) {
   const { digest, truncated } = buildRepoDigest(files);
   const response = await c.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: [{ role: 'user', content: [{ type: 'text', text: buildPrompt(digest, ruleList) }] }],
   });
   const text = response.content.map((b) => b.text || '').join('');

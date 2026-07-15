@@ -68,7 +68,7 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
   const { json: safeRules, trimmed: rulesTrimmed } = trimRuleList(ruleList, MAX_RULES);
   const response = await c.messages.create({
     model: MODEL,
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: [{ role: 'user', content: [{ type: 'text', text: buildPrompt(trimmed, safeCss, safeRules) }] }],
   });
   const text = response.content.map((b) => b.text || '').join('');
@@ -77,7 +77,10 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
   try {
     parsed = JSON.parse(clean);
   } catch {
-    throw new Error(`Claude returned invalid JSON. Raw: ${text.slice(0, 300)}`);
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen.');
+    }
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
   const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
   if (truncated) warnings.push('HTML war groß und wurde für die KI-Analyse gekürzt.');

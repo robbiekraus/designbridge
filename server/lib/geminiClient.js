@@ -68,10 +68,14 @@ export function makeGeminiClient({
             throw lastError;
           }
 
-          const parts = data.candidates?.[0]?.content?.parts ?? [];
+          const candidate = data.candidates?.[0] ?? {};
+          const parts = candidate.content?.parts ?? [];
           return {
             content: parts.map((p) => ({ type: 'text', text: p.text ?? '' })),
             model: data.modelVersion || m,
+            // Anthropic-kompatibel: Abschneiden am Token-Limit muss für die
+            // Callsites erkennbar sein, sonst parsen sie halbes JSON.
+            stop_reason: candidate.finishReason === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn',
           };
         }
         throw lastError;

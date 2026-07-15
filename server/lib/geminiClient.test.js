@@ -63,6 +63,34 @@ test('makeGeminiClient mappt die Gemini-Antwort auf die Anthropic-Shape', async 
   assert.equal(res.model, 'gemini-2.5-flash');
 });
 
+test('makeGeminiClient meldet abgeschnittene Antworten als stop_reason max_tokens', async () => {
+  const { impl } = fakeFetch({
+    body: {
+      candidates: [{ content: { parts: [{ text: '{"colors": [{' }] }, finishReason: 'MAX_TOKENS' }],
+      modelVersion: 'gemini-2.5-flash',
+    },
+  });
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  const res = await client.messages.create({ max_tokens: 100, messages: IMAGE_MSG });
+
+  assert.equal(res.stop_reason, 'max_tokens');
+});
+
+test('makeGeminiClient meldet vollständige Antworten als stop_reason end_turn', async () => {
+  const { impl } = fakeFetch({
+    body: {
+      candidates: [{ content: { parts: [{ text: '{"ok":true}' }] }, finishReason: 'STOP' }],
+      modelVersion: 'gemini-2.5-flash',
+    },
+  });
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  const res = await client.messages.create({ max_tokens: 100, messages: IMAGE_MSG });
+
+  assert.equal(res.stop_reason, 'end_turn');
+});
+
 test('makeGeminiClient wirft bei HTTP-Fehler mit Googles Meldung', async () => {
   const { impl } = fakeFetch({
     status: 429,

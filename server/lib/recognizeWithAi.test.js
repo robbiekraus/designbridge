@@ -23,7 +23,15 @@ test('throws a clear error on invalid JSON', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: 'not json' }] }) } };
   await assert.rejects(
     () => recognizeWithAi('<x>', '', { atomics: [], components: [], patterns: [] }, { client }),
-    /invalid JSON/
+    /kein gültiges JSON/
+  );
+});
+
+test('abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
+  const client = { messages: { create: async () => ({ content: [{ text: '{"atomics": [{' }], stop_reason: 'max_tokens' }) } };
+  await assert.rejects(
+    () => recognizeWithAi('<x>', '', { atomics: [], components: [], patterns: [] }, { client }),
+    /abgeschnitten.*erneut/s
   );
 });
 

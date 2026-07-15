@@ -33,4 +33,38 @@ test('analyzeScreenshot: prompt asks for bbox and passes it through', async () =
   const promptText = captured.messages[0].content.map((b) => b.text || '').join('');
   assert.match(promptText, /bbox/);
   assert.equal(result.components[0].bbox.w, 0.3);
+  // 4096 war zu knapp für token-reiche Screenshots (Live-Fund 15.07.):
+  // Gemini schnitt mitten im JSON ab.
+  assert.ok(captured.max_tokens >= 16384, `max_tokens zu klein: ${captured.max_tokens}`);
+});
+
+test('analyzeScreenshot: abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
+  const imgPath = tmpImage();
+  const fakeClient = {
+    messages: {
+      create: async () => ({
+        content: [{ text: '{"summary": {"source_description": "A SaaS dashboard"}, "tokens": { "colors": [ {' }],
+        stop_reason: 'max_tokens',
+      }),
+    },
+  };
+  await assert.rejects(
+    () => analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient }),
+    /abgeschnitten.*erneut/s
+  );
+  fs.unlinkSync(imgPath);
+});
+
+test('analyzeScreenshot: ungültiges JSON ohne Abschneiden → deutsche Meldung mit Antwort-Anfang', async () => {
+  const imgPath = tmpImage();
+  const fakeClient = {
+    messages: {
+      create: async () => ({ content: [{ text: 'Hier ist das Ergebnis: {kaputt' }], stop_reason: 'end_turn' }),
+    },
+  };
+  await assert.rejects(
+    () => analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient }),
+    /kein gültiges JSON.*Hier ist das Ergebnis/s
+  );
+  fs.unlinkSync(imgPath);
 });

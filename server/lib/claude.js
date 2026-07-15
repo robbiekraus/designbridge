@@ -54,7 +54,7 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
 
   const response = await c.messages.create({
     model: 'claude-sonnet-4-5',
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: [{
       role: 'user',
       content: [
@@ -75,7 +75,10 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   try {
     parsed = JSON.parse(clean);
   } catch (e) {
-    throw new Error(`Claude returned invalid JSON. Raw response: ${text.slice(0, 300)}`);
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen, ggf. mit einem kleineren Bildausschnitt.');
+    }
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
 
   return { ...parsed, meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed } };
