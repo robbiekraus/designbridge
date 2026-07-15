@@ -11,7 +11,9 @@ const DEFAULT_MODEL = 'gemini-flash-latest';
 
 // Ausweich-Kette bei 404 (Modell weg) / 429 / 503 ("high demand", Live-Fund
 // 15.07.): Free-Tier-Spitzen treffen einzelne Modelle, selten alle zugleich.
-const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'];
+// Reihenfolge = Qualität: flash-lite erfand bei Interpretationen generische
+// Inhalte statt des echten Bildausschnitts (Testphase 15.07.) → letzter Ausweg.
+const FALLBACK_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite'];
 const RETRYABLE = new Set([404, 429, 503]);
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 

@@ -135,7 +135,9 @@ test('makeGeminiClient weicht bei 503/404 automatisch auf Fallback-Modelle aus',
 
   assert.equal(calls.length, 2);
   assert.match(calls[0], /gemini-flash-latest:generateContent/);
-  assert.doesNotMatch(calls[1], /gemini-flash-latest/); // zweiter Versuch = anderes Modell
+  // Erster Ausweich = das STÄRKERE Modell (flash-lite erfand bei Interpretationen
+  // generische Inhalte, Qualitäts-Fund Testphase 15.07.) — lite nur als letzter Ausweg.
+  assert.match(calls[1], /gemini-3-flash-preview:generateContent/);
   assert.equal(res.content[0].text, '{"ok":1}');
 });
 
