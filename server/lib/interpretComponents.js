@@ -5,7 +5,7 @@ import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
 
-const MODEL = 'claude-sonnet-4-5';
+const MODEL = 'claude-sonnet-5';
 
 export function sanitizeHtml(html) {
   return String(html ?? '')

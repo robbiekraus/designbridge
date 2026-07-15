@@ -1,7 +1,7 @@
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
 
-const MODEL = 'claude-sonnet-4-5';
+const MODEL = 'claude-sonnet-5';
 const MAX_HTML = 20000;
 const MAX_CSS = 20000;
 const MAX_RULES = 8000;

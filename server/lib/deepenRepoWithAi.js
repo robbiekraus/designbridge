@@ -2,7 +2,7 @@ import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
 import { isTailwindConfig, isUiComponent } from './repoFilePatterns.js';
 
-const MODEL = 'claude-sonnet-4-5';
+const MODEL = 'claude-sonnet-5';
 const MAX_DIGEST = 30000;
 
 export function buildRepoDigest(files) {

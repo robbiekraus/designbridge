@@ -74,7 +74,7 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   const t0 = Date.now();
 
   const response = await c.messages.create({
-    model: 'claude-sonnet-4-5',
+    model: 'claude-sonnet-5',
     max_tokens: 16384,
     messages: [{
       role: 'user',
@@ -106,6 +106,6 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   return {
     ...parsed,
     tokens: normalizeTokenUnits(parsed.tokens),
-    meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed },
+    meta: { model: response.model ?? 'claude-sonnet-5', elapsed_ms: elapsed },
   };
 }
