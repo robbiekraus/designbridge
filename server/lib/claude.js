@@ -75,10 +75,17 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   try {
     parsed = JSON.parse(clean);
   } catch (e) {
+    // Volltext in die Server-Logs — ohne ihn ist die Ursache nicht diagnostizierbar.
+    console.error(`[scan] KI-Antwort unparsebar (stop_reason=${response.stop_reason}, model=${response.model}, ${text.length} Zeichen). Ende der Antwort: …${text.slice(-300)}`);
     if (response.stop_reason === 'max_tokens') {
       throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen, ggf. mit einem kleineren Bildausschnitt.');
     }
-    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
+    const probeErr = new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
+    // TEMP-SONDE (Testphase 15.07.): Roh-Antwort für die Fehlersuche mitgeben — wieder ausbauen!
+    probeErr.rawText = text;
+    probeErr.stopReason = response.stop_reason;
+    probeErr.usedModel = response.model;
+    throw probeErr;
   }
 
   return { ...parsed, meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed } };
