@@ -31,6 +31,26 @@ test('captures inline style="" attributes and survives a broken stylesheet', asy
   assert.ok(css.includes('color:#fff'));
 });
 
+test('greift keine data-style= o. ä. Attribute als Inline-Styles ab (Live-Fund linear.app 15.07.)', async () => {
+  const html = '<div data-style="a" style="color:#fff"></div>';
+  const fetchImpl = mockFetch({ 'http://x/': html });
+  const { css } = await fetchSite('http://x/', { fetchImpl });
+  assert.ok(css.includes('color:#fff'));
+  assert.ok(!css.includes('{ a }'));
+});
+
+test('überspringt unparsebare Stylesheets, behält die lesbaren und zählt mit', async () => {
+  const html = '<style>.ok{color:#111}</style><link rel="stylesheet" href="/broken.css">';
+  const fetchImpl = mockFetch({
+    'http://x/': html,
+    'http://x/broken.css': 'a{{{ definitiv kein css',
+  });
+  const { css, skippedStylesheets } = await fetchSite('http://x/', { fetchImpl });
+  assert.ok(css.includes('.ok{color:#111}'));
+  assert.ok(!css.includes('definitiv kein css'));
+  assert.equal(skippedStylesheets, 1);
+});
+
 test('throws a clear error when the page itself is unreachable', async () => {
   const fetchImpl = mockFetch({});
   await assert.rejects(() => fetchSite('http://x/', { fetchImpl }), /HTTP 404/);

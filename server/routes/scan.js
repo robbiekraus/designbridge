@@ -119,8 +119,11 @@ router.post('/url', async (req, res) => {
   }
   try {
     console.log(`[scan/url] Fetching ${url}`);
-    const { html, css } = await fetchSite(url);
+    const { html, css, skippedStylesheets } = await fetchSite(url);
     const result = ingestCss(css, { sourceUrl: url });
+    if (skippedStylesheets > 0) {
+      result.warnings.push(`${skippedStylesheets} Stylesheet(s) waren nicht lesbar und wurden übersprungen — einzelne Tokens können fehlen.`);
+    }
     const rec = recognizeComponents(html);
     result.atomics = rec.atomics;
     result.components = rec.components;
