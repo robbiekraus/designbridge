@@ -8,6 +8,11 @@
 // Hintergrund: gemini-2.5-flash ist für neue Konten abgeschaltet (404,
 // Live-Fund 15.07.) — feste Versionen altern, der Alias nicht.
 const DEFAULT_MODEL = 'gemini-flash-latest';
+
+// Ausweich-Kette bei 404 (Modell weg) / 429 / 503 ("high demand", Live-Fund
+// 15.07.): Free-Tier-Spitzen treffen einzelne Modelle, selten alle zugleich.
+const FALLBACK_MODELS = ['gemini-3.1-flash-lite', 'gemini-3-flash-preview'];
+const RETRYABLE = new Set([404, 429, 503]);
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Anthropic-Content-Blöcke → Gemini-Parts (Reihenfolge bleibt erhalten).
@@ -46,23 +51,30 @@ export function makeGeminiClient({
         };
         if (params.system) body.systemInstruction = { parts: [{ text: params.system }] };
 
-        const res = await fetchImpl(`${BASE_URL}/${model}:generateContent`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify(body),
-        });
+        const candidates = [model, ...FALLBACK_MODELS.filter((m) => m !== model)];
+        let lastError;
+        for (const m of candidates) {
+          const res = await fetchImpl(`${BASE_URL}/${m}:generateContent`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify(body),
+          });
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          const msg = data?.error?.message || 'unbekannter Fehler';
-          throw new Error(`Gemini-API-Fehler (HTTP ${res.status}): ${msg}`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = data?.error?.message || 'unbekannter Fehler';
+            lastError = new Error(`Gemini-API-Fehler (HTTP ${res.status}): ${msg}`);
+            if (RETRYABLE.has(res.status)) continue; // nächstes Modell probieren
+            throw lastError;
+          }
+
+          const parts = data.candidates?.[0]?.content?.parts ?? [];
+          return {
+            content: parts.map((p) => ({ type: 'text', text: p.text ?? '' })),
+            model: data.modelVersion || m,
+          };
         }
-
-        const parts = data.candidates?.[0]?.content?.parts ?? [];
-        return {
-          content: parts.map((p) => ({ type: 'text', text: p.text ?? '' })),
-          model: data.modelVersion || model,
-        };
+        throw lastError;
       },
     },
   };

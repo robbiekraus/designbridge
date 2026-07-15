@@ -76,6 +76,38 @@ test('makeGeminiClient wirft bei HTTP-Fehler mit Googles Meldung', async () => {
   );
 });
 
+test('makeGeminiClient weicht bei 503/404 automatisch auf Fallback-Modelle aus', async () => {
+  const calls = [];
+  const impl = async (url, opts) => {
+    calls.push(url);
+    if (calls.length === 1) {
+      return { ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) };
+    }
+    return {
+      ok: true, status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: '{"ok":1}' }] } }], modelVersion: 'fallback-modell' }),
+    };
+  };
+  const client = makeGeminiClient({ apiKey: 'g-key', model: 'gemini-flash-latest', fetchImpl: impl });
+
+  const res = await client.messages.create({ max_tokens: 10, messages: IMAGE_MSG });
+
+  assert.equal(calls.length, 2);
+  assert.match(calls[0], /gemini-flash-latest:generateContent/);
+  assert.doesNotMatch(calls[1], /gemini-flash-latest/); // zweiter Versuch = anderes Modell
+  assert.equal(res.content[0].text, '{"ok":1}');
+});
+
+test('makeGeminiClient: wenn alle Modelle scheitern, kommt der letzte Fehler', async () => {
+  const impl = async () => ({ ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) });
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 10, messages: IMAGE_MSG }),
+    /Gemini.*503/s
+  );
+});
+
 test('makeGeminiClient: reiner Text-Content (String) wird als Text-Part gesendet', async () => {
   const { impl, calls } = fakeFetch();
   const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
