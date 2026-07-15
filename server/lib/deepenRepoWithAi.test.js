@@ -30,7 +30,7 @@ test('throws a clear error on invalid JSON', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: 'not json' }] }) } };
   await assert.rejects(
     () => deepenRepoWithAi(FILES, { atomics: [], components: [], patterns: [] }, { client }),
-    /invalid JSON/
+    /kein gültiges JSON/
   );
 });
 

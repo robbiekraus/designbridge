@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
+import { extractJson } from './aiJson.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -69,23 +70,17 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
 
   const elapsed = Date.now() - t0;
   const text = response.content.map(b => b.text || '').join('');
-  const clean = text.replace(/```json\n?|```\n?/g, '').trim();
 
   let parsed;
   try {
-    parsed = JSON.parse(clean);
+    parsed = extractJson(text);
   } catch (e) {
-    // Volltext in die Server-Logs — ohne ihn ist die Ursache nicht diagnostizierbar.
+    // Volltext-Diagnose in die Server-Logs — ohne sie ist die Ursache nicht auffindbar.
     console.error(`[scan] KI-Antwort unparsebar (stop_reason=${response.stop_reason}, model=${response.model}, ${text.length} Zeichen). Ende der Antwort: …${text.slice(-300)}`);
     if (response.stop_reason === 'max_tokens') {
       throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen, ggf. mit einem kleineren Bildausschnitt.');
     }
-    const probeErr = new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
-    // TEMP-SONDE (Testphase 15.07.): Roh-Antwort für die Fehlersuche mitgeben — wieder ausbauen!
-    probeErr.rawText = text;
-    probeErr.stopReason = response.stop_reason;
-    probeErr.usedModel = response.model;
-    throw probeErr;
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
 
   return { ...parsed, meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed } };

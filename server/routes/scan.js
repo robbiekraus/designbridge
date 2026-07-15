@@ -106,11 +106,7 @@ router.post('/image', uploadImage, async (req, res) => {
       }
     } else {
       fs.unlink(req.file.path, () => {});
-      // TEMP-SONDE (Testphase 15.07.): Roh-Antwort der KI zur Fehlersuche mitgeben — wieder ausbauen!
-      res.status(500).json({
-        error: err.message,
-        ...(err.rawText ? { probe: { raw: err.rawText, stop_reason: err.stopReason, model: err.usedModel } } : {}),
-      });
+      res.status(500).json({ error: err.message });
     }
   }
 });

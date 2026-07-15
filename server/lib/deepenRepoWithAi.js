@@ -1,4 +1,5 @@
 import { getAiClient } from './aiClient.js';
+import { extractJson } from './aiJson.js';
 import { isTailwindConfig, isUiComponent } from './repoFilePatterns.js';
 
 const MODEL = 'claude-sonnet-4-5';
@@ -51,12 +52,14 @@ export async function deepenRepoWithAi(files, ruleList, { client } = {}) {
     messages: [{ role: 'user', content: [{ type: 'text', text: buildPrompt(digest, ruleList) }] }],
   });
   const text = response.content.map((b) => b.text || '').join('');
-  const clean = text.replace(/```json\n?|```\n?/g, '').trim();
   let parsed;
   try {
-    parsed = JSON.parse(clean);
+    parsed = extractJson(text);
   } catch {
-    throw new Error(`Claude returned invalid JSON. Raw: ${text.slice(0, 300)}`);
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen.');
+    }
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
   const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
   if (truncated) warnings.push('Repo-Digest war groß und wurde für die KI-Analyse gekürzt.');

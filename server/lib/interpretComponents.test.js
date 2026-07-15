@@ -98,7 +98,7 @@ test('ungültiges JSON von Claude wirft verständlichen Fehler', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: 'Sorry, kann ich nicht.' }] }) } };
   await assert.rejects(
     () => interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client }),
-    /invalid JSON/
+    /kein gültiges JSON/
   );
 });
 

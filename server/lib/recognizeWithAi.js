@@ -1,4 +1,5 @@
 import { getAiClient } from './aiClient.js';
+import { extractJson } from './aiJson.js';
 
 const MODEL = 'claude-sonnet-4-5';
 const MAX_HTML = 20000;
@@ -72,10 +73,9 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
     messages: [{ role: 'user', content: [{ type: 'text', text: buildPrompt(trimmed, safeCss, safeRules) }] }],
   });
   const text = response.content.map((b) => b.text || '').join('');
-  const clean = text.replace(/```json\n?|```\n?/g, '').trim();
   let parsed;
   try {
-    parsed = JSON.parse(clean);
+    parsed = extractJson(text);
   } catch {
     if (response.stop_reason === 'max_tokens') {
       throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen.');

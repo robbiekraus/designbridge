@@ -3,6 +3,7 @@
 // Umsetzung { html, jsx }. Injizierbarer Client wie recognizeWithAi.js.
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
+import { extractJson } from './aiJson.js';
 
 const MODEL = 'claude-sonnet-4-5';
 
@@ -105,10 +106,14 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   });
 
   const text = response.content.map((b) => b.text || '').join('');
-  const clean = text.replace(/```json\n?|```\n?/g, '').trim();
   let parsed;
-  try { parsed = JSON.parse(clean); }
-  catch { throw new Error(`Claude returned invalid JSON. Raw: ${text.slice(0, 300)}`); }
+  try { parsed = extractJson(text); }
+  catch {
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen.');
+    }
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
+  }
 
   const byName = new Map((parsed.interpretations ?? []).map((i) => [String(i.name ?? '').trim(), i]));
   const interpretations = [];
