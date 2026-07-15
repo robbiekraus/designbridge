@@ -30,6 +30,12 @@ app.get('/api/health', (req, res) => {
     anthropic_key_configured: hasKey, // Back-Compat (Web-UI liest dieses Feld)
     ai_key_configured: aiKeyConfigured(),
     ai_provider: aiProviderName(),
+    // Temporäre Env-Sonde (Railway-Variable kam nicht an, 15.07.): nur Namen
+    // + Wertlänge, NIEMALS der Key selbst. Nach Diagnose wieder entfernen.
+    env_probe: {
+      gemini_var_names: Object.keys(process.env).filter(k => k.toUpperCase().includes('GEMINI')),
+      gemini_key_length: (process.env.GEMINI_API_KEY || '').length
+    },
     version: '0.1.1'
   });
 });
