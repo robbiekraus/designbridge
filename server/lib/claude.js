@@ -37,6 +37,26 @@ Rules:
 - Be generous: extract everything visible, even partial elements
 - For every atomic/component/pattern add "bbox": a TIGHT bounding box around that element AS IT APPEARS in the screenshot, as fractions of image size: x,y = top-left corner (0..1), w,h = width,height (0..1). If unsure, give your best estimate.`;
 
+// Gemini nimmt die Prompt-Formulierung "px value" wörtlich und liefert "64px"
+// statt 64 (Claude gab nackte Zahlen) — die UI hängt selbst px an → "64pxpx"
+// und kaputte fontSize-Styles (Live-Fund 15.07.). Einheiten hier abstreifen,
+// damit die Shape modellunabhängig stabil bleibt.
+const pxNum = (v) => {
+  if (typeof v === 'number') return v;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : v;
+};
+
+function normalizeTokenUnits(tokens) {
+  if (!tokens) return tokens;
+  for (const t of tokens.typography ?? []) t.size = pxNum(t.size);
+  for (const s of tokens.spacing ?? []) s.value = pxNum(s.value);
+  for (const r of tokens.border_radius ?? []) {
+    if (/^\d+(\.\d+)?px$/.test(String(r.value ?? ''))) r.value = parseFloat(r.value);
+  }
+  return tokens;
+}
+
 export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client } = {}) {
   const c = client ?? getAiClient();
   const imageData = fs.readFileSync(imagePath);
@@ -83,5 +103,9 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
     throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
 
-  return { ...parsed, meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed } };
+  return {
+    ...parsed,
+    tokens: normalizeTokenUnits(parsed.tokens),
+    meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed },
+  };
 }
