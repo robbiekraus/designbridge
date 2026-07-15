@@ -30,7 +30,7 @@ app.get('/api/health', (req, res) => {
     anthropic_key_configured: hasKey, // Back-Compat (Web-UI liest dieses Feld)
     ai_key_configured: aiKeyConfigured(),
     ai_provider: aiProviderName(),
-    version: '0.1.0'
+    version: '0.1.1'
   });
 });
 
