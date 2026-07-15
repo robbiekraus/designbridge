@@ -21,7 +21,7 @@ export default function App() {
   useEffect(() => {
     fetch('/api/health')
       .then(r => r.json())
-      .then(d => setServerOk(d.anthropic_key_configured))
+      .then(d => setServerOk(d.ai_key_configured ?? d.anthropic_key_configured))
       .catch(() => setServerOk(false));
 
     try {

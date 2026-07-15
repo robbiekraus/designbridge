@@ -1,8 +1,8 @@
 // EIN Claude-Vision-Call pro Import: Original-Bild + Liste der Bausteine ohne
 // Template → je Baustein eine möglichst originalgetreue shadcn/Tailwind-
 // Umsetzung { html, jsx }. Injizierbarer Client wie recognizeWithAi.js.
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
+import { getAiClient } from './aiClient.js';
 
 const MODEL = 'claude-sonnet-4-5';
 
@@ -51,7 +51,7 @@ COMPONENTS (in order): ${JSON.stringify(labels)}`;
 }
 
 export async function interpretComponents(imagePath, mimetype, segments, { client } = {}) {
-  const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const c = client ?? getAiClient();
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
   const withStructure = segments.filter((s) => s.structure && s.structure.html);
   const withCode = segments.filter((s) => s.structure && s.structure.code);

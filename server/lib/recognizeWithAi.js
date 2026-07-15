@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { getAiClient } from './aiClient.js';
 
 const MODEL = 'claude-sonnet-4-5';
 const MAX_HTML = 20000;
@@ -61,7 +61,7 @@ ${html}`;
 }
 
 export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
-  const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const c = client ?? getAiClient();
   const { html: trimmed, truncated } = trimHtml(html);
   const cssTruncated = (css || '').length > MAX_CSS;
   const safeCss = (css || '').slice(0, MAX_CSS);

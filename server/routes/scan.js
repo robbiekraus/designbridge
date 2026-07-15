@@ -17,6 +17,7 @@ import { putImage } from '../lib/imageStore.js';
 import { putPage } from '../lib/pageStore.js';
 import { putRepo } from '../lib/repoStore.js';
 import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
+import { aiKeyConfigured } from '../lib/aiClient.js';
 
 const router = express.Router();
 
@@ -67,11 +68,10 @@ router.post('/image', uploadImage, async (req, res) => {
 
   // Ohne konfigurierten Key UND ohne Demo-Fallback klar absagen, statt den rohen
   // englischen SDK-Fehler an die UI durchzureichen (Live-Fund Railway 15.07.).
-  const keyConfigured = !!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.includes('...');
-  if (!keyConfigured && process.env.DEMO_FALLBACK !== '1') {
+  if (!aiKeyConfigured() && process.env.DEMO_FALLBACK !== '1') {
     fs.unlink(req.file.path, () => {});
     return res.status(503).json({
-      error: 'Bild-Import braucht einen KI-Schlüssel (ANTHROPIC_API_KEY auf dem Server) — oder DEMO_FALLBACK=1 für Demo-Daten. URL- und Repo-Import funktionieren ohne.'
+      error: 'Bild-Import braucht einen KI-Schlüssel (ANTHROPIC_API_KEY oder GEMINI_API_KEY auf dem Server) — oder DEMO_FALLBACK=1 für Demo-Daten. URL- und Repo-Import funktionieren ohne.'
     });
   }
 

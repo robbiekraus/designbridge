@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
+import { getAiClient } from './aiClient.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -37,7 +37,7 @@ Rules:
 - For every atomic/component/pattern add "bbox": a TIGHT bounding box around that element AS IT APPEARS in the screenshot, as fractions of image size: x,y = top-left corner (0..1), w,h = width,height (0..1). If unsure, give your best estimate.`;
 
 export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client } = {}) {
-  const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const c = client ?? getAiClient();
   const imageData = fs.readFileSync(imagePath);
   const base64 = imageData.toString('base64');
 
@@ -78,5 +78,5 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
     throw new Error(`Claude returned invalid JSON. Raw response: ${text.slice(0, 300)}`);
   }
 
-  return { ...parsed, meta: { model: 'claude-sonnet-4-5', elapsed_ms: elapsed } };
+  return { ...parsed, meta: { model: response.model ?? 'claude-sonnet-4-5', elapsed_ms: elapsed } };
 }

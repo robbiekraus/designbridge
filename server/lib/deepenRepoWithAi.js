@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { getAiClient } from './aiClient.js';
 import { isTailwindConfig, isUiComponent } from './repoFilePatterns.js';
 
 const MODEL = 'claude-sonnet-4-5';
@@ -43,7 +43,7 @@ ${digest}`;
 }
 
 export async function deepenRepoWithAi(files, ruleList, { client } = {}) {
-  const c = client ?? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const c = client ?? getAiClient();
   const { digest, truncated } = buildRepoDigest(files);
   const response = await c.messages.create({
     model: MODEL,

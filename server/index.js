@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import scanRouter from './routes/scan.js';
 import figmaExportRouter from './routes/figmaExport.js';
 import interpretRouter from './routes/interpret.js';
+import { aiKeyConfigured, aiProviderName } from './lib/aiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3047;
@@ -26,7 +27,9 @@ app.get('/api/health', (req, res) => {
   const hasKey = !!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.includes('...');
   res.json({
     status: 'ok',
-    anthropic_key_configured: hasKey,
+    anthropic_key_configured: hasKey, // Back-Compat (Web-UI liest dieses Feld)
+    ai_key_configured: aiKeyConfigured(),
+    ai_provider: aiProviderName(),
     version: '0.1.0'
   });
 });
@@ -48,10 +51,10 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
   console.log(`\n🌉 Designbridge server running on http://localhost:${PORT}`);
-  if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.includes('...')) {
-    console.warn('⚠️  ANTHROPIC_API_KEY not set — add it to your .env file');
+  if (!aiKeyConfigured()) {
+    console.warn('⚠️  Kein KI-Key gesetzt (ANTHROPIC_API_KEY oder GEMINI_API_KEY) — Bild-Scan & KI-Vertiefen laufen nur mit DEMO_FALLBACK=1');
   } else {
-    console.log('✓  Anthropic API key configured');
+    console.log(`✓  KI-Provider: ${aiProviderName()}`);
   }
   console.log('');
 });

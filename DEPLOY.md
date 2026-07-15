@@ -21,9 +21,11 @@ Railway-Service
 ## Was ohne API-Key läuft
 
 - ✅ URL-Import, Repo-Import, Figma-Export, Library, Export (CSS/Tailwind/tokens.json)
-- ⚠️ Bild-Import (Auto-Scan) & „Mit KI vertiefen" brauchen `ANTHROPIC_API_KEY`
-  mit Guthaben auf console.anthropic.com. Ohne Key: mit `DEMO_FALLBACK=1`
-  deploybar (Bild-Scan liefert dann Demo-Daten).
+- ⚠️ Bild-Import (Auto-Scan) & „Mit KI vertiefen" brauchen EINEN KI-Key:
+  - **`GEMINI_API_KEY` (empfohlen): GRATIS** — Key auf https://aistudio.google.com
+    erstellen (Google-Login, keine Kreditkarte, kein Guthaben nötig).
+  - oder `ANTHROPIC_API_KEY`: pay-per-use, braucht Guthaben auf console.anthropic.com.
+  - ganz ohne Key: `DEMO_FALLBACK=1` (Bild-Scan & Interpretation liefern Demo-Daten).
 
 ## Schritte (Rob, im Railway-Dashboard)
 
@@ -32,8 +34,9 @@ Railway-Service
 3. Railway erkennt `railway.json` automatisch (Build/Start/Healthcheck stehen drin).
 4. **Variables** (Tab im Service) setzen:
    - `NODE_ENV=production`  *(falls Railway es nicht schon selbst setzt)*
-   - optional `ANTHROPIC_API_KEY=sk-ant-…`  *(für Bild-Import/KI-Vertiefen)*
-   - optional `DEMO_FALLBACK=1`  *(wenn kein Key/Guthaben — Bild-Import als Demo)*
+   - empfohlen `GEMINI_API_KEY=AIza…`  *(GRATIS — Bild-Import/KI-Vertiefen laufen echt)*
+   - optional `ANTHROPIC_API_KEY=sk-ant-…`  *(Alternative, pay-per-use)*
+   - optional `DEMO_FALLBACK=1`  *(ganz ohne Key — Bild-Import/Interpretation als Demo)*
    - `PORT` **nicht** setzen — Railway vergibt den selbst.
 5. **Deploy** starten. Railway baut (`npm run build`) und startet (`npm start`).
 6. **Generate Domain** (Settings → Networking) → öffentliche URL.
@@ -54,6 +57,9 @@ PORT=3047 npm start           # startet im Prod-Modus, serviert web/dist + /api
 |---|---|---|
 | `PORT` | nein (Hoster injiziert) | Server-Port |
 | `NODE_ENV=production` | ja (für Static-Serving) | aktiviert web/dist-Auslieferung |
-| `ANTHROPIC_API_KEY` | nein | Bild-Import & KI-Vertiefen |
-| `DEMO_FALLBACK=1` | nein | Bild-Scan als Demo statt API |
+| `GEMINI_API_KEY` | nein | Bild-Import & KI-Vertiefen — GRATIS-Tier |
+| `GEMINI_MODEL` | nein | Gemini-Modell (Default `gemini-2.5-flash`) |
+| `ANTHROPIC_API_KEY` | nein | Alternative zu Gemini, pay-per-use |
+| `AI_PROVIDER` | nein | `gemini`/`anthropic` erzwingen (bei beiden Keys) |
+| `DEMO_FALLBACK=1` | nein | Bild-Scan & Interpretation als Demo statt API |
 | `CORS_ORIGIN` | nein | nur bei getrennten Domains |
