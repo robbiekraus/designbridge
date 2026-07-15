@@ -155,6 +155,23 @@ test('sends one image block per segment-with-visual and labels them', async () =
   assert.equal(res.failed.length, 0);
 });
 
+test('Prompt verbietet Platzhalter-Boxen für Icons und fordert vereinfachte SVGs (Live-Fund 15.07.)', async () => {
+  let captured;
+  const fakeClient = { messages: { create: async (args) => {
+    captured = args;
+    return { content: [{ text: JSON.stringify({ interpretations: [
+      { name: 'social-icon', html: '<div></div>', jsx: 'export function SocialIcon(){return null}' },
+    ] }) }] };
+  } } };
+  const segments = [
+    { id: 'seg_0', label: 'social-icon', kind: 'atomic', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
+  ];
+  await interpretComponents('/nonexistent-full.png', 'image/png', segments, { client: fakeClient });
+
+  const text = captured.messages[0].content.filter((b)=>b.type==='text').map((b)=>b.text).join('\n');
+  assert.match(text, /NEVER render plain gray or placeholder boxes/);
+});
+
 test('segment without visual falls back to the full image', async () => {
   const fs = await import('fs'); const os = await import('os'); const path = await import('path');
   const full = path.join(os.tmpdir(), `db-full-${Math.random().toString(36).slice(2)}.png`);

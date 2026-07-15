@@ -61,6 +61,36 @@ test('analyzeScreenshot: normalisiert String-Größen ("64px") zu Zahlen — Gem
   assert.equal(result.tokens.spacing[0].value, 16);
 });
 
+test('analyzeScreenshot: verschmilzt gleichnamige Bausteine und vereinigt Varianten (Live-Fund 15.07.: dreimal "button")', async () => {
+  const imgPath = tmpImage();
+  const fakeClient = {
+    messages: {
+      create: async () => ({ content: [{ text: JSON.stringify({
+        summary: {}, patterns: [], warnings: [], tokens: {},
+        atomics: [
+          { name: 'button', variants: ['primary'], confidence: 'high', notes: 'Send message', bbox: { x: 0.1, y: 0.1, w: 0.2, h: 0.05 } },
+          { name: 'button', variants: ['chip'], confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.3, w: 0.1, h: 0.04 } },
+          { name: 'Button', variants: [], confidence: 'medium', notes: '', bbox: { x: 0.6, y: 0.3, w: 0.1, h: 0.04 } },
+          { name: 'status-dot', variants: [], confidence: 'high', notes: '', bbox: { x: 0.9, y: 0.0, w: 0.02, h: 0.02 } },
+        ],
+        components: [
+          { name: 'contact-form', confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.2, w: 0.4, h: 0.6 } },
+          { name: 'contact-form', confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.2, w: 0.4, h: 0.6 } },
+        ],
+      }) }] }),
+    },
+  };
+  const result = await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient });
+  fs.unlinkSync(imgPath);
+
+  assert.equal(result.atomics.length, 2); // button (3× verschmolzen) + status-dot
+  const button = result.atomics.find((a) => a.name.toLowerCase() === 'button');
+  assert.deepEqual(button.variants, ['primary', 'chip']);
+  assert.equal(button.notes, 'Send message');
+  assert.deepEqual(button.bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.05 }); // erster Treffer behält seine bbox
+  assert.equal(result.components.length, 1);
+});
+
 test('analyzeScreenshot: abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
   const imgPath = tmpImage();
   const fakeClient = {

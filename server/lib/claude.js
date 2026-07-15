@@ -57,6 +57,26 @@ function normalizeTokenUnits(tokens) {
   return tokens;
 }
 
+// Die KI listet identische Bausteine mehrfach (Live-Fund 15.07.: dreimal
+// "button" für Chips + Send-Button) — gleichnamige Einträge verschmelzen,
+// Varianten vereinigen. Der erste Treffer behält bbox/notes/confidence.
+function mergeByName(items) {
+  const byName = new Map();
+  for (const item of items ?? []) {
+    const key = String(item.name ?? '').trim().toLowerCase();
+    const prev = byName.get(key);
+    if (!prev) {
+      byName.set(key, { ...item, variants: Array.isArray(item.variants) ? [...item.variants] : item.variants });
+      continue;
+    }
+    if (Array.isArray(item.variants) && item.variants.length) {
+      prev.variants = [...new Set([...(prev.variants ?? []), ...item.variants])];
+    }
+    if (!prev.notes && item.notes) prev.notes = item.notes;
+  }
+  return [...byName.values()];
+}
+
 export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client } = {}) {
   const c = client ?? getAiClient();
   const imageData = fs.readFileSync(imagePath);
@@ -106,6 +126,9 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   return {
     ...parsed,
     tokens: normalizeTokenUnits(parsed.tokens),
+    atomics: mergeByName(parsed.atomics),
+    components: mergeByName(parsed.components),
+    patterns: mergeByName(parsed.patterns),
     meta: { model: response.model ?? 'claude-sonnet-5', elapsed_ms: elapsed },
   };
 }
