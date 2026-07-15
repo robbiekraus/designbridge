@@ -30,34 +30,8 @@ app.get('/api/health', (req, res) => {
     anthropic_key_configured: hasKey, // Back-Compat (Web-UI liest dieses Feld)
     ai_key_configured: aiKeyConfigured(),
     ai_provider: aiProviderName(),
-    // Temporäre Env-Sonde (Railway-Variable kam nicht an, 15.07.): nur Namen
-    // + Wertlänge, NIEMALS der Key selbst. Nach Diagnose wieder entfernen.
-    env_probe: {
-      gemini_var_names: Object.keys(process.env).filter(k => k.toUpperCase().includes('GEMINI')),
-      gemini_key_length: (process.env.GEMINI_API_KEY || '').length,
-      all_env_names: Object.keys(process.env).sort()
-    },
     version: '0.1.1'
   });
-});
-
-// Temporäre Diagnose (15.07.): welche Gemini-Modelle kennt der Key? Nur Namen,
-// keine Secrets. Nach Modell-Findung wieder entfernen.
-app.get('/api/health/gemini-models', async (req, res) => {
-  if (!process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'kein GEMINI_API_KEY' });
-  try {
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-      headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY }
-    });
-    const data = await r.json();
-    if (!r.ok) return res.status(502).json({ error: data?.error?.message || `HTTP ${r.status}` });
-    const names = (data.models || [])
-      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-      .map(m => m.name.replace('models/', ''));
-    res.json({ models: names });
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
 });
 
 app.use('/api/scan', scanRouter);
