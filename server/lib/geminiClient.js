@@ -4,7 +4,9 @@
 // Bewusst reines fetch statt SDK (Hard Rule 6: keine neuen Dependencies).
 // Spec: docs/superpowers/specs/2026-07-15-gemini-provider-swap.md
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+// gemini-2.5-flash ist für neue Konten abgeschaltet (404, Live-Fund 15.07.);
+// Gemini 3 Flash ist das aktuelle Gratis-Tier-Modell.
+const DEFAULT_MODEL = 'gemini-3-flash';
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // Anthropic-Content-Blöcke → Gemini-Parts (Reihenfolge bleibt erhalten).
