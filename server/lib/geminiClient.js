@@ -63,6 +63,11 @@ export function makeGeminiClient({
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
             const msg = data?.error?.message || 'unbekannter Fehler';
+            // Kaputte/unlesbare Bilddatei: Googles englischer Fehler samt
+            // Troubleshooting-Link hilft dem Nutzer nicht (Live-Fund 15.07.).
+            if (res.status === 400 && /input image/i.test(msg)) {
+              throw new Error('Das Bild konnte nicht verarbeitet werden — bitte eine gültige Bilddatei (PNG/JPG) hochladen.');
+            }
             lastError = new Error(`Gemini-API-Fehler (HTTP ${res.status}): ${msg}`);
             if (RETRYABLE.has(res.status)) continue; // nächstes Modell probieren
             throw lastError;

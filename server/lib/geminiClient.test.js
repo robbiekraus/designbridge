@@ -91,6 +91,19 @@ test('makeGeminiClient meldet vollständige Antworten als stop_reason end_turn',
   assert.equal(res.stop_reason, 'end_turn');
 });
 
+test('makeGeminiClient übersetzt »Unable to process input image« in eine deutsche Meldung', async () => {
+  const { impl } = fakeFetch({
+    status: 400,
+    body: { error: { message: 'Unable to process input image. Please retry or report in https://developers.generativeai.google/guide/troubleshooting' } },
+  });
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 100, messages: IMAGE_MSG }),
+    /Bild konnte nicht verarbeitet werden/
+  );
+});
+
 test('makeGeminiClient wirft bei HTTP-Fehler mit Googles Meldung', async () => {
   const { impl } = fakeFetch({
     status: 429,

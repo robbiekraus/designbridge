@@ -8,6 +8,7 @@ import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDeco
 // echte Middleware-Kette inkl. Multer, ohne den Produktions-Server zu starten.
 async function withScanServer(fn) {
   const app = express();
+  app.use(express.json());
   app.use('/api/scan', scanRouter);
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
@@ -89,4 +90,19 @@ test('applyBaselinePaths überschreibt einen bereits vorhandenen path nicht', ()
   const merged = [{ name: 'Button', path: 'echter/pfad.tsx' }];
   applyBaselinePaths(merged, [{ name: 'Button', path: 'baseline/pfad.tsx' }]);
   assert.equal(merged[0].path, 'echter/pfad.tsx');
+});
+
+test('POST /api/scan/url mit toter Domain → 502 + deutsche Meldung ohne »fetch failed«', async () => {
+  await withScanServer(async base => {
+    const res = await fetch(`${base}/api/scan/url`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://diese-domain-gibt-es-nicht-xyz987.de' }),
+    });
+
+    assert.equal(res.status, 502);
+    const body = await res.json();
+    assert.match(body.error, /nicht erreichbar/);
+    assert.doesNotMatch(body.error, /fetch failed/);
+  });
 });

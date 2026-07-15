@@ -132,7 +132,9 @@ router.post('/url', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
-    res.status(502).json({ error: `Seite konnte nicht gelesen werden: ${err.message}` });
+    // 'fetch failed' (DNS/Netz) ist Technik-Kauderwelsch — verständlich übersetzen.
+    const msg = /fetch failed/i.test(err.message) ? 'Website nicht erreichbar — bitte URL prüfen.' : err.message;
+    res.status(502).json({ error: `Seite konnte nicht gelesen werden: ${msg}` });
   }
 });
 
@@ -156,7 +158,8 @@ router.post('/url/ai', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[scan/url/ai] Error:', err.message);
-    res.status(502).json({ error: `Seite oder KI-Analyse fehlgeschlagen: ${err.message}` });
+    const msg = /fetch failed/i.test(err.message) ? 'Website nicht erreichbar — bitte URL prüfen.' : err.message;
+    res.status(502).json({ error: `Seite oder KI-Analyse fehlgeschlagen: ${msg}` });
   }
 });
 
