@@ -65,6 +65,16 @@ router.post('/image', uploadImage, async (req, res) => {
     extractTargets = {};
   }
 
+  // Ohne konfigurierten Key UND ohne Demo-Fallback klar absagen, statt den rohen
+  // englischen SDK-Fehler an die UI durchzureichen (Live-Fund Railway 15.07.).
+  const keyConfigured = !!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.includes('...');
+  if (!keyConfigured && process.env.DEMO_FALLBACK !== '1') {
+    fs.unlink(req.file.path, () => {});
+    return res.status(503).json({
+      error: 'Bild-Import braucht einen KI-Schlüssel (ANTHROPIC_API_KEY auf dem Server) — oder DEMO_FALLBACK=1 für Demo-Daten. URL- und Repo-Import funktionieren ohne.'
+    });
+  }
+
   try {
     console.log(`[scan] Analyzing ${req.file.originalname} (${(req.file.size / 1024).toFixed(0)} KB)`);
 
