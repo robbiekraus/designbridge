@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **15.07.2026 (Feierabend)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Working Tree sauber, `main` == `origin/main` (`6cace04`). Server **150/150** · Web **303/303**.
+Stand: **15.07.2026 (Testing-Phase, Abend)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Working Tree sauber, `main` == `origin/main` (`47100ec`). Server **167/167** · Web **303/303**.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
@@ -19,7 +19,16 @@ Stand: **15.07.2026 (Feierabend)** — **🚀 APP IST LIVE: https://designbridge
 6. **Beweis:** Erster echter Live-Bild-Scan — `Testdaten/Reports/02.png` → `gemini-3.1-flash-lite`, 4,2 s, „SaaS analytics dashboard", 6 Farben + 5 Components mit bboxes. Diagnose-Sonden danach entfernt (`6cace04`).
 7. **Credits-Thema ist Geschichte** — Memory bereinigt, 0 € laufende Kosten.
 
-## 🎯 NÄCHSTE SESSION = TESTING-PHASE
+## Session 15.07.2026 abends — Testing-Phase Runde 1 (4 Bugs gefunden, 4 gefixt)
+
+1. **Stubs entschärft** (`d18088c`): Settings + Connect Figma disabled + Tooltip „Folgt in einer späteren Version".
+2. **Bild-Import-Doppelbug gefixt** (`40eebfd` + `ed16804`): (a) max_tokens 4096→16384 an allen KI-Callsites, Gemini-Adapter meldet Abschneiden als `stop_reason max_tokens`; (b) **Root Cause per Diagnose-Sonde bewiesen:** gemini-3.1-flash-lite hängt sporadisch eine überzählige `}` ans Antwort-Ende → neues `lib/aiJson.js` (`extractJson`) löst das erste balancierte JSON-Objekt heraus, alle 4 Callsites umgestellt. 5/5 Live-Scans grün.
+3. **URL-Import überlebt kaputte Stylesheets** (`7617a25`): linear.app schlug fehl — Inline-Style-Regex griff `data-style=`-Attribute (→ `.inline { a }`, postcss-Absturz „Unknown word a"); Regex präzisiert + jeder CSS-Block einzeln validiert, unlesbare übersprungen + gezählt (UI-Warnung). linear.app liefert jetzt 278 Tokens.
+4. **Fehlerpfade deutsch** (`47100ec`): kaputtes Bild + tote Website → verständliche Meldungen (live verifiziert); private Repo-URL war schon gut.
+5. **Befund (offen, Roadmap):** Repo-Import mit Tailwind-4-Repos (CSS-first, kein tailwind.config, Design in Utility-Klassen im JSX — z. B. `rk-landing`) liefert **0 Tokens**. Dazu UX-Lücke: Erfolgs-Modal zeigt grünes Häkchen bei 0 Ergebnissen, Server-Warnung wird im Modal nicht angezeigt.
+6. Test-Setup: `rk-landing` ist jetzt **public** (Import-Quelle), Export-Ziel = rk-landing lokal.
+
+## 🎯 TESTING-PHASE — Reststand
 
 Rob testet bereits selbst auf der Live-App. Plan für die strukturierte Runde:
 
@@ -29,15 +38,15 @@ Rob testet bereits selbst auf der Live-App. Plan für die strukturierte Runde:
 3. **Echte Testdaten** (Robs Beitrag): eigenes technisches Repo, eigene Screenshots, echte fremde Websites — statt nur Demo-Fixtures. Erst echte Daten decken echte Schwächen auf.
 
 ### E2E-Checkliste (Live-URL, gemeinsam abarbeiten)
-- [ ] **Bild-Import** mit echtem Screenshot (nicht Testdaten) → Tokens/Inventar plausibel?
+- [x] **Bild-Import** technisch ✅ (nach Doppelbug-Fix, 5/5 Scans grün) — **Robs Qualitätsurteil steht noch aus**
 - [ ] **KI-Interpretationen** je Baustein (Vorschau, „Erneut versuchen") → echte gerenderte Referenz?
 - [ ] **„Mit KI vertiefen"** nach URL-Import → Anreicherung + Herkunfts-Pillen korrekt?
-- [ ] **URL-Import** mit echter fremder Website (nicht Demo-Seite)
-- [ ] **Repo-Import** mit Robs technischem Repo (s. u.) → Code gehoben, „aus Repo gehoben"-Pille?
+- [x] **URL-Import** mit echter fremder Website ✅ (stripe.com 152 Tokens · linear.app nach Fix 278 Tokens)
+- [x] **Repo-Import** mit rk-landing ⚠️ läuft technisch, aber 0 Tokens (Tailwind-4-Lücke, s. Befund oben)
 - [ ] **Export alle 4 Formate** (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (zip)
-- [ ] **Export-Verifikation im Ziel-Repo** (s. u.)
+- [ ] **Export-Verifikation im Ziel-Repo** (rk-landing lokal)
 - [ ] **Figma-Rundlauf:** „An Figma senden" → Plugin „Aus DesignBridge übernehmen". ⚠️ Plugin-Auto-Fetch + manifest `allowedDomains` zeigen vermutlich noch auf `localhost:3047` — prüfen/anpassen, damit das Plugin gegen die **Live-URL** sprechen kann.
-- [ ] **Fehlerpfade:** kaputtes Bild, private Repo-URL, tote Website → verständliche deutsche Meldungen?
+- [x] **Fehlerpfade** ✅ (alle drei deutsch & verständlich, live verifiziert)
 - [ ] **Gemini-Qualität bewerten** (Robs Designer-Auge, Stichprobe vs. frühere Claude-Ergebnisse). Falls schwächer → Modell/`AI_PROVIDER` diskutieren.
 
 ### Robs technisches Repo einbinden (seine Frage vom 15.07.)
