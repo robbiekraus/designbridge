@@ -34,7 +34,8 @@ app.get('/api/health', (req, res) => {
     // + Wertlänge, NIEMALS der Key selbst. Nach Diagnose wieder entfernen.
     env_probe: {
       gemini_var_names: Object.keys(process.env).filter(k => k.toUpperCase().includes('GEMINI')),
-      gemini_key_length: (process.env.GEMINI_API_KEY || '').length
+      gemini_key_length: (process.env.GEMINI_API_KEY || '').length,
+      all_env_names: Object.keys(process.env).sort()
     },
     version: '0.1.1'
   });
