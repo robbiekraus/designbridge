@@ -31,7 +31,7 @@ export default function AiDeepenBanner({ result, onDeepened }) {
         {error ? (
           <div className="text-xs text-amber-700">KI-Analyse gerade nicht möglich — die Regel-Funde bleiben erhalten.</div>
         ) : (
-          <div className="text-xs text-amber-700">Die festen Regeln haben eine erste Liste erstellt. Mit KI vertiefen für mehr Genauigkeit.</div>
+          <div className="text-xs text-amber-700">Die festen Regeln haben eine erste Liste erstellt. Die Komponenten-Erkennung lässt sich per KI verfeinern (Design-Tokens bleiben unverändert).</div>
         )}
       </div>
       <button
@@ -39,7 +39,7 @@ export default function AiDeepenBanner({ result, onDeepened }) {
         disabled={busy}
         className="text-xs px-3 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 disabled:opacity-50"
       >
-        {busy ? 'Analysiere…' : 'Mit KI vertiefen'}
+        {busy ? 'Analysiere…' : 'Komponenten-Erkennung verfeinern'}
       </button>
     </div>
   );

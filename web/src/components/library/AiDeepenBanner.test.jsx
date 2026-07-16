@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { shouldShowDeepenBanner } from './AiDeepenBanner.jsx';
+import { render, screen } from '@testing-library/react';
+import AiDeepenBanner, { shouldShowDeepenBanner } from './AiDeepenBanner.jsx';
+
+describe('AiDeepenBanner copy', () => {
+  const urlResult = { source: 'url', raw: { meta: { ai_deepened: false } } };
+
+  it('describes refining component/pattern recognition, not generic token improvement', () => {
+    render(<AiDeepenBanner result={urlResult} onDeepened={() => {}} />);
+    // Der Knopf muss klar sagen, WAS die KI vertieft (Komponenten-Erkennung) —
+    // nicht nur pauschal "Mit KI vertiefen", das nach Token-Verbesserung klingt.
+    expect(screen.getByRole('button', { name: /Komponenten/i })).toBeInTheDocument();
+    // Es darf nirgends behauptet werden, dass Design-Tokens dadurch besser/genauer würden —
+    // real passiert nur ein zusätzlicher KI-Durchlauf über die Bausteinliste.
+    expect(screen.queryByText(/Tokens?\s+(werden|sind|noch)?\s*(besser|genauer|verbessert)/i)).toBeNull();
+  });
+});
 
 describe('shouldShowDeepenBanner', () => {
   it('shows for a fresh url import', () => {
