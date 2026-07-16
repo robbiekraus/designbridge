@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **16.07.2026 (Testrunde 4 durch — alle 7 Interpretations-Ursachen gefixt)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **189/189** · Web **330/330** · Plugin-Tests 39/39.
+Stand: **16.07.2026 abends (Testrunde 5 durch — Tempo/Backoff/Retry nach Robs Live-Test)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **192/192** · Web **342/342** · Plugin-Tests 39/39.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
@@ -8,6 +8,18 @@ Stand: **16.07.2026 (Testrunde 4 durch — alle 7 Interpretations-Ursachen gefix
 > 3. KI-Provider: **Gemini** (Railway-Variable `GEMINI_API_KEY`, Robs Gratis-Key von aistudio.google.com). Claude bleibt als Fallback im Code (gesetzter `ANTHROPIC_API_KEY` hätte Vorrang; `AI_PROVIDER` erzwingt). Modell = Alias `gemini-flash-latest` + Ausweich NUR noch auf `gemini-3-flash-preview` bei 404/429/503 — **flash-lite ist seit Testrunde 4 raus** (erfand generische Inhalte; lieber ehrlich scheitern + Retry). Temperature client-weit 0.2.
 > 4. Free-Tier-Limits: ~10 Anfragen/Min, 1.500/Tag — für Robs Nutzung irrelevant, aber bei Testreihen nicht im Sekundentakt scannen.
 > 5. Lokal entwickeln wie immer: `npm run dev` (bzw. `dev:demo`), Port-Falle beachten (`PORT=3047`). Lokal echten KI-Test: `GEMINI_API_KEY` in die lokale `.env` übernehmen (steht nur in Railway!).
+
+## Session 16.07.2026 abends — Testrunde 5: Robs Test-Befunde behoben
+
+Robs Live-Test (Screenshots `Testdaten/screens designbridge test 1607_1` + `_2`) fand: Interpretationen scheiterten massenhaft, dauerten Minuten im Blindflug, „Erneut versuchen" wirkte tot, Figma-Export = fast nur Platzhalter. **Root Cause:** Free-Tier-Bursts (Scan + Chunks + Retries + zweiter Import) drosselten beide Ketten-Modelle gleichzeitig; die Kette gab nach ~1s endgültig auf; alles lief unsichtbar in EINEM Request; Retry ohne jedes Feedback. Fixes (Plan `docs/superpowers/plans/2026-07-16-testrunde5-tempo-und-retry.md`, je Task Spec-Review, Final-Review Opus = SHIP):
+
+1. **Gemini-Backoff** (`39b9d66`): bis zu 3 Runden über die Kette, Wartezeit = max(2s/8s, Geminis eigenes `retryDelay`), Deckel 15s.
+2. **Progressive Interpretation** (`b75f9b2`): Client sendet 4er-Chunks einzeln (sequenziell), UI füllt sich nach jedem Chunk, neuer Import bricht laufende Requests ab (AbortController).
+3. **Retry-Feedback + Races zu** (`6171d06`, `0b2bc58`): Einzel-Retry zeigt „Wird erneut interpretiert …" + gesperrter Button; Batch↔Einzel-Retry sperren sich gegenseitig (2 vom Review gefundene Race-Conditions geschlossen).
+
+**⚠️ FÜR ROBS NÄCHSTEN FIGMA-TEST: LEERE Figma-Datei verwenden!** Die bisherige Testdatei enthält die alten Demo-Komponenten vom 13.07. — das Plugin aktualisiert per Namens-Match („5 aktualisiert") und vermischt alte und neue Inhalte. Außerdem gilt: Platzhalter in Figma = Interpretation war fehlgeschlagen (jetzt seltener) — erst in der App prüfen, dass die Bausteine echte Vorschauen haben, DANN exportieren.
+
+**Folge-Kandidaten (nicht blockierend):** Reload mitten im Batch lässt Items in „Wird interpretiert …"-Limbo (pre-existing; beim App-Load pending→failed normalisieren) · Per-Fetch-Timeout im Gemini-Client · Chunk-Parallelität 2, falls Rob nach dem Backoff-Beweis noch mehr Tempo braucht · Figma-Seiten-Namespacing pro Import.
 
 ## Session 15.07.2026 — Deployment & Gemini (komplett erledigt)
 
