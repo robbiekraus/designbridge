@@ -60,6 +60,41 @@ describe('pickTokens', () => {
     expect(pickTokens(tokens).surfaceMuted).toBe('#f4f4f5');
   });
 
+  // Bug Testrunde 2: Eine einzelne Rolle traf sowohl die primary- als auch die
+  // onPrimary-Regel (z. B. "accent button text") → Button bekam dieselbe Farbe
+  // für Hintergrund UND Text (#79c0ff auf #79c0ff, unlesbar).
+  it('onPrimary ist nie identisch mit primary, auch wenn eine Rolle beide Regexe matcht', () => {
+    const tokens = normalizeTokens({
+      colors: [{ hex: '#79c0ff', role: 'accent button text', confidence: 'high' }],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    });
+    const p = pickTokens(tokens);
+    expect(p.primary).toBe('#79c0ff');
+    expect(p.onPrimary).not.toBe(p.primary);
+  });
+
+  it('text ist nie identisch mit surface, auch wenn eine Rolle beide Regexe matcht', () => {
+    const tokens = normalizeTokens({
+      colors: [{ hex: '#33aabb', role: 'background text', confidence: 'high' }],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    });
+    const p = pickTokens(tokens);
+    expect(p.surface).toBe('#33aabb');
+    expect(p.text).not.toBe(p.surface);
+  });
+
+  it('wählt bei Kollision eine andere passende Token-Farbe mit ausreichend Kontrast statt Schwarz/Weiß-Fallback', () => {
+    const tokens = normalizeTokens({
+      colors: [
+        { hex: '#79c0ff', role: 'accent button text', confidence: 'high' },
+        { hex: '#0d1117', role: 'ink', confidence: 'high' },
+      ],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    });
+    const p = pickTokens(tokens);
+    expect(p.onPrimary).toBe('#0d1117');
+  });
+
   it('Font-Slot bevorzugt body-Rolle vor dem ersten (Display-)Token', () => {
     const tokens = normalizeTokens({
       colors: [],

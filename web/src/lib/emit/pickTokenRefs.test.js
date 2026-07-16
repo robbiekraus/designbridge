@@ -80,3 +80,35 @@ describe('pickTokenRefs — semantische Slot-Wahl (Fix 13.07.)', () => {
     expect(pickTokenRefs(noBody).fontSize).toBe('12px');
   });
 });
+
+// Bug Testrunde 2: pickTokens/pickTokenRefs gaben dem Button-Template dieselbe
+// Farbe für Hintergrund UND Text, wenn eine einzelne Rolle beide Regexe traf
+// (z. B. "accent button text" → primary UND onPrimary).
+describe('pickTokenRefs — onPrimary/text nie identisch mit primary/surface (Bug Testrunde 2)', () => {
+  it('onPrimary weicht von primary ab, auch bei Rollen-Kollision', () => {
+    const collision = [
+      { group: 'color', name: 'accent-button-text', value: '#79c0ff', source: { role: 'accent button text' } },
+    ];
+    const r = pickTokenRefs(collision);
+    expect(r.primary.value).toBe('#79c0ff');
+    expect(r.onPrimary.value).not.toBe(r.primary.value);
+  });
+
+  it('nimmt bei Kollision eine andere Token-Farbe mit Kontrast statt Schwarz/Weiß, wenn eine existiert', () => {
+    const collision = [
+      { group: 'color', name: 'accent-button-text', value: '#79c0ff', source: { role: 'accent button text' } },
+      { group: 'color', name: 'ink', value: '#0d1117', source: { role: 'ink' } },
+    ];
+    const r = pickTokenRefs(collision);
+    expect(r.onPrimary).toEqual({ value: '#0d1117', token: 'ink' });
+  });
+
+  it('text weicht von surface ab, auch bei Rollen-Kollision', () => {
+    const collision = [
+      { group: 'color', name: 'bg-text', value: '#33aabb', source: { role: 'background text' } },
+    ];
+    const r = pickTokenRefs(collision);
+    expect(r.surface.value).toBe('#33aabb');
+    expect(r.text.value).not.toBe(r.surface.value);
+  });
+});
