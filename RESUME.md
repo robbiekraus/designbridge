@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **15.07.2026 (Testing-Phase, Abend)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Working Tree sauber, `main` == `origin/main` (`47100ec`). Server **167/167** · Web **303/303**.
+Stand: **16.07.2026 (Testing-Phase Runde 3 durch)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **170/170** · Web **321/321** · Plugin-Tests 39/39.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
@@ -29,6 +29,13 @@ Stand: **15.07.2026 (Testing-Phase, Abend)** — **🚀 APP IST LIVE: https://de
 6. Test-Setup: `rk-landing` ist jetzt **public** (Import-Quelle), Export-Ziel = rk-landing lokal.
 7. **Runde 2 (spät):** pxpx-Anzeige-Bug gefixt (`c166c28`, normalizeTokenUnits streift Einheiten — Gemini liefert '64px' als String). **Qualitäts-Befund:** flash-lite erfindet bei Interpretationen generische Inhalte trotz korrektem Crop → **Gemini-Kette umsortiert** (`3afc56a`): `gemini-3-flash-preview` vor `flash-lite`; live bewiesen (Scan lief auf preview). **Claude-Pfad vorbereitet aber schlafend:** Modell-IDs auf `claude-sonnet-5` (`bce05cd`, 2/10 $ Intro-Preis); Robs Guthaben-Kauf scheiterte am Payment (Bank graut 0-$-Verifizierung aus — support.claude.com, kein Code-Thema); greift automatisch, sobald ANTHROPIC_API_KEY (aus lokaler `.env`) als Railway-Variable gesetzt wird. Weitere offene UX-Funde: URL-Tab warnt nicht bei GitHub-URLs (Rob scannte versehentlich GitHubs Primer: 1734 Farben); pickTokens gab Button-Template dieselbe Farbe für bg+text (#79c0ff auf #79c0ff); „Mit KI vertiefen" verspricht Token-Verbesserung, verfeinert aber nur die Komponenten-Liste. Roadmap-Kernbefund: Tailwind-4-Quellen (Repo UND URL) tragen keine benannten Tokens → Feature „KI-Token-Veredelung" nötig.
 
+## Session 16.07.2026 — Testrunde 3 (Subagent-Workflow, 4 Fixes + Interpretations-Diagnose)
+
+1. **Figma-Plugin → Live-App** (`8b6589c`): `fetchLatestExport` (neu, 5 Tests) probiert erst die Railway-URL, Fallback auf localhost:3047 nur bei Netzwerkfehler; manifest erlaubt beide Domains. **Robs Test-Anleitung: `designbridge-plugin/ANLEITUNG-LIVE-TEST.md`.**
+2. **Emit-Farbbug** (`3de0c2e`): `ensureReadableText()` — nie mehr bg == Textfarbe (Rollen-Kollision, #79c0ff auf #79c0ff), Kontrast-Heuristik + Token-Namen-Rückmapping.
+3. **UX ehrlich** (`aa19fb6`, `8bac17b`): GitHub-URL-Hinweis im URL-Tab · 0-Tokens = Amber-Warnzustand statt grünem Häkchen + Server-Warnungen im Modal · „Mit KI vertiefen" → „Komponenten-Erkennung verfeinern".
+4. **Interpretations-Diagnose (read-only, Fable):** Pipeline im Kern gesund — Live-Test lieferte für große Karte originalgetreue Interpretation (exakte Zahlen/Farben/Icons). „Generisch"-Ursachen bewiesen: **(a)** Winzige Atomic-Crops ohne Mindestgröße/Upscaling (Avatar 34×31 px → Modell erfindet, lieferte Unsplash-Stockfoto; `imageDecomposer.js cropVisual`), **(b)** stille Fallback-Degradierung auf flash-lite bei 429/503, Modellname wird bei /api/interpret verworfen, „Erneut versuchen" läuft in dieselbe Falle (`geminiClient.js` + `interpretComponents.js`), **(c)** Alles-in-einem-Batch (13 Bausteine, 1 Call) + Default-Temperature ≈1.0, **(d)** `mergeByName` behält erste statt größte bbox, **(e)** `sanitizeHtml` lässt externe `<img src>` durch, **(f)** ⚠️ `DEMO_FALLBACK` evtl. noch =1 auf Railway → unmarkierte Konserven-Interpretationen! **→ Empfehlungen = Plan Testrunde 4** (Prio: Mindest-Crop-Größe/Upscaling → temperature 0–0.2 → Modell-Badge + Degradierungs-Stopp vor flash-lite → Batch-Chunking 3–4 → DEMO_FALLBACK prüfen/badgen → mergeByName größte bbox → sanitizeHtml externe Bilder ersetzen).
+
 ## 🎯 TESTING-PHASE — Reststand
 
 Rob testet bereits selbst auf der Live-App. Plan für die strukturierte Runde:
@@ -46,7 +53,7 @@ Rob testet bereits selbst auf der Live-App. Plan für die strukturierte Runde:
 - [x] **Repo-Import** mit rk-landing ⚠️ läuft technisch, aber 0 Tokens (Tailwind-4-Lücke, s. Befund oben)
 - [ ] **Export alle 4 Formate** (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (zip)
 - [ ] **Export-Verifikation im Ziel-Repo** (rk-landing lokal)
-- [ ] **Figma-Rundlauf:** „An Figma senden" → Plugin „Aus DesignBridge übernehmen". ⚠️ Plugin-Auto-Fetch + manifest `allowedDomains` zeigen vermutlich noch auf `localhost:3047` — prüfen/anpassen, damit das Plugin gegen die **Live-URL** sprechen kann.
+- [ ] **Figma-Rundlauf:** „An Figma senden" → Plugin „Aus DesignBridge übernehmen". ✅ Plugin spricht seit 16.07. mit der Live-URL (`8b6589c`) — **Robs Part:** Plugin in Figma Desktop laden, Anleitung: `designbridge-plugin/ANLEITUNG-LIVE-TEST.md`.
 - [x] **Fehlerpfade** ✅ (alle drei deutsch & verständlich, live verifiziert)
 - [ ] **Gemini-Qualität bewerten** (Robs Designer-Auge, Stichprobe vs. frühere Claude-Ergebnisse). Falls schwächer → Modell/`AI_PROVIDER` diskutieren.
 
@@ -73,6 +80,6 @@ Zwei getrennte Zwecke, zwei einfache Wege — kein „Verlinken"/Setup nötig:
 - Repo-Regel 7: nach Datei-Writes `find . -name '._*' -delete` (AppleDouble)
 
 ## Wiedereinstiegs-Prompt (nächste Session)
-> „Designbridge: Lies RESUME.md. Testing-Phase Runde 1+2 sind durch (8 Fixes live, Stand `443d6c2`). Weiter mit: (a) Export alle 4 Formate + Zip testen und Export-Verifikation in rk-landing lokal, (b) Figma-Rundlauf — vorher Plugin-manifest/allowedDomains auf die Live-URL umstellen."
+> „Designbridge: Lies RESUME.md. Testrunde 3 ist durch (4 Fixes + Interpretations-Diagnose, Plugin spricht mit Live-URL). Weiter mit Testrunde 4 = Interpretations-Qualität fixen (Empfehlungen 1–7 aus der Diagnose, Session 16.07.), plus: (a) Export alle 4 Formate + Zip testen und Export-Verifikation in rk-landing lokal, (b) Figma-Rundlauf mit Rob (ANLEITUNG-LIVE-TEST.md), (c) DEMO_FALLBACK auf Railway prüfen."
 
 **Separater Research-Task angelegt (15.07. spät):** „KI-Modell-Research für Designbridge-Interpretationen" — vergleicht Gemini-Tiers/Claude/Alternativen nach Treffsicherheit, Kosten und Payment-Hürde (Robs Anthropic-Payment scheitert an der Bank-Verifizierung; Ausweg prüfen, z. B. bezahlter Gemini-Tier). Deliverable: Entscheidungs-Doc unter docs/. Letzte Fixes Runde 2 (`443d6c2`): gleichnamige Bausteine werden verschmolzen (3× „button" → 1 mit Varianten) + Icon-Regel im Interpret-Prompt (keine grauen Platzhalter-Kästchen mehr). Robs Vergleichs-Import des Contact-Screenshots steht noch aus.
