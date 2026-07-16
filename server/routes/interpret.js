@@ -66,6 +66,11 @@ router.post('/components', async (req, res) => {
         return res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
       }
     }
+    // Tages-Quota (RPD) erschöpft: sofort ehrlich melden statt generischem 502 —
+    // Retry-Knöpfe funktionieren erst wieder nach dem Mitternachts-Reset (Quota-Bremse).
+    if (err.isDailyQuota) {
+      return res.status(429).json({ error: err.message, daily_quota: true });
+    }
     res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
   }
 });

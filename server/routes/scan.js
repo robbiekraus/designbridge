@@ -106,6 +106,11 @@ router.post('/image', uploadImage, async (req, res) => {
       }
     } else {
       fs.unlink(req.file.path, () => {});
+      // Tages-Quota (RPD) erschöpft: 429 statt generischem 500 — sofort
+      // ehrlich melden, Retry-Knopf greift erst wieder nach Mitternachts-Reset.
+      if (err.isDailyQuota) {
+        return res.status(429).json({ error: err.message, daily_quota: true });
+      }
       res.status(500).json({ error: err.message });
     }
   }
@@ -158,6 +163,10 @@ router.post('/url/ai', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[scan/url/ai] Error:', err.message);
+    // Tages-Quota (RPD) erschöpft: 429 statt generischem 502.
+    if (err.isDailyQuota) {
+      return res.status(429).json({ error: err.message, daily_quota: true });
+    }
     const msg = /fetch failed/i.test(err.message) ? 'Website nicht erreichbar — bitte URL prüfen.' : err.message;
     res.status(502).json({ error: `Seite oder KI-Analyse fehlgeschlagen: ${msg}` });
   }
@@ -231,6 +240,10 @@ router.post('/repo/ai', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('[scan/repo/ai] Error:', err.message);
+    // Tages-Quota (RPD) erschöpft: 429 statt statusForRepoError-Fallback (502).
+    if (err.isDailyQuota) {
+      return res.status(429).json({ error: err.message, daily_quota: true });
+    }
     res.status(statusForRepoError(err)).json({ error: `Repo- oder KI-Analyse fehlgeschlagen: ${err.message}` });
   }
 });

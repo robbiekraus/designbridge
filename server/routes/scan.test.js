@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
+import http from 'node:http';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import * as tar from 'tar';
 import scanRouter from './scan.js';
 import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
 
@@ -18,6 +23,60 @@ async function withScanServer(fn) {
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
+}
+
+// --- Quota-Bremse Task 2: gemeinsame Helfer für die 3 isDailyQuota→429-Tests ---
+// Kein echter Netzwerk-Call zu Gemini/GitHub: global.fetch wird nur für die
+// jeweilige Ziel-URL abgefangen, alles andere läuft über die echte fetch-Referenz.
+
+const DAILY_QUOTA_BODY = {
+  error: {
+    message: 'Resource has been exhausted (e.g. check quota).',
+    details: [{
+      '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+      violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }],
+    }],
+  },
+};
+
+function stubGeminiDailyQuota(prevFetch, extra = () => null) {
+  return async (url, opts) => {
+    const u = String(url);
+    if (u.includes('generativelanguage.googleapis.com')) {
+      return { ok: false, status: 429, json: async () => DAILY_QUOTA_BODY };
+    }
+    const viaExtra = await extra(u, opts);
+    if (viaExtra) return viaExtra;
+    return prevFetch(url, opts);
+  };
+}
+
+// Lokaler HTTP-Server statt echter Internet-Domain — deterministisch, kein
+// Netzwerk-Flakiness (Muster analog withScanServer).
+async function withLocalHtmlServer(html, fn) {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(html);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  try {
+    await fn(url);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
+// Winzige echte .tar.gz-Fixture (node-tar ist bereits Projekt-Dependency) statt
+// eines echten codeload.github.com-Downloads.
+function buildFixtureTarball() {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'designbridge-test-repo-'));
+  const repoDir = path.join(tmp, 'repo-main');
+  fs.mkdirSync(path.join(repoDir, 'components', 'ui'), { recursive: true });
+  fs.writeFileSync(path.join(repoDir, 'components', 'ui', 'button.tsx'), 'export const Button = () => <button />;');
+  const outFile = path.join(tmp, 'out.tar.gz');
+  tar.c({ gzip: true, cwd: tmp, sync: true, file: outFile }, ['repo-main']);
+  return fs.readFileSync(outFile);
 }
 
 test('POST /api/scan/image mit Nicht-Bild antwortet 400 + JSON (kein HTML-500)', async () => {
@@ -132,4 +191,111 @@ test('POST /api/scan/url mit toter Domain → 502 + deutsche Meldung ohne »fetc
     assert.match(body.error, /nicht erreichbar/);
     assert.doesNotMatch(body.error, /fetch failed/);
   });
+});
+
+// --- Quota-Bremse Task 2: isDailyQuota-Fehler → 429 + daily_quota:true ---
+
+test('POST /api/scan/image: Gemini-Tages-Quota-429 → 429 + daily_quota:true (kein 500)', async () => {
+  const prevAnthropic = process.env.ANTHROPIC_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevProvider = process.env.AI_PROVIDER;
+  const prevDemo = process.env.DEMO_FALLBACK;
+  const prevFetch = global.fetch;
+  delete process.env.ANTHROPIC_API_KEY;
+  process.env.GEMINI_API_KEY = 'fake-key';
+  process.env.AI_PROVIDER = 'gemini';
+  delete process.env.DEMO_FALLBACK;
+  global.fetch = stubGeminiDailyQuota(prevFetch);
+  try {
+    await withScanServer(async base => {
+      const form = new FormData();
+      form.append('image', new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }), 'shot.png');
+
+      const res = await fetch(`${base}/api/scan/image`, { method: 'POST', body: form });
+
+      assert.equal(res.status, 429);
+      const data = await res.json();
+      assert.equal(data.daily_quota, true);
+      assert.match(data.error, /Tages-Kontingent erschöpft/);
+    });
+  } finally {
+    global.fetch = prevFetch;
+    if (prevAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = prevAnthropic;
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini; else delete process.env.GEMINI_API_KEY;
+    if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider; else delete process.env.AI_PROVIDER;
+    if (prevDemo !== undefined) process.env.DEMO_FALLBACK = prevDemo; else delete process.env.DEMO_FALLBACK;
+  }
+});
+
+test('POST /api/scan/url/ai: Gemini-Tages-Quota-429 → 429 + daily_quota:true (kein 502)', async () => {
+  const prevAnthropic = process.env.ANTHROPIC_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevProvider = process.env.AI_PROVIDER;
+  const prevFetch = global.fetch;
+  delete process.env.ANTHROPIC_API_KEY;
+  process.env.GEMINI_API_KEY = 'fake-key';
+  process.env.AI_PROVIDER = 'gemini';
+  global.fetch = stubGeminiDailyQuota(prevFetch);
+  try {
+    await withLocalHtmlServer('<html><body><button>Klick</button></body></html>', async (siteUrl) => {
+      await withScanServer(async base => {
+        const res = await fetch(`${base}/api/scan/url/ai`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: siteUrl }),
+        });
+
+        assert.equal(res.status, 429);
+        const data = await res.json();
+        assert.equal(data.daily_quota, true);
+        assert.match(data.error, /Tages-Kontingent erschöpft/);
+      });
+    });
+  } finally {
+    global.fetch = prevFetch;
+    if (prevAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = prevAnthropic;
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini; else delete process.env.GEMINI_API_KEY;
+    if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider; else delete process.env.AI_PROVIDER;
+  }
+});
+
+test('POST /api/scan/repo/ai: Gemini-Tages-Quota-429 → 429 + daily_quota:true (kein 502)', async () => {
+  const prevAnthropic = process.env.ANTHROPIC_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevProvider = process.env.AI_PROVIDER;
+  const prevFetch = global.fetch;
+  delete process.env.ANTHROPIC_API_KEY;
+  process.env.GEMINI_API_KEY = 'fake-key';
+  process.env.AI_PROVIDER = 'gemini';
+  const tarball = buildFixtureTarball();
+  // branch explizit mitgeben → resolveDefaultBranch (GitHub-API) wird gar
+  // nicht erst aufgerufen, nur der codeload-Tarball-Download muss gestubbt werden.
+  global.fetch = stubGeminiDailyQuota(prevFetch, async (u) => {
+    if (!u.includes('codeload.github.com')) return null;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (h) => (h === 'content-length' ? String(tarball.length) : null) },
+      arrayBuffer: async () => tarball,
+    };
+  });
+  try {
+    await withScanServer(async base => {
+      const res = await fetch(`${base}/api/scan/repo/ai`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://github.com/testowner/testrepo', branch: 'main' }),
+      });
+
+      assert.equal(res.status, 429);
+      const data = await res.json();
+      assert.equal(data.daily_quota, true);
+      assert.match(data.error, /Tages-Kontingent erschöpft/);
+    });
+  } finally {
+    global.fetch = prevFetch;
+    if (prevAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = prevAnthropic;
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini; else delete process.env.GEMINI_API_KEY;
+    if (prevProvider !== undefined) process.env.AI_PROVIDER = prevProvider; else delete process.env.AI_PROVIDER;
+  }
 });
