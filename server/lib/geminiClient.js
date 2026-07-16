@@ -46,6 +46,10 @@ export function makeGeminiClient({
           })),
           generationConfig: {
             maxOutputTokens: params.max_tokens,
+            // Rekonstruktion soll originalgetreu sein, nicht kreativ: die
+            // Default-Temperature (~1.0) war Mitursache der "generischen"
+            // Interpretationen (Diagnose 16.07.).
+            temperature: params.temperature ?? 0.2,
             // Alle Callsites parsen JSON — erzwungenes JSON eliminiert
             // Gemini-Preambles ("Here is the JSON…"), die JSON.parse brechen.
             responseMimeType: 'application/json',

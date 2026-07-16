@@ -162,3 +162,21 @@ test('makeGeminiClient: reiner Text-Content (String) wird als Text-Part gesendet
 
   assert.deepEqual(calls[0].body.contents[0].parts, [{ text: 'nur Text' }]);
 });
+
+test('makeGeminiClient setzt temperature standardmäßig auf 0.2 (originalgetreue Rekonstruktion statt kreativ)', async () => {
+  const { impl, calls } = fakeFetch();
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  await client.messages.create({ max_tokens: 100, messages: IMAGE_MSG });
+
+  assert.equal(calls[0].body.generationConfig.temperature, 0.2);
+});
+
+test('makeGeminiClient reicht eine explizit übergebene temperature durch', async () => {
+  const { impl, calls } = fakeFetch();
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  await client.messages.create({ max_tokens: 100, temperature: 0.7, messages: IMAGE_MSG });
+
+  assert.equal(calls[0].body.generationConfig.temperature, 0.7);
+});
