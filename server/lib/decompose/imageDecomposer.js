@@ -5,6 +5,9 @@ import Jimp from 'jimp';
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+const MIN_CROP_EDGE = 128; // px — kleinere Crops halluziniert das Modell (Diagnose 16.07.)
+const MAX_UPSCALE = 4;
+
 async function cropVisual(img, bbox) {
   const W = img.getWidth();
   const H = img.getHeight();
@@ -19,6 +22,11 @@ async function cropVisual(img, bbox) {
   w = clamp(w, 1, W - x);
   h = clamp(h, 1, H - y);
   const crop = img.clone().crop(x, y, w, h);
+  // Winzige Crops (z. B. Avatar 34x31 px) geben dem Modell zu wenig Pixel —
+  // es erfindet dann generische Inhalte statt des echten Ausschnitts.
+  // Kurze Kante auf MIN_CROP_EDGE hochskalieren, gedeckelt bei MAX_UPSCALE.
+  const scale = Math.min(MAX_UPSCALE, MIN_CROP_EDGE / Math.min(w, h));
+  if (scale > 1) crop.scale(scale, Jimp.RESIZE_BICUBIC);
   const buf = await crop.getBufferAsync(Jimp.MIME_PNG);
   return { base64: buf.toString('base64'), media_type: 'image/png' };
 }
