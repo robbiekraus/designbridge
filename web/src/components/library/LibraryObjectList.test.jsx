@@ -137,4 +137,32 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     fireEvent.click(screen.getByRole('button', { name: /Mit KI interpretieren/ }));
     expect(onRetryInterpret).toHaveBeenCalledWith('PricingWidget');
   });
+
+  it('interpretedDemo: zeigt die Demo-Daten-Pille, kein Modell-Tag', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretedHtml: '<div>A</div>', interpretedDemo: true, interpretedModel: 'gemini-3-flash-preview' })]}
+        picks={{}}
+      />
+    );
+    expect(screen.getByText('Demo-Daten')).toBeInTheDocument();
+    expect(screen.queryByText('gemini-3-flash-preview')).not.toBeInTheDocument();
+  });
+
+  it('interpretedModel ohne Demo: zeigt den Modell-Tag im Kopf', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretedHtml: '<div>A</div>', interpretedModel: 'gemini-3-flash-preview' })]}
+        picks={{}}
+      />
+    );
+    expect(screen.getByText('gemini-3-flash-preview')).toBeInTheDocument();
+    expect(screen.queryByText('Demo-Daten')).not.toBeInTheDocument();
+  });
+
+  it('interpretedModel null (alter Cache-Eintrag): rendert weder Modell-Tag noch Demo-Pille', () => {
+    render(<LibraryObjectList items={[item({ interpretedHtml: '<div>A</div>' })]} picks={{}} />);
+    expect(screen.queryByText('Demo-Daten')).not.toBeInTheDocument();
+    expect(screen.queryByText(/gemini/)).not.toBeInTheDocument();
+  });
 });

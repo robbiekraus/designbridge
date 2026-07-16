@@ -115,10 +115,26 @@ describe('attachInterpretations', () => {
       { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: 'x' }], failed: ['Data Table'] }
     );
     expect(next.interpretations.Old).toBeTruthy();
-    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: 'x' });
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: 'x', model: null, demo: false });
     expect(next.interpretFailed).toEqual(['Data Table']);
     expect(next.interpretPending).toBe(false);
     expect(next.interpretError).toBeNull();
+  });
+
+  it('übernimmt model und demo-Flag', () => {
+    const result = { interpretations: {} };
+    const data = { interpretations: [{ name: 'button', html: '<b/>', jsx: '', model: 'gemini-x' }], failed: [], demo: true };
+    const next = attachInterpretations(result, data);
+    expect(next.interpretations.button.model).toBe('gemini-x');
+    expect(next.interpretations.button.demo).toBe(true);
+  });
+
+  it('setzt model auf null und demo auf false, wenn nicht mitgeliefert', () => {
+    const result = { interpretations: {} };
+    const data = { interpretations: [{ name: 'avatar', html: '<div/>', jsx: '' }], failed: [] };
+    const next = attachInterpretations(result, data);
+    expect(next.interpretations.avatar.model).toBeNull();
+    expect(next.interpretations.avatar.demo).toBe(false);
   });
 });
 
@@ -214,7 +230,7 @@ describe('retryInterpretation', () => {
       json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
     })));
     const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
-    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '' });
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '', model: null, demo: false });
     expect(next.interpretFailed).toEqual(['Stat Card']);
     expect(next.interpretError).toBeNull();
   });

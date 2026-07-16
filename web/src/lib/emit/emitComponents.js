@@ -68,6 +68,8 @@ export function emitComponents(result, kind) {
         notes: item.notes ?? null,
         hasPreview: Boolean(tpl),
         interpretedHtml: interp?.html ?? null,
+        interpretedModel: interp?.model ?? null,
+        interpretedDemo: Boolean(interp?.demo),
         interpretFailed: unresolved && failedListed,
         interpretPending: unresolved && !failedListed && Boolean(result?.interpretPending),
       });

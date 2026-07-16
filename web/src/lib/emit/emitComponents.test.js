@@ -146,6 +146,33 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.interpretPending).toBe(false);
   });
 
+  it('Interpretation mit model+demo: Item trägt interpretedModel und interpretedDemo', () => {
+    const result = {
+      raw: baseRaw,
+      interpretations: { Avatar: { html: '<div/>', jsx: 'export function Avatar(){return null;}', model: 'gemini-3-flash-preview', demo: true } },
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedModel).toBe('gemini-3-flash-preview');
+    expect(item.interpretedDemo).toBe(true);
+  });
+
+  it('Interpretation ohne model/demo (alter Cache-Eintrag): fällt auf null/false zurück', () => {
+    const result = {
+      raw: baseRaw,
+      interpretations: { Avatar: { html: '<div/>', jsx: 'export function Avatar(){return null;}' } },
+    };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedModel).toBeNull();
+    expect(item.interpretedDemo).toBe(false);
+  });
+
+  it('kein Interpretations-Eintrag: interpretedModel null, interpretedDemo false', () => {
+    const result = { raw: baseRaw };
+    const [item] = emitComponents(result, 'atomic');
+    expect(item.interpretedModel).toBeNull();
+    expect(item.interpretedDemo).toBe(false);
+  });
+
   it('gehobenes Repo-Item zeigt echten Code + lifted-Flag + echten Dateinamen', () => {
     const result = {
       source: 'repo',

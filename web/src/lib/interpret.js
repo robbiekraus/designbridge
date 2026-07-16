@@ -54,7 +54,7 @@ export async function requestInterpretations(importId, components) {
 export function attachInterpretations(result, data) {
   const map = { ...(result.interpretations ?? {}) };
   for (const it of data.interpretations ?? []) {
-    map[it.name] = { html: it.html, jsx: it.jsx };
+    map[it.name] = { html: it.html, jsx: it.jsx, model: it.model ?? null, demo: Boolean(data.demo) };
   }
   return {
     ...result,

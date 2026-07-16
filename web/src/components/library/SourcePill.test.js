@@ -17,4 +17,7 @@ describe('sourceLabel', () => {
   it('bleibt für unbekannte Werte null', () => {
     expect(sourceLabel('nope')).toBe(null);
   });
+  it('kennt die demo-Variante', () => {
+    expect(sourceLabel('demo').label).toBe('Demo-Daten');
+  });
 });
