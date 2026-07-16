@@ -52,21 +52,49 @@ Rules:
 COMPONENTS (in order): ${JSON.stringify(labels)}`;
 }
 
+const CHUNK_SIZE = 4; // Diagnose 16.07.: 13 Bausteine in einem Call verwässern die Treue
+
 export async function interpretComponents(imagePath, mimetype, segments, { client } = {}) {
   const c = client ?? getAiClient();
+  // Vollbild nur einmal von Platte lesen, auch wenn mehrere Chunks es brauchen.
+  const fullImage = imagePath
+    ? { base64: fs.readFileSync(imagePath).toString('base64'), media_type: mimetype }
+    : null;
+  const chunks = [];
+  for (let i = 0; i < segments.length; i += CHUNK_SIZE) chunks.push(segments.slice(i, i + CHUNK_SIZE));
+
+  const interpretations = [];
+  const failed = [];
+  let lastError = null;
+  for (const chunk of chunks) {
+    try {
+      const r = await interpretChunk(c, fullImage, chunk);
+      interpretations.push(...r.interpretations);
+      failed.push(...r.failed);
+    } catch (err) {
+      // Ein kaputter Chunk (z. B. Lastspitze) reißt nicht den ganzen Batch um —
+      // seine Bausteine landen als failed (Retry pro Zeile in der UI).
+      lastError = err;
+      failed.push(...chunk.map((s) => s.label));
+    }
+  }
+  if (interpretations.length === 0 && lastError) throw lastError;
+  return { interpretations, failed };
+}
+
+async function interpretChunk(c, fullImage, segments) {
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
   const withStructure = segments.filter((s) => s.structure && s.structure.html);
   const withCode = segments.filter((s) => s.structure && s.structure.code);
   const bare = segments.filter(
     (s) => !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code)
   );
-  const hasFullImageFallback = bare.length > 0 && !!imagePath;
+  const hasFullImageFallback = bare.length > 0 && !!fullImage;
 
   const content = [];
   if (hasFullImageFallback) {
-    const base64 = fs.readFileSync(imagePath).toString('base64');
     content.push({ type: 'text', text: 'FULL SCREENSHOT (fallback for components without their own crop):' });
-    content.push({ type: 'image', source: { type: 'base64', media_type: mimetype, data: base64 } });
+    content.push({ type: 'image', source: { type: 'base64', media_type: fullImage.media_type, data: fullImage.base64 } });
   }
   for (const s of withVisual) {
     content.push({ type: 'text', text: `Component: ${s.label}` });
@@ -123,7 +151,12 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
     const it = byName.get(s.label.trim());
     const html = sanitizeHtml(it?.html);
     if (!it || !html.trim()) { failed.push(s.label); continue; }
-    interpretations.push({ name: s.label, html, jsx: typeof it.jsx === 'string' && it.jsx.trim() ? it.jsx : '' });
+    interpretations.push({
+      name: s.label,
+      html,
+      jsx: typeof it.jsx === 'string' && it.jsx.trim() ? it.jsx : '',
+      model: response.model ?? null,
+    });
   }
   return { interpretations, failed };
 }

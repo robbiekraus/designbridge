@@ -144,7 +144,9 @@ test('sends one image block per segment-with-visual and labels them', async () =
     { id: 'seg_0', label: 'Stat Card', kind: 'component', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
     { id: 'seg_1', label: 'Line Chart Card', kind: 'component', bounds: {x:0.2,y:0,w:0.3,h:0.3}, visual: { base64: 'BBBB', media_type: 'image/png' }, structure: null },
   ];
-  const res = await interpretComponents('/nonexistent-full.png', 'image/png', segments, { client: fakeClient });
+  // Orchestrator liest das Vollbild jetzt IMMER einmal (falls imagePath gesetzt),
+  // auch wenn kein Segment den Fallback braucht — also ein echter Pfad statt Fake.
+  const res = await interpretComponents(tmpImage(), 'image/png', segments, { client: fakeClient });
 
   const imageBlocks = captured.messages[0].content.filter((b) => b.type === 'image');
   assert.equal(imageBlocks.length, 2); // ein Crop je Segment, kein Voll-Bild nötig
@@ -166,7 +168,7 @@ test('Prompt verbietet Platzhalter-Boxen für Icons und fordert vereinfachte SVG
   const segments = [
     { id: 'seg_0', label: 'social-icon', kind: 'atomic', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
   ];
-  await interpretComponents('/nonexistent-full.png', 'image/png', segments, { client: fakeClient });
+  await interpretComponents(tmpImage(), 'image/png', segments, { client: fakeClient });
 
   const text = captured.messages[0].content.filter((b)=>b.type==='text').map((b)=>b.text).join('\n');
   assert.match(text, /NEVER render plain gray or placeholder boxes/);
@@ -266,4 +268,107 @@ test('Code-Segment: sendet SOURCE CODE, liefert html/jsx', async () => {
   assert.equal(out.interpretations[0].name, 'PricingCard');
   assert.match(out.interpretations[0].html, /Pro/);
   assert.equal(out.failed.length, 0);
+});
+
+// Testrunde 4 (16.07.): Batch-Chunking à 4 Bausteine + Modellname pro Interpretation.
+function labelsFromPrompt(params) {
+  const text = params.messages[0].content.at(-1).text;
+  return JSON.parse(text.match(/COMPONENTS \(in order\): (\[.*\])$/)[1]);
+}
+
+test('teilt 9 Segmente in 3 Calls à max 4', async () => {
+  const calls = [];
+  const client = {
+    messages: {
+      create: async (params) => {
+        calls.push(params);
+        const labels = labelsFromPrompt(params);
+        return {
+          model: 'gemini-test',
+          stop_reason: 'end_turn',
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              interpretations: labels.map((l) => ({ name: l, html: `<div style="color:#000">${l}</div>`, jsx: '' })),
+            }),
+          }],
+        };
+      },
+    },
+  };
+  const segments = Array.from({ length: 9 }, (_, i) => ({
+    id: `seg_${i}`, label: `comp-${i}`, kind: 'component', bounds: null,
+    visual: { base64: 'aGk=', media_type: 'image/png' }, structure: null,
+  }));
+  const result = await interpretComponents(null, null, segments, { client });
+  assert.equal(calls.length, 3);
+  assert.equal(result.interpretations.length, 9);
+  assert.equal(result.interpretations[0].model, 'gemini-test');
+});
+
+test('ein gescheiterter Chunk => nur seine Labels landen in failed, andere Chunks liefern', async () => {
+  let n = 0;
+  const client = {
+    messages: {
+      create: async (params) => {
+        n++;
+        if (n === 1) throw new Error('503 overloaded');
+        const labels = labelsFromPrompt(params);
+        return {
+          model: 'm',
+          stop_reason: 'end_turn',
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ interpretations: labels.map((l) => ({ name: l, html: `<b>${l}</b>`, jsx: '' })) }),
+          }],
+        };
+      },
+    },
+  };
+  const segments = Array.from({ length: 8 }, (_, i) => ({
+    id: `seg_${i}`, label: `c${i}`, kind: 'component', bounds: null,
+    visual: { base64: 'aGk=', media_type: 'image/png' }, structure: null,
+  }));
+  const result = await interpretComponents(null, null, segments, { client });
+  assert.deepEqual(result.failed, ['c0', 'c1', 'c2', 'c3']);
+  assert.equal(result.interpretations.length, 4);
+});
+
+test('ALLE Chunks gescheitert => interpretComponents wirft', async () => {
+  const client = { messages: { create: async () => { throw new Error('503'); } } };
+  const segments = [{ id: 'seg_0', label: 'a', kind: 'component', bounds: null, visual: { base64: 'aGk=', media_type: 'image/png' }, structure: null }];
+  await assert.rejects(
+    () => interpretComponents(null, null, segments, { client }),
+    /503/
+  );
+});
+
+test('Vollbild wird bei mehreren Chunks nur einmal von Platte gelesen', async () => {
+  const full = path.join(os.tmpdir(), `db-full-once-${Math.random().toString(36).slice(2)}.png`);
+  fs.writeFileSync(full, Buffer.from('89504e47', 'hex'));
+  let readCount = 0;
+  const origReadFileSync = fs.readFileSync;
+  fs.readFileSync = (...args) => { readCount++; return origReadFileSync(...args); };
+  const client = {
+    messages: {
+      create: async (params) => {
+        const labels = labelsFromPrompt(params);
+        return {
+          model: 'm',
+          content: [{ type: 'text', text: JSON.stringify({ interpretations: labels.map((l) => ({ name: l, html: `<div>${l}</div>`, jsx: '' })) }) }],
+        };
+      },
+    },
+  };
+  // 8 Segmente ohne eigenen Crop → 2 Chunks, beide brauchen das Vollbild-Fallback.
+  const segments = Array.from({ length: 8 }, (_, i) => ({
+    id: `seg_${i}`, label: `bare-${i}`, kind: 'component', bounds: null, visual: null, structure: null,
+  }));
+  try {
+    await interpretComponents(full, 'image/png', segments, { client });
+  } finally {
+    fs.readFileSync = origReadFileSync;
+    fs.unlinkSync(full);
+  }
+  assert.equal(readCount, 1);
 });
