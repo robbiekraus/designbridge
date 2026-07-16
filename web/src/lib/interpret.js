@@ -39,11 +39,16 @@ export function componentsNeedingInterpretation(result) {
   return out;
 }
 
-export async function requestInterpretations(importId, components) {
+// == Server-CHUNK_SIZE: 1 Client-Request = genau 1 KI-Call, damit der Nutzer
+// nach jedem Chunk sofort einen Zwischenstand sieht statt Minuten Blindflug.
+const CLIENT_CHUNK_SIZE = 4;
+
+export async function requestInterpretations(importId, components, { signal } = {}) {
   const res = await fetch('/api/interpret/components', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ import_id: importId, components }),
+    signal,
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Interpretation fehlgeschlagen');
@@ -66,25 +71,54 @@ export function attachInterpretations(result, data) {
 }
 
 /**
- * Orchestrierung: prüft ob etwas zu tun ist, ruft den Endpoint, merged.
- * Gibt das nächste Result zurück — oder null, wenn nichts zu tun war.
- * Wirft nie: Fehler landen als interpretError/interpretFailed im Result.
+ * Orchestrierung: prüft ob etwas zu tun ist, sendet die offenen Bausteine in
+ * 4er-Chunks (sequenziell — schont das Free-Tier-RPM zusammen mit dem
+ * Server-Backoff) und merged jede Antwort sofort. `onProgress` bekommt nach
+ * jedem Chunk den akkumulierten Zwischenstand (interpretPending bleibt bis
+ * zum letzten Chunk true). Ein `signal` bricht vor dem nächsten Chunk ab —
+ * z. B. weil ein neuer Import gestartet wurde.
+ * Gibt das nächste Result zurück — oder null, wenn nichts zu tun war oder
+ * abgebrochen wurde. Wirft nie: Fehler landen als interpretError/interpretFailed.
  */
-export async function runInterpretation(result) {
+export async function runInterpretation(result, { onProgress, signal } = {}) {
   const todo = componentsNeedingInterpretation(result);
   const importId = result?.raw?.meta?.import_id;
   if (!['image', 'url', 'repo'].includes(result?.source) || !importId || todo.length === 0) return null;
-  try {
-    const data = await requestInterpretations(importId, todo);
-    return attachInterpretations(result, data);
-  } catch (e) {
-    return {
-      ...result,
-      interpretPending: false,
-      interpretError: e.message || String(e),
-      interpretFailed: todo.map((t) => t.name),
-    };
+
+  const chunks = [];
+  for (let i = 0; i < todo.length; i += CLIENT_CHUNK_SIZE) chunks.push(todo.slice(i, i + CLIENT_CHUNK_SIZE));
+
+  let acc = { ...result, interpretPending: true, interpretError: null };
+  const failed = [];
+  let lastError = null;
+  let anySuccess = false;
+
+  // Sequenziell, nicht parallel: Free-Tier-RPM. Der Server-Backoff (Task 1)
+  // fängt Drosselungen ab; hier zusätzlich zu parallelisieren würde sie provozieren.
+  for (const chunk of chunks) {
+    if (signal?.aborted) return null; // neuer Import übernimmt — Ergebnis verwerfen
+    try {
+      const data = await requestInterpretations(importId, chunk, { signal });
+      anySuccess = true;
+      acc = attachInterpretations(acc, data);
+      failed.push(...(data.failed ?? []));
+      // Zwischenstand zeigen: pending bleibt true bis zum letzten Chunk.
+      acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
+      onProgress?.(acc);
+    } catch (e) {
+      if (signal?.aborted || e?.name === 'AbortError') return null;
+      lastError = e;
+      failed.push(...chunk.map((c) => c.name));
+      acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
+      onProgress?.(acc);
+    }
   }
+  return {
+    ...acc,
+    interpretPending: false,
+    interpretFailed: failed,
+    interpretError: !anySuccess && lastError ? (lastError.message || String(lastError)) : null,
+  };
 }
 
 /** Findet den rohen Baustein (gleiche Form wie componentsNeedingInterpretation) über alle Kinds hinweg. */

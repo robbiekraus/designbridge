@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ImportModal from './components/ImportModal/ImportModal.jsx';
 import { loadLastImport, saveLastImport } from './lib/libraryStore.js';
 import Dashboard from './pages/Dashboard.jsx';
@@ -17,6 +17,40 @@ export default function App() {
   const [serverOk, setServerOk] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [lastImport, setLastImport] = useState(null);
+  const interpretAbortRef = useRef(null);
+
+  // Startet (oder übernimmt) die Interpretation für `base`: bricht eine noch
+  // laufende vorherige Interpretation ab (ein neuer Import gewinnt und spart
+  // Free-Tier-Quota), füllt die UI chunkweise per onProgress, und setzt
+  // interpretPending selbst nur dann zurück, wenn runInterpretation aus
+  // "nichts zu tun" (nicht aus Abort) null liefert — bei Abort tut es nichts,
+  // der neue Import hat den State schon übernommen.
+  const startInterpretation = (base) => {
+    interpretAbortRef.current?.abort();
+    const controller = new AbortController();
+    interpretAbortRef.current = controller;
+    const apply = (next) => {
+      setLastImport((cur) => {
+        const applied = applyIfSameImport(cur, next);
+        if (applied !== cur) saveLastImport(applied);
+        return applied;
+      });
+    };
+    runInterpretation(base, { onProgress: apply, signal: controller.signal }).then((next) => {
+      if (next) {
+        apply(next);
+        return;
+      }
+      if (controller.signal.aborted) return; // neuer Import hat übernommen — nichts tun
+      // "nichts zu tun" ohne Abort: pending zurücksetzen, sonst bliebe die Leiste hängen.
+      setLastImport((cur) => {
+        if (cur?.raw?.meta?.import_id !== base?.raw?.meta?.import_id) return cur;
+        const applied = { ...cur, interpretPending: false };
+        saveLastImport(applied);
+        return applied;
+      });
+    });
+  };
 
   useEffect(() => {
     fetch('/api/health')
@@ -40,13 +74,7 @@ export default function App() {
     saveLastImport(initial);
     setLastImport(initial);
     if (initial.interpretPending) {
-      runInterpretation(initial).then((next) => {
-        setLastImport((cur) => {
-          const applied = applyIfSameImport(cur, next);
-          if (applied !== cur) saveLastImport(applied);
-          return applied;
-        });
-      });
+      startInterpretation(initial);
     }
   };
 
@@ -71,15 +99,7 @@ export default function App() {
     const pending = { ...lastImport, interpretPending: true, interpretError: null, interpretFailed: [] };
     saveLastImport(pending);
     setLastImport(pending);
-    runInterpretation(pending).then((next) => {
-      setLastImport((cur) => {
-        // next === null: nichts zu tun (z. B. kein import_id) → pending zurücksetzen,
-        // sonst bliebe die Leiste dauerhaft in „wird interpretiert …" hängen.
-        const applied = next ? applyIfSameImport(cur, next) : { ...cur, interpretPending: false };
-        if (applied !== cur) saveLastImport(applied);
-        return applied;
-      });
-    });
+    startInterpretation(pending);
   };
 
   const renderPage = () => {

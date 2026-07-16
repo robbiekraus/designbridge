@@ -200,6 +200,106 @@ describe('runInterpretation', () => {
   });
 });
 
+describe('runInterpretation — progressive Chunks + Abort', () => {
+  const NINE = {
+    source: 'image',
+    raw: {
+      meta: { import_id: 'nine1' },
+      atomics: Array.from({ length: 9 }, (_, i) => ({ name: `Widget${i + 1}`, variants: [], notes: '' })),
+      components: [],
+      patterns: [],
+    },
+  };
+
+  it('9 todo-Komponenten → 3 Chunk-Requests (≤4 je Body), onProgress je Chunk mit interpretPending:true, Endergebnis vollständig', async () => {
+    const calls = [];
+    const progressStates = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      calls.push(body.components.map((c) => c.name));
+      return {
+        ok: true,
+        json: async () => ({
+          interpretations: body.components.map((c) => ({ name: c.name, html: `<div>${c.name}</div>`, jsx: '' })),
+          failed: [],
+        }),
+      };
+    }));
+    const onProgress = vi.fn((state) => progressStates.push(state));
+    const next = await runInterpretation(NINE, { onProgress });
+
+    expect(calls.length).toBe(3);
+    calls.forEach((c) => expect(c.length).toBeLessThanOrEqual(4));
+    expect(calls.flat()).toEqual([
+      'Widget1', 'Widget2', 'Widget3', 'Widget4',
+      'Widget5', 'Widget6', 'Widget7', 'Widget8',
+      'Widget9',
+    ]);
+    expect(onProgress).toHaveBeenCalledTimes(3);
+    progressStates.forEach((state) => expect(state.interpretPending).toBe(true));
+    expect(next.interpretPending).toBe(false);
+    expect(Object.keys(next.interpretations)).toHaveLength(9);
+    expect(next.interpretFailed).toEqual([]);
+    expect(next.interpretError).toBeNull();
+  });
+
+  it('Chunk 2 von 3 schlägt fehl → Chunk 1+3 kommen durch, Chunk-2-Namen in interpretFailed, kein interpretError (anySuccess)', async () => {
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      call++;
+      if (call === 2) throw new Error('netz kaputt');
+      const body = JSON.parse(opts.body);
+      return {
+        ok: true,
+        json: async () => ({
+          interpretations: body.components.map((c) => ({ name: c.name, html: '<div/>', jsx: '' })),
+          failed: [],
+        }),
+      };
+    }));
+    const next = await runInterpretation(NINE);
+    expect(next.interpretError).toBeNull();
+    expect(next.interpretFailed).toEqual(['Widget5', 'Widget6', 'Widget7', 'Widget8']);
+    expect(Object.keys(next.interpretations).sort()).toEqual(
+      ['Widget1', 'Widget2', 'Widget3', 'Widget4', 'Widget9'].sort()
+    );
+    expect(next.interpretPending).toBe(false);
+  });
+
+  it('alle Chunks schlagen fehl → interpretError gesetzt, alle Namen failed', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('alles kaputt'); }));
+    const next = await runInterpretation(NINE);
+    expect(next.interpretError).toBe('alles kaputt');
+    expect(next.interpretFailed).toEqual([
+      'Widget1', 'Widget2', 'Widget3', 'Widget4',
+      'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9',
+    ]);
+    expect(next.interpretPending).toBe(false);
+    expect(Object.keys(next.interpretations ?? {})).toHaveLength(0);
+  });
+
+  it('signal bereits aborted vor Chunk 2 → gibt null zurück, kein weiterer fetch', async () => {
+    let call = 0;
+    const controller = new AbortController();
+    const fetchMock = vi.fn(async (url, opts) => {
+      call++;
+      if (call === 1) controller.abort(); // Abort passiert während Chunk 1 noch läuft
+      const body = JSON.parse(opts.body);
+      return {
+        ok: true,
+        json: async () => ({
+          interpretations: body.components.map((c) => ({ name: c.name, html: '<div/>', jsx: '' })),
+          failed: [],
+        }),
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const next = await runInterpretation(NINE, { signal: controller.signal });
+    expect(next).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // Chunk 2/3 wurden wegen Abort nie gesendet
+  });
+});
+
 describe('retryInterpretation', () => {
   const FAILED_RESULT = {
     ...RESULT,
