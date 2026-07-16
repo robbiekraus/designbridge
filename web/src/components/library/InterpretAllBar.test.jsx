@@ -45,4 +45,13 @@ describe('InterpretAllBar', () => {
     expect(screen.queryByText(/Einzel-Interpretation läuft/)).toBeNull();
     expect(screen.getByRole('button', { name: /Alle interpretieren/ })).toBeDisabled();
   });
+
+  it('Quota-Bremse: interpretQuotaExhausted sperrt den Knopf + zeigt die Quota-Meldung als Text und Tooltip', () => {
+    const quotaResult = { ...repoWithTodo, interpretQuotaExhausted: true };
+    render(<InterpretAllBar result={quotaResult} onInterpretAll={() => {}} />);
+    const button = screen.getByRole('button', { name: /Alle interpretieren/ });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('title', expect.stringMatching(/Tages-Kontingent erschöpft/));
+    expect(screen.getByText(/Tages-Kontingent erschöpft/)).toBeInTheDocument();
+  });
 });

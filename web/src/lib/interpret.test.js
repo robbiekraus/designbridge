@@ -107,6 +107,28 @@ describe('requestInterpretations', () => {
     })));
     await expect(requestInterpretations('old', [{ name: 'X' }])).rejects.toThrow(/nicht mehr verfügbar/);
   });
+
+  it('Quota-Bremse: trägt dailyQuota:true wenn der Server daily_quota:true meldet', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      json: async () => ({
+        error: 'Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.',
+        daily_quota: true,
+      }),
+    })));
+    let caught;
+    try { await requestInterpretations('abc123', [{ name: 'X' }]); } catch (e) { caught = e; }
+    expect(caught).toBeTruthy();
+    expect(caught.dailyQuota).toBe(true);
+    expect(caught.message).toMatch(/Tages-Kontingent erschöpft/);
+  });
+
+  it('dailyQuota bleibt false bei einem gewöhnlichen Fehler (kein daily_quota-Flag)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'kaputt' }) })));
+    let caught;
+    try { await requestInterpretations('abc123', [{ name: 'X' }]); } catch (e) { caught = e; }
+    expect(caught.dailyQuota).toBe(false);
+  });
 });
 
 describe('attachInterpretations', () => {
@@ -136,6 +158,13 @@ describe('attachInterpretations', () => {
     const next = attachInterpretations(result, data);
     expect(next.interpretations.avatar.model).toBeNull();
     expect(next.interpretations.avatar.demo).toBe(false);
+  });
+
+  it('Quota-Bremse: räumt eine vorherige interpretQuotaExhausted-Sperre bei jedem Erfolg', () => {
+    const result = { interpretations: {}, interpretQuotaExhausted: true };
+    const data = { interpretations: [{ name: 'avatar', html: '<div/>', jsx: '' }], failed: [] };
+    const next = attachInterpretations(result, data);
+    expect(next.interpretQuotaExhausted).toBe(false);
   });
 });
 
@@ -279,6 +308,44 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     expect(Object.keys(next.interpretations ?? {})).toHaveLength(0);
   });
 
+  it('Quota-Bremse: Chunk 2 meldet daily_quota → Schleife stoppt sofort, Chunk 3 wird NIE gesendet, alle Namen ab Chunk 2 failed', async () => {
+    let call = 0;
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      call++;
+      if (call === 2) {
+        return {
+          ok: false,
+          json: async () => ({
+            error: 'Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.',
+            daily_quota: true,
+          }),
+        };
+      }
+      const body = JSON.parse(opts.body);
+      return {
+        ok: true,
+        json: async () => ({
+          interpretations: body.components.map((c) => ({ name: c.name, html: '<div/>', jsx: '' })),
+          failed: [],
+        }),
+      };
+    }));
+    const next = await runInterpretation(NINE);
+
+    expect(call).toBe(2); // Chunk 3 (3. Request) wurde nie gesendet — Fail-Fast
+    expect(next.interpretQuotaExhausted).toBe(true);
+    expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
+    // Chunk 1 (Widget1-4) kam durch, Chunk 2 (Widget5-8) UND Chunk 3 (Widget9,
+    // nie gesendet) landen als failed.
+    expect(next.interpretFailed.sort()).toEqual(
+      ['Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
+    );
+    expect(Object.keys(next.interpretations).sort()).toEqual(
+      ['Widget1', 'Widget2', 'Widget3', 'Widget4'].sort()
+    );
+    expect(next.interpretPending).toBe(false);
+  });
+
   it('signal bereits aborted vor Chunk 2 → gibt null zurück, kein weiterer fetch', async () => {
     let call = 0;
     const controller = new AbortController();
@@ -365,6 +432,30 @@ describe('retryInterpretation', () => {
     const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
     const next = await retryInterpretation(noImportId, 'Avatar');
     expect(next).toBe(noImportId);
+  });
+
+  it('Quota-Bremse: daily_quota-Fehler setzt zusätzlich interpretQuotaExhausted:true', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      json: async () => ({
+        error: 'Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.',
+        daily_quota: true,
+      }),
+    })));
+    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(next.interpretQuotaExhausted).toBe(true);
+    expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
+  });
+
+  it('Quota-Bremse: Erfolg nach einer Quota-Sperre räumt interpretQuotaExhausted wieder', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
+    })));
+    const blocked = { ...FAILED_RESULT, interpretQuotaExhausted: true };
+    const next = await retryInterpretation(blocked, 'Avatar');
+    expect(next.interpretQuotaExhausted).toBe(false);
   });
 });
 

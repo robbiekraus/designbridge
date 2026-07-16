@@ -51,7 +51,14 @@ export async function requestInterpretations(importId, components, { signal } = 
     signal,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Interpretation fehlgeschlagen');
+  if (!res.ok) {
+    const err = new Error(data.error || 'Interpretation fehlgeschlagen');
+    // Quota-Bremse: Server markiert Tages-Quota-Erschöpfung (RPD) mit
+    // daily_quota:true — runInterpretation bricht die Chunk-Schleife darauf
+    // sofort ab, statt denselben Fehler pro weiterem Chunk zu wiederholen.
+    err.dailyQuota = Boolean(data.daily_quota);
+    throw err;
+  }
   return data;
 }
 
@@ -67,6 +74,10 @@ export function attachInterpretations(result, data) {
     interpretFailed: data.failed ?? [],
     interpretPending: false,
     interpretError: null,
+    // Jede erfolgreiche Server-Antwort (auch ein Einzel-Retry) räumt eine
+    // vorherige Tages-Quota-Sperre — der Server ist die Quota-Wahrheit,
+    // nicht der Client (Quota-Bremse).
+    interpretQuotaExhausted: false,
   };
 }
 
@@ -92,10 +103,12 @@ export async function runInterpretation(result, { onProgress, signal } = {}) {
   const failed = [];
   let lastError = null;
   let anySuccess = false;
+  let quotaExhausted = false;
 
   // Sequenziell, nicht parallel: Free-Tier-RPM. Der Server-Backoff (Task 1)
   // fängt Drosselungen ab; hier zusätzlich zu parallelisieren würde sie provozieren.
-  for (const chunk of chunks) {
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
     if (signal?.aborted) return null; // neuer Import übernimmt — Ergebnis verwerfen
     try {
       const data = await requestInterpretations(importId, chunk, { signal });
@@ -108,6 +121,17 @@ export async function runInterpretation(result, { onProgress, signal } = {}) {
     } catch (e) {
       if (signal?.aborted || e?.name === 'AbortError') return null;
       lastError = e;
+      if (e.dailyQuota) {
+        // Tages-Quota erschöpft (Quota-Bremse): derselbe Fehler träfe jeden
+        // weiteren Chunk — sofort abbrechen statt sinnlos weiterzusenden.
+        // Alle noch nicht gesendeten Chunk-Namen (inkl. des gerade
+        // gescheiterten) zählen als failed.
+        quotaExhausted = true;
+        for (let j = i; j < chunks.length; j++) failed.push(...chunks[j].map((c) => c.name));
+        acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
+        onProgress?.(acc);
+        break;
+      }
       failed.push(...chunk.map((c) => c.name));
       acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
       onProgress?.(acc);
@@ -117,7 +141,10 @@ export async function runInterpretation(result, { onProgress, signal } = {}) {
     ...acc,
     interpretPending: false,
     interpretFailed: failed,
-    interpretError: !anySuccess && lastError ? (lastError.message || String(lastError)) : null,
+    interpretQuotaExhausted: quotaExhausted,
+    interpretError: quotaExhausted
+      ? (lastError.message || String(lastError))
+      : (!anySuccess && lastError ? (lastError.message || String(lastError)) : null),
   };
 }
 
@@ -167,6 +194,10 @@ export async function retryInterpretation(result, name) {
       interpretPending: false,
       interpretError: e.message || String(e),
       interpretFailed: existingFailed.includes(name) ? existingFailed : [...existingFailed, name],
+      // Quota-Bremse: ein Retry, der auf Tages-Quota trifft, sperrt auch den
+      // Batch-Knopf (InterpretAllBar) — ein Klick würde sofort denselben
+      // Fehler wiederholen.
+      interpretQuotaExhausted: Boolean(e.dailyQuota),
     };
   }
 }
