@@ -7,6 +7,7 @@ import scanRouter from './routes/scan.js';
 import figmaExportRouter from './routes/figmaExport.js';
 import interpretRouter from './routes/interpret.js';
 import { aiKeyConfigured, aiProviderName } from './lib/aiClient.js';
+import { buildHealthPayload } from './lib/healthInfo.js';
 
 const app = express();
 const PORT = process.env.PORT || 3047;
@@ -24,14 +25,7 @@ app.use('/demo', express.static(path.join(__dirname, '../demo-site')));
 
 // Health check
 app.get('/api/health', (req, res) => {
-  const hasKey = !!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_API_KEY.includes('...');
-  res.json({
-    status: 'ok',
-    anthropic_key_configured: hasKey, // Back-Compat (Web-UI liest dieses Feld)
-    ai_key_configured: aiKeyConfigured(),
-    ai_provider: aiProviderName(),
-    version: '0.1.1'
-  });
+  res.json(buildHealthPayload());
 });
 
 app.use('/api/scan', scanRouter);
