@@ -54,4 +54,47 @@ describe('ImportSuccess', () => {
     await userEvent.click(screen.getByRole('button', { name: /open library/i }));
     expect(onOpenLibrary).toHaveBeenCalledOnce();
   });
+
+  it('shows an amber warning state instead of the green checkmark when 0 tokens were extracted', () => {
+    const zeroResult = {
+      source: 'url',
+      mocked: false,
+      warnings: [],
+      categories: [
+        { key: 'colors', label: 'Colors', count: 0, confidence: null },
+        { key: 'typography', label: 'Typography', count: 0, confidence: null },
+        { key: 'spacing', label: 'Spacing', count: 0, confidence: null },
+        { key: 'radius', label: 'Border radius', count: 0, confidence: null },
+        { key: 'shadows', label: 'Shadows', count: 0, confidence: null },
+        { key: 'inventory', label: 'UI inventory', count: 0, confidence: null, extra: { atomics: 0, components: 0, patterns: 0 } },
+      ],
+      raw: {},
+    };
+    render(<ImportSuccess result={zeroResult} onNewImport={() => {}} />);
+    expect(screen.queryByText('✓')).toBeNull();
+    expect(screen.getByText(/keine Design-Tokens gefunden/i)).toBeInTheDocument();
+  });
+
+  it('still shows the green checkmark when tokens were extracted, even with 0 inventory items', () => {
+    render(<ImportSuccess result={sampleResult} onNewImport={() => {}} />);
+    expect(screen.getByText('✓')).toBeInTheDocument();
+  });
+
+  it('renders server warnings from the scan response', () => {
+    const withWarnings = {
+      ...sampleResult,
+      warnings: [
+        '2 Stylesheet(s) waren nicht lesbar und wurden übersprungen — einzelne Tokens können fehlen.',
+        'Tailwind 4 erkannt — Tokens werden aus CSS-Variablen statt tailwind.config gelesen.',
+      ],
+    };
+    render(<ImportSuccess result={withWarnings} onNewImport={() => {}} />);
+    expect(screen.getByText(/Stylesheet\(s\) waren nicht lesbar/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tailwind 4 erkannt/i)).toBeInTheDocument();
+  });
+
+  it('renders nothing extra when there are no warnings', () => {
+    render(<ImportSuccess result={sampleResult} onNewImport={() => {}} />);
+    expect(screen.queryByRole('list', { name: /hinweise/i })).toBeNull();
+  });
 });

@@ -26,6 +26,7 @@ export function adaptScanResponse(raw, source = 'image') {
   return {
     source,
     mocked: false,
+    warnings: Array.isArray(raw?.warnings) ? raw.warnings : [],
     categories: [
       categoryRow('colors', 'Colors', tokens.colors),
       categoryRow('typography', 'Typography', tokens.typography),

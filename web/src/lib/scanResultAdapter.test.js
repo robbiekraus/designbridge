@@ -58,4 +58,14 @@ describe('adaptScanResponse', () => {
   it('image alias keeps source "image"', () => {
     expect(adaptImageScanResponse(raw).source).toBe('image');
   });
+
+  it('carries server warnings through to the adapted result', () => {
+    const withWarnings = { ...raw, warnings: ['1 Stylesheet war nicht lesbar und wurde übersprungen.'] };
+    const out = adaptScanResponse(withWarnings, 'url');
+    expect(out.warnings).toEqual(['1 Stylesheet war nicht lesbar und wurde übersprungen.']);
+  });
+
+  it('defaults warnings to an empty array when absent', () => {
+    expect(adaptScanResponse(raw, 'url').warnings).toEqual([]);
+  });
 });

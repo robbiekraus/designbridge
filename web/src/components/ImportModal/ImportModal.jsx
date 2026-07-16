@@ -61,7 +61,7 @@ export default function ImportModal({ open, onClose, onImported, onOpenLibrary }
   } else if (activeTab === 'image') {
     body = <ImageTab onSubmit={submit} />;
   } else if (activeTab === 'url') {
-    body = <UrlTab onSubmit={submit} />;
+    body = <UrlTab onSubmit={submit} onSwitchToRepo={() => setActiveTab('repo')} />;
   } else if (activeTab === 'repo') {
     body = <RepoTab onSubmit={submit} />;
   } else {

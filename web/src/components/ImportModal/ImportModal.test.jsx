@@ -28,6 +28,15 @@ describe('ImportModal', () => {
     expect(figma).toBeDisabled();
   });
 
+  it('switches to the Repo tab when the GitHub hint button is clicked in the URL tab', async () => {
+    const user = userEvent.setup();
+    render(<ImportModal open={true} onClose={() => {}} />);
+    await user.click(screen.getByRole('button', { name: /^URL/ }));
+    await user.type(screen.getByPlaceholderText('https://example.com'), 'https://github.com/acme/repo');
+    await user.click(screen.getByRole('button', { name: /Repo-Tab/i }));
+    expect(screen.getByPlaceholderText('https://github.com/org/repo')).toBeInTheDocument();
+  });
+
   it('runs the URL import end to end', async () => {
     global.fetch.mockImplementation(async () => {
       await new Promise(r => setTimeout(r, 200));
