@@ -58,6 +58,24 @@ function retryDelayMs(errorData) {
   return Number.isFinite(s) ? Math.min(s * 1000, MAX_RETRY_DELAY_MS) : 0;
 }
 
+// Tages-Quota (RPD) von Minuten-Quota (RPM) unterscheiden (Quota-Bremse,
+// Kernbefund 16.07.): beide Ketten-Modelle teilen sich denselben Free-Tier-
+// RPD-Topf — Modell-Fallback und Backoff verbrennen dort nur sinnlos Calls.
+// Googles 429-Body trägt bei RPD-Erschöpfung eine QuotaFailure-Detail, deren
+// violations[].quotaId ein "PerDay"-Fenster nennt (z. B.
+// GenerateRequestsPerDayPerProjectPerModel-FreeTier). Findet sich keine
+// solche Violation, ist es ein gewöhnlicher RPM-429 — dafür bleibt die
+// bestehende Fallback-/Backoff-Kette unverändert.
+function findDailyQuotaViolation(errorData) {
+  const details = errorData?.error?.details ?? [];
+  for (const d of details) {
+    if (!/QuotaFailure/.test(d?.['@type'] ?? '')) continue;
+    const hit = (d.violations ?? []).find((v) => /perday/i.test(v?.quotaId ?? ''));
+    if (hit) return hit;
+  }
+  return null;
+}
+
 // Anthropic-Content-Blöcke → Gemini-Parts (Reihenfolge bleibt erhalten).
 function toParts(content) {
   if (typeof content === 'string') return [{ text: content }];
@@ -135,6 +153,17 @@ export function makeGeminiClient({
               // Troubleshooting-Link hilft dem Nutzer nicht (Live-Fund 15.07.).
               if (res.status === 400 && /input image/i.test(msg)) {
                 throw new Error('Das Bild konnte nicht verarbeitet werden — bitte eine gültige Bilddatei (PNG/JPG) hochladen.');
+              }
+              // Tages-Quota-429 VOR dem Retry-Zweig abfangen: sofort aufgeben statt
+              // Kette/Backoff zu verbrennen (gleicher Topf für alle Ketten-Modelle).
+              if (res.status === 429) {
+                const violation = findDailyQuotaViolation(data);
+                if (violation) {
+                  console.warn(`[gemini] Tages-Quota erschöpft (${violation.quotaId})`);
+                  const dailyError = new Error('Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.');
+                  dailyError.isDailyQuota = true;
+                  throw dailyError;
+                }
               }
               lastError = new Error(`Gemini-API-Fehler (HTTP ${res.status}): ${msg}`);
               if (RETRYABLE.has(res.status)) {

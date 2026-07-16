@@ -319,3 +319,58 @@ test('schnelle Antwort innerhalb des Timeouts wirft nicht (kein falsch-positiver
   const res = await client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
   assert.equal(res.content[0].text, '{"ok":true}');
 });
+
+// --- Tages-Quota (RPD) Fail-Fast (Quota-Bremse, Task 1) ---
+// Kernbefund 16.07.: beide Ketten-Modelle teilen sich denselben Free-Tier-Topf.
+// Bei Tages-Quota-Erschöpfung bringt weder Modell-Fallback noch Backoff etwas —
+// im Gegensatz zu gewöhnlichem RPM-429 (Minuten-Fenster), das weiterhin die
+// volle Kette + Backoff durchläuft (Regressionstests oben bleiben unverändert grün).
+
+test('429 mit QuotaFailure/PerDay-Violation → sofortiger Fail-Fast: isDailyQuota, deutsche Meldung, genau 1 Fetch-Call', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    return {
+      ok: false,
+      status: 429,
+      json: async () => ({
+        error: {
+          message: 'Resource has been exhausted (e.g. check quota).',
+          details: [{
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', quotaMetric: 'x' }],
+          }],
+        },
+      }),
+    };
+  };
+  // sleepImpl fake halten — bei Tages-Quota darf es aber ohnehin nie zum
+  // Backoff-Sleep kommen (das wäre genau der Bug, den wir fixen).
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async () => { throw new Error('sollte nicht schlafen — Fail-Fast!'); } });
+
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] }),
+    (err) => {
+      assert.equal(err.isDailyQuota, true);
+      assert.match(err.message, /Gemini-Tages-Kontingent erschöpft/);
+      assert.match(err.message, /09:00/);
+      return true;
+    }
+  );
+  // Kein Fallback-Modell, keine Retry-Runde — genau 1 Call (nicht 2 oder 6).
+  assert.equal(calls.length, 1);
+});
+
+test('429 ohne QuotaFailure/PerDay bleibt reguläres RPM-429 → volle Fallback-/Backoff-Kette wie bisher', async () => {
+  let n = 0;
+  const fetchImpl = async () => { n++; return { ok: false, status: 429, json: async () => ({ error: { message: 'quota' } }) }; };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async () => {} });
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] }),
+    (err) => {
+      assert.notEqual(err.isDailyQuota, true);
+      return true;
+    }
+  );
+  assert.equal(n, 6); // 2 Modelle × 3 Runden — unverändertes RPM-Verhalten
+});
