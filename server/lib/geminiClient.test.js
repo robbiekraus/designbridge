@@ -151,6 +151,28 @@ test('makeGeminiClient: wenn alle Modelle scheitern, kommt der letzte Fehler', a
   );
 });
 
+test('makeGeminiClient: flash-lite steht NICHT mehr in der Fallback-Kette (Degradierungs-Stopp)', async () => {
+  const calls = [];
+  const impl = async (url) => {
+    calls.push(url);
+    return { ok: false, status: 503, json: async () => ({ error: { message: 'overloaded' } }) };
+  };
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 10, messages: IMAGE_MSG }),
+    /503/
+  );
+
+  // Default-Modell + genau ein Fallback (gemini-3-flash-preview) — kein
+  // stilles Abgleiten auf flash-lite, das nachweislich generische Inhalte
+  // erfand statt des echten Bildausschnitts (Testrunden 2+3).
+  assert.equal(calls.length, 2);
+  assert.match(calls[0], /gemini-flash-latest:generateContent/);
+  assert.match(calls[1], /gemini-3-flash-preview:generateContent/);
+  assert.ok(calls.every((url) => !/flash-lite/.test(url)));
+});
+
 test('makeGeminiClient: reiner Text-Content (String) wird als Text-Part gesendet', async () => {
   const { impl, calls } = fakeFetch();
   const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });

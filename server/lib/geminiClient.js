@@ -9,11 +9,12 @@
 // Live-Fund 15.07.) — feste Versionen altern, der Alias nicht.
 const DEFAULT_MODEL = 'gemini-flash-latest';
 
-// Ausweich-Kette bei 404 (Modell weg) / 429 / 503 ("high demand", Live-Fund
-// 15.07.): Free-Tier-Spitzen treffen einzelne Modelle, selten alle zugleich.
-// Reihenfolge = Qualität: flash-lite erfand bei Interpretationen generische
-// Inhalte statt des echten Bildausschnitts (Testphase 15.07.) → letzter Ausweg.
-const FALLBACK_MODELS = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite'];
+// Ausweich-Kette bei 404/429/503. flash-lite steht bewusst NICHT mehr drin:
+// es erfand bei Interpretationen generische Inhalte statt des echten
+// Bildausschnitts (Testrunden 2+3) — stille Degradierung dorthin verfälschte
+// jedes Ergebnis unmarkiert. Lieber ehrlich scheitern; Retry trifft das gute
+// Modell, sobald die Lastspitze vorbei ist (Diagnose 16.07.).
+const FALLBACK_MODELS = ['gemini-3-flash-preview'];
 const RETRYABLE = new Set([404, 429, 503]);
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
