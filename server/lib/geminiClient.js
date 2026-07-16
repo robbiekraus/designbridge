@@ -25,6 +25,32 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const RETRY_SCHEDULE_MS = [2000, 8000];
 const MAX_RETRY_DELAY_MS = 15000;
 
+// Per-Fetch-Timeout: ein hängender Request (kein Netzwerkfehler, keine
+// Antwort — Live-Fund 16.07., Folge-Kandidat aus Testrunde 5) darf nicht den
+// ganzen Chunk blockieren. Default 60s, per Env übersteuerbar; in Tests via
+// { timeoutMs } injizierbar (kleine Werte → Test läuft ohne echte Wartezeit).
+const DEFAULT_TIMEOUT_MS = 60000;
+
+// Fetch mit AbortController-Timeout. Ein Timeout wird wie ein retrybarer
+// Serverfehler behandelt (503), damit die bestehende Fallback-/Backoff-Kette
+// greift statt den gesamten Call sofort scheitern zu lassen.
+async function fetchWithTimeout(fetchImpl, url, opts, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, { ...opts, signal: controller.signal });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      const timeoutError = new Error(`Gemini-API-Timeout nach ${timeoutMs}ms — kein retrybarer HTTP-Status vorhanden`);
+      timeoutError.isTimeout = true;
+      throw timeoutError;
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function retryDelayMs(errorData) {
   const detail = (errorData?.error?.details ?? []).find((d) => d?.retryDelay);
   if (!detail) return 0;
@@ -49,6 +75,7 @@ export function makeGeminiClient({
   model = process.env.GEMINI_MODEL || DEFAULT_MODEL,
   fetchImpl = fetch,
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  timeoutMs = Number(process.env.GEMINI_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS,
 } = {}) {
   return {
     messages: {
@@ -86,11 +113,20 @@ export function makeGeminiClient({
             await sleepImpl(Math.min(Math.max(RETRY_SCHEDULE_MS[round - 1], lastRetryDelay), MAX_RETRY_DELAY_MS));
           }
           for (const m of candidates) {
-            const res = await fetchImpl(`${BASE_URL}/${m}:generateContent`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-              body: JSON.stringify(body),
-            });
+            let res;
+            try {
+              res = await fetchWithTimeout(fetchImpl, `${BASE_URL}/${m}:generateContent`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify(body),
+              }, timeoutMs);
+            } catch (err) {
+              if (!err?.isTimeout) throw err;
+              // Timeout ohne HTTP-Status → wie ein retrybarer 503 behandeln:
+              // nächstes Modell/nächste Runde probieren statt sofort scheitern.
+              lastError = err;
+              continue;
+            }
 
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {

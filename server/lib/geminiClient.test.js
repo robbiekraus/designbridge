@@ -245,3 +245,77 @@ test('400 wirft sofort ohne Retry-Runden', async () => {
   await assert.rejects(() => client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] }));
   assert.equal(n, 1);
 });
+
+// --- Per-Fetch-Timeout (Reload-Limbo-Folgefix: ein hängender Request darf
+// nicht den ganzen Chunk blockieren) ---
+
+// Simuliert echtes fetch-Verhalten: hängt für immer, respektiert aber das
+// AbortSignal aus opts und wirft dann einen echten AbortError.
+function hangingFetchImpl() {
+  return async (url, opts) => new Promise((resolve, reject) => {
+    opts.signal?.addEventListener('abort', () => {
+      const err = new Error('The operation was aborted');
+      err.name = 'AbortError';
+      reject(err);
+    });
+  });
+}
+
+test('jeder fetch-Call bekommt ein AbortSignal (Voraussetzung fürs Timeout)', async () => {
+  const { impl, calls } = fakeFetch();
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl: impl });
+  await client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
+  assert.ok(calls[0].opts.signal instanceof AbortSignal);
+});
+
+test('hängender Request wird nach timeoutMs abgebrochen und wie 503 behandelt — Fallback-Modell greift', async () => {
+  const calls = [];
+  const fetchImpl = async (url, opts) => {
+    calls.push(url);
+    if (calls.length === 1) return hangingFetchImpl()(url, opts); // erster Call hängt → muss timeouten
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{"ok":1}' }] } }], modelVersion: 'fallback' }) };
+  };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, timeoutMs: 20, sleepImpl: async () => {} });
+
+  const res = await client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
+
+  assert.equal(calls.length, 2); // Call 1 timeoutet → Fallback-Modell (Call 2) übernimmt
+  assert.equal(res.content[0].text, '{"ok":1}');
+});
+
+test('Timeout auf allen Modellen/Runden → wirft nach Kettenende mit Timeout-Meldung (wie erschöpfte 503-Kette)', async () => {
+  let n = 0;
+  const fetchImpl = async (url, opts) => { n++; return hangingFetchImpl()(url, opts); };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, timeoutMs: 10, sleepImpl: async () => {} });
+
+  await assert.rejects(
+    () => client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+    /Timeout/
+  );
+  assert.equal(n, 6); // 2 Modelle x 3 Runden, exakt wie die erschöpfte 503-Kette
+});
+
+test('GEMINI_TIMEOUT_MS überschreibt den Default (60000ms)', async () => {
+  const original = process.env.GEMINI_TIMEOUT_MS;
+  process.env.GEMINI_TIMEOUT_MS = '15';
+  try {
+    let n = 0;
+    const fetchImpl = async (url, opts) => { n++; return hangingFetchImpl()(url, opts); };
+    const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async () => {} });
+    await assert.rejects(
+      () => client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] }),
+      /Timeout/
+    );
+    assert.equal(n, 6);
+  } finally {
+    if (original === undefined) delete process.env.GEMINI_TIMEOUT_MS;
+    else process.env.GEMINI_TIMEOUT_MS = original;
+  }
+});
+
+test('schnelle Antwort innerhalb des Timeouts wirft nicht (kein falsch-positiver Abort)', async () => {
+  const { impl } = fakeFetch();
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl: impl, timeoutMs: 5000 });
+  const res = await client.messages.create({ max_tokens: 10, messages: [{ role: 'user', content: 'hi' }] });
+  assert.equal(res.content[0].text, '{"ok":true}');
+});
