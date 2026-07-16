@@ -1,11 +1,11 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **16.07.2026 (Testing-Phase Runde 3 durch)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **170/170** · Web **321/321** · Plugin-Tests 39/39.
+Stand: **16.07.2026 (Testrunde 4 durch — alle 7 Interpretations-Ursachen gefixt)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **189/189** · Web **330/330** · Plugin-Tests 39/39.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
 > 2. Railway: **EIN Projekt = `appealing-mindfulness`** (hält die Domain). Das Duplikat `practical-creativity` wurde 15.07. gelöscht — nicht wundern, wenn alte Screenshots es zeigen.
-> 3. KI-Provider: **Gemini** (Railway-Variable `GEMINI_API_KEY`, Robs Gratis-Key von aistudio.google.com). Claude bleibt als Fallback im Code (gesetzter `ANTHROPIC_API_KEY` hätte Vorrang; `AI_PROVIDER` erzwingt). Modell = Alias `gemini-flash-latest` + automatische Ausweich-Kette (`gemini-3.1-flash-lite`, `gemini-3-flash-preview`) bei 404/429/503.
+> 3. KI-Provider: **Gemini** (Railway-Variable `GEMINI_API_KEY`, Robs Gratis-Key von aistudio.google.com). Claude bleibt als Fallback im Code (gesetzter `ANTHROPIC_API_KEY` hätte Vorrang; `AI_PROVIDER` erzwingt). Modell = Alias `gemini-flash-latest` + Ausweich NUR noch auf `gemini-3-flash-preview` bei 404/429/503 — **flash-lite ist seit Testrunde 4 raus** (erfand generische Inhalte; lieber ehrlich scheitern + Retry). Temperature client-weit 0.2.
 > 4. Free-Tier-Limits: ~10 Anfragen/Min, 1.500/Tag — für Robs Nutzung irrelevant, aber bei Testreihen nicht im Sekundentakt scannen.
 > 5. Lokal entwickeln wie immer: `npm run dev` (bzw. `dev:demo`), Port-Falle beachten (`PORT=3047`). Lokal echten KI-Test: `GEMINI_API_KEY` in die lokale `.env` übernehmen (steht nur in Railway!).
 
@@ -35,6 +35,21 @@ Stand: **16.07.2026 (Testing-Phase Runde 3 durch)** — **🚀 APP IST LIVE: htt
 2. **Emit-Farbbug** (`3de0c2e`): `ensureReadableText()` — nie mehr bg == Textfarbe (Rollen-Kollision, #79c0ff auf #79c0ff), Kontrast-Heuristik + Token-Namen-Rückmapping.
 3. **UX ehrlich** (`aa19fb6`, `8bac17b`): GitHub-URL-Hinweis im URL-Tab · 0-Tokens = Amber-Warnzustand statt grünem Häkchen + Server-Warnungen im Modal · „Mit KI vertiefen" → „Komponenten-Erkennung verfeinern".
 4. **Interpretations-Diagnose (read-only, Fable):** Pipeline im Kern gesund — Live-Test lieferte für große Karte originalgetreue Interpretation (exakte Zahlen/Farben/Icons). „Generisch"-Ursachen bewiesen: **(a)** Winzige Atomic-Crops ohne Mindestgröße/Upscaling (Avatar 34×31 px → Modell erfindet, lieferte Unsplash-Stockfoto; `imageDecomposer.js cropVisual`), **(b)** stille Fallback-Degradierung auf flash-lite bei 429/503, Modellname wird bei /api/interpret verworfen, „Erneut versuchen" läuft in dieselbe Falle (`geminiClient.js` + `interpretComponents.js`), **(c)** Alles-in-einem-Batch (13 Bausteine, 1 Call) + Default-Temperature ≈1.0, **(d)** `mergeByName` behält erste statt größte bbox, **(e)** `sanitizeHtml` lässt externe `<img src>` durch, **(f)** ⚠️ `DEMO_FALLBACK` evtl. noch =1 auf Railway → unmarkierte Konserven-Interpretationen! **→ Empfehlungen = Plan Testrunde 4** (Prio: Mindest-Crop-Größe/Upscaling → temperature 0–0.2 → Modell-Badge + Degradierungs-Stopp vor flash-lite → Batch-Chunking 3–4 → DEMO_FALLBACK prüfen/badgen → mergeByName größte bbox → sanitizeHtml externe Bilder ersetzen).
+
+## Session 16.07.2026 nachmittags — Testrunde 4 (subagent-getrieben, alle 7 Diagnose-Ursachen gefixt)
+
+Plan: `docs/superpowers/plans/2026-07-16-testrunde4-interpretationsqualitaet.md`. 11 Commits (`d6839f8`…`79efb8a`), jeder Task mit Spec- + Quality-Review, Final-Review (Opus): SHIP.
+
+1. **Crop-Upscaling** (`d6839f8`): Crops < 128px kurze Kante werden bikubisch hochskaliert (max 4×) — Ursache (a) Mini-Crops.
+2. **Temperature 0.2** (`cc3b28e`): client-weit statt Default ~1.0 — Ursache (c2).
+3. **Degradierungs-Stopp** (`8a6df75`): flash-lite komplett aus der Fallback-Kette — Ursache (b). Kettenerschöpfung wird geloggt (`79efb8a`).
+4. **Chunking à 4** (`a56de34` + `a489e93`): statt 13-Bausteine-Monsterbatch; bare-Segmente gruppiert (Vollbild nur in ⌈bare/4⌉ Chunks); Chunk-Ausfall isoliert (nur seine Labels failed, Rest liefert); **jede Interpretation trägt `model`** — Ursachen (c1) + (b2).
+5. **Demo-Kennzeichnung** (`5476f3e`): interpret-Demo-Response `demo:true`, scan-Demo `meta.demo` + `model:'demo-fixture'` — Ursache (f), nie mehr unmarkierte Konserven.
+6. **UI-Badges** (`630a6ee`): Modell-Tag (mono) + rote „Demo-Daten"-Pill an interpretierten Bausteinen; alte localStorage-Caches bleiben kompatibel.
+7. **mergeByName größte bbox** (`1bc08a6`) — Ursache (d).
+8. **sanitizeHtml externe Bilder** (`d13b2ef` + `09eb2e2`): externe/protokoll-relative img-src → quote-freier SVG-Platzhalter (Review fand & fixte Attribut-Abbruch bei single-quote-src) — Ursache (e).
+
+**Gemini-Pro-A/B-Test (Robs Frage):** jetzt trivial — auf Railway `GEMINI_MODEL=gemini-3-pro-preview` setzen, gleichen Screenshot importieren, Modell-Badge zeigt ehrlich wer antwortete. Free-Tier-Limits für Pro beachten (wenige Anfragen/Tag). Erst NACH Robs Flash-Urteil sinnvoll.
 
 ## 🎯 TESTING-PHASE — Reststand
 
@@ -86,11 +101,11 @@ Die nächste Session ist **Robs Test-Session**: Claude führt Schritt für Schri
 1. **DEMO_FALLBACK auf Railway prüfen** (5 Min): railway.app → Projekt `appealing-mindfulness` → Service → Variables. Steht dort `DEMO_FALLBACK=1`? → auf `0` setzen oder Variable löschen (Redeploy passiert automatisch). Sonst liefert die App bei Interpret-Fehlern **unmarkierte Demo-Konserven** statt echter Ergebnisse — das verfälscht jeden Qualitätstest. **Diesen Schritt ZUERST, vor allen anderen Tests.**
 2. **Figma-Rundlauf** (15 Min): Anleitung liegt fertig in `designbridge-plugin/ANLEITUNG-LIVE-TEST.md` — kurz: Live-App → Import → Export-Tab → „An Figma senden"; dann Figma **Desktop** → Plugins → Development → „Import plugin from manifest…" → `designbridge-plugin/manifest.json` → Plugin öffnen → „Aus DesignBridge übernehmen". Plugin spricht seit 16.07. automatisch mit der Live-URL (localhost nur noch Dev-Fallback). Erwartung: Styles unter `DesignBridge/Color/*` + `/Text/*` + Sticker-Sheet-Seite.
 3. **Export-Verifikation im Ziel-Repo** (30 Min, gemeinsam): Zielprojekt = **rk-landing lokal** (falls Rob nichts anderes sagt). Live-App → Export-Tab → alle 4 Formate durchklicken (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (Zip). Dann bauen wir zusammen `tokens.css`/Tailwind-Config in rk-landing ein und prüfen: baut es, sieht es richtig aus?
-4. **Robs Qualitätsurteil Interpretation**: Contact-/Portfolio-Screenshot importieren, Interpretationen anschauen. WICHTIG: Das volle Urteil lohnt erst NACH Testrunde 4 (s. u.) — vorher sind die bekannten Schwächen (Mini-Crops, stille flash-lite-Degradierung) noch drin.
+4. **Robs Qualitätsurteil Interpretation**: Contact-/Portfolio-Screenshot importieren, Interpretationen anschauen. ✅ Testrunde 4 ist durch — die bekannten Schwächen (Mini-Crops, stille flash-lite-Degradierung, Monsterbatch) sind gefixt, das Urteil lohnt jetzt. Das Modell-Badge an jedem Baustein zeigt, wer wirklich geantwortet hat; eine rote „Demo-Daten"-Pill heißt: DEMO_FALLBACK hat gegriffen → Schritt 1 prüfen!
 
-Danach (oder parallel als eigene Runde): **Testrunde 4 = Interpretations-Qualität fixen** — die 7 priorisierten Empfehlungen aus der Diagnose (Session 16.07. oben): Mindest-Crop-Größe/Upscaling → temperature 0–0.2 → Modell-Badge + Degradierungs-Stopp vor flash-lite → Batch-Chunking → DEMO-Kennzeichnung → mergeByName größte bbox → sanitizeHtml externe Bilder. Gut subagent-orchestrierbar (Muster von Runde 3).
+✅ **Testrunde 4 ist FERTIG** (Session 16.07. nachmittags, s. oben) — alle 7 Empfehlungen umgesetzt und live.
 
 ## Wiedereinstiegs-Prompt (nächste Session)
-> „Designbridge: Lies RESUME.md. Testrunde 3 ist durch (4 Fixes live auf `c14a5a0`, Interpretations-Diagnose liegt vor). Heute ist Robs Test-Session: führe mich Schritt für Schritt durch die Aufgaben unter ‚ROBS AUFGABEN' (DEMO_FALLBACK-Check → Figma-Rundlauf → Export-Verifikation in rk-landing → Interpretations-Urteil), mit Anleitung je Schritt."
+> „Designbridge: Lies RESUME.md. Testrunde 4 ist durch (alle 7 Interpretations-Fixes live, Stand `79efb8a`). Heute ist Robs Test-Session: führe mich Schritt für Schritt durch die Aufgaben unter ‚ROBS AUFGABEN' (DEMO_FALLBACK-Check → Figma-Rundlauf → Export-Verifikation in rk-landing → Interpretations-Urteil, jetzt mit Modell-Badge), mit Anleitung je Schritt. Danach optional: Gemini-Pro-A/B-Test via GEMINI_MODEL."
 
 **Separater Research-Task angelegt (15.07. spät):** „KI-Modell-Research für Designbridge-Interpretationen" — vergleicht Gemini-Tiers/Claude/Alternativen nach Treffsicherheit, Kosten und Payment-Hürde (Robs Anthropic-Payment scheitert an der Bank-Verifizierung; Ausweg prüfen, z. B. bezahlter Gemini-Tier). Deliverable: Entscheidungs-Doc unter docs/. Letzte Fixes Runde 2 (`443d6c2`): gleichnamige Bausteine werden verschmolzen (3× „button" → 1 mit Varianten) + Icon-Regel im Interpret-Prompt (keine grauen Platzhalter-Kästchen mehr). Robs Vergleichs-Import des Contact-Screenshots steht noch aus.
