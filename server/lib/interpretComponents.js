@@ -12,7 +12,10 @@ const MODEL = 'claude-sonnet-5';
 // Neutraler grauer Platzhalter statt externer Bilder: das Modell liefert trotz
 // Prompt-Verbot gelegentlich Stockfoto-URLs (Unsplash, Diagnose 16.07.) — die
 // laden fremde Inhalte ins iframe und gaukeln Originaltreue vor.
-const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' rx='6' fill='%23e4e4e7'/></svg>";
+// WICHTIG: quote-frei (%27 statt '): der Platzhalter wird in "..."-, '...'-
+// und unquoted-src-Attribute eingesetzt — ein rohes ' oder " würde das
+// Attribut vorzeitig abbrechen und kaputtes HTML erzeugen (Review 16.07.).
+const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27><rect width=%2748%27 height=%2748%27 rx=%276%27 fill=%27%23e4e4e7%27/></svg>";
 
 export function sanitizeHtml(html) {
   return String(html ?? '')

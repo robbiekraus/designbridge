@@ -129,6 +129,20 @@ test('sanitizeHtml ersetzt externe img-src durch Inline-Platzhalter', () => {
   assert.ok(out.includes('width:40px'));
 });
 
+test('sanitizeHtml: single-quoted externes src → Platzhalter, Attribut korrekt terminiert', () => {
+  const out = sanitizeHtml("<img src='https://cdn.example.com/a.png' alt='x'>");
+  assert.doesNotMatch(out, /src\s*=\s*'https?:/);
+  // Der Platzhalter darf keine rohen '-Zeichen enthalten, sonst bricht das
+  // src-Attribut vorzeitig ab und Freitext-Reste landen im iframe (Review 16.07.).
+  assert.match(out, /<img src='data:image\/svg\+xml[^']*' alt='x'>/);
+});
+
+test('sanitizeHtml: unquoted externes src → Platzhalter in doppelten Anführungszeichen', () => {
+  const out = sanitizeHtml('<img src=https://cdn.example.com/a.png>');
+  assert.doesNotMatch(out, /src\s*=\s*https?:/);
+  assert.match(out, /src\s*=\s*"data:image\/svg\+xml[^"]*"/);
+});
+
 test('sanitizeHtml lässt data-URI-Bilder unangetastet', () => {
   const html = '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'/>">';
   assert.equal(sanitizeHtml(html), html);
