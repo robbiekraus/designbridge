@@ -343,6 +343,46 @@ test('ALLE Chunks gescheitert => interpretComponents wirft', async () => {
   );
 });
 
+test('bare-Segmente werden vors Chunking gruppiert → Vollbild landet nur in bare-Chunks', async () => {
+  const full = path.join(os.tmpdir(), `db-full-group-${Math.random().toString(36).slice(2)}.png`);
+  fs.writeFileSync(full, Buffer.from('89504e47', 'hex'));
+  const fullBase64 = fs.readFileSync(full).toString('base64');
+  const calls = [];
+  const client = {
+    messages: {
+      create: async (params) => {
+        calls.push(params);
+        const labels = labelsFromPrompt(params);
+        return {
+          model: 'm',
+          content: [{ type: 'text', text: JSON.stringify({ interpretations: labels.map((l) => ({ name: l, html: `<div>${l}</div>`, jsx: '' })) }) }],
+        };
+      },
+    },
+  };
+  // 9 Segmente abwechselnd bare / mit-visual (5 bare, 4 visual).
+  // Verstreut läge in ALLEN 3 Chunks ein bare-Segment → 3× Vollbild-Base64;
+  // gruppiert (visual zuerst, bare am Ende) nur in 2 Chunks.
+  const segments = Array.from({ length: 9 }, (_, i) => ({
+    id: `seg_${i}`, label: `s${i}`, kind: 'component', bounds: null,
+    visual: i % 2 === 1 ? { base64: 'aGk=', media_type: 'image/png' } : null,
+    structure: null,
+  }));
+  let result;
+  try {
+    result = await interpretComponents(full, 'image/png', segments, { client });
+  } finally {
+    fs.unlinkSync(full);
+  }
+  assert.equal(calls.length, 3);
+  const fullImageSends = calls.flatMap((p) => p.messages[0].content)
+    .filter((b) => b.type === 'image' && b.source.data === fullBase64).length;
+  assert.equal(fullImageSends, 2, 'Vollbild darf nur in Chunks mit bare-Segmenten stecken (gruppiert = 2 statt 3)');
+  // Alle 9 Bausteine liefern trotz Umsortierung (Zuordnung über Namen).
+  assert.equal(result.interpretations.length, 9);
+  assert.deepEqual(result.failed, []);
+});
+
 test('Vollbild wird bei mehreren Chunks nur einmal von Platte gelesen', async () => {
   const full = path.join(os.tmpdir(), `db-full-once-${Math.random().toString(36).slice(2)}.png`);
   fs.writeFileSync(full, Buffer.from('89504e47', 'hex'));

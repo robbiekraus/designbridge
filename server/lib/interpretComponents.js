@@ -1,6 +1,8 @@
-// EIN Claude-Vision-Call pro Import: Original-Bild + Liste der Bausteine ohne
-// Template → je Baustein eine möglichst originalgetreue shadcn/Tailwind-
-// Umsetzung { html, jsx }. Injizierbarer Client wie recognizeWithAi.js.
+// KI-Interpretation pro Import in Chunks à max 4 Bausteinen (sequenziell):
+// je Baustein eine möglichst originalgetreue shadcn/Tailwind-Umsetzung
+// { html, jsx, model }. Das Vollbild (Fallback für Segmente ohne eigenen Crop)
+// wird einmal von Platte gelesen und nur an Chunks gesendet, die es brauchen.
+// Injizierbarer Client wie recognizeWithAi.js.
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
@@ -60,12 +62,21 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   const fullImage = imagePath
     ? { base64: fs.readFileSync(imagePath).toString('base64'), media_type: mimetype }
     : null;
+  // Bare-Segmente (kein Crop, keine Struktur, kein Code) ans Ende gruppieren:
+  // jeder Chunk mit mindestens einem bare-Segment bekommt das komplette
+  // Vollbild-Base64 eingebettet — verstreut lägen sie in fast jedem Chunk,
+  // gruppiert nur in ⌈bare/CHUNK_SIZE⌉ Chunks (Bild-Tokens!). Die Reihenfolge
+  // im Ergebnis ist unkritisch: die Zuordnung läuft über Namen (byName).
+  const isBare = (s) =>
+    !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code);
+  const ordered = [...segments.filter((s) => !isBare(s)), ...segments.filter(isBare)];
   const chunks = [];
-  for (let i = 0; i < segments.length; i += CHUNK_SIZE) chunks.push(segments.slice(i, i + CHUNK_SIZE));
+  for (let i = 0; i < ordered.length; i += CHUNK_SIZE) chunks.push(ordered.slice(i, i + CHUNK_SIZE));
 
   const interpretations = [];
   const failed = [];
   let lastError = null;
+  // Sequenziell, NICHT Promise.all: Gemini-Free-Tier erlaubt nur ~10 req/min.
   for (const chunk of chunks) {
     try {
       const r = await interpretChunk(c, fullImage, chunk);
