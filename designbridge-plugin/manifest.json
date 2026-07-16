@@ -12,8 +12,9 @@
   ],
   "networkAccess": {
     "allowedDomains": [
+      "https://designbridge-production.up.railway.app",
       "http://localhost:3047"
     ],
-    "reasoning": "Holt den zuletzt in DesignBridge erzeugten Token-Export vom lokalen Server (Code → Figma)."
+    "reasoning": "Holt den zuletzt in DesignBridge erzeugten Token-Export — primär von der Live-App, mit lokalem Fallback für die Entwicklung (Code → Figma)."
   }
 }

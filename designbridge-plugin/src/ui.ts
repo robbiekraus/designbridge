@@ -1,4 +1,5 @@
 import type { SandboxMessage, ExportReadyPayload } from './types/manifest';
+import { fetchLatestExport } from './network/fetchLatestExport';
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,12 @@ const importBtn = document.getElementById('import-btn') as HTMLButtonElement;
 const importFetchBtn = document.getElementById('import-fetch-btn') as HTMLButtonElement;
 const importStatus = document.getElementById('import-status') as HTMLParagraphElement;
 
-const DESIGNBRIDGE_URL = 'http://localhost:3047/api/figma-export/latest';
+// Live-App zuerst, lokaler Dev-Server als Fallback (nur bei Netzwerkfehler,
+// nicht bei HTTP-Fehlern wie 404 — siehe fetchLatestExport).
+const DESIGNBRIDGE_URLS = [
+  'https://designbridge-production.up.railway.app/api/figma-export/latest',
+  'http://localhost:3047/api/figma-export/latest',
+];
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +114,7 @@ importFetchBtn.addEventListener('click', async () => {
   importFetchBtn.disabled = true;
   setImportStatus('Hole Export aus DesignBridge…', 'loading');
   try {
-    const res = await fetch(DESIGNBRIDGE_URL);
+    const { res, usedLocalFallback } = await fetchExportWithFallback();
     if (!res.ok) {
       const msg =
         res.status === 404
@@ -121,13 +127,24 @@ importFetchBtn.addEventListener('click', async () => {
     const data = await res.json();
     const json = JSON.stringify(data);
     importJson.value = json;
-    setImportStatus('Schreibe nach Figma…', 'loading');
+    setImportStatus(
+      usedLocalFallback ? 'Schreibe nach Figma… (lokaler Server)' : 'Schreibe nach Figma…',
+      'loading'
+    );
     parent.postMessage({ pluginMessage: { type: 'IMPORT', json } }, '*');
   } catch {
-    setImportStatus('DesignBridge nicht erreichbar — läuft „npm run dev"?', 'error');
+    setImportStatus(
+      'DesignBridge nicht erreichbar — weder live noch lokal (läuft „npm run dev"?).',
+      'error'
+    );
     importFetchBtn.disabled = false;
   }
 });
+
+async function fetchExportWithFallback(): Promise<{ res: Response; usedLocalFallback: boolean }> {
+  const { url, response } = await fetchLatestExport(DESIGNBRIDGE_URLS, (u) => fetch(u));
+  return { res: response as Response, usedLocalFallback: url !== DESIGNBRIDGE_URLS[0] };
+}
 
 function fileSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
