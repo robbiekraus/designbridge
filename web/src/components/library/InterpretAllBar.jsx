@@ -3,7 +3,7 @@ import { componentsNeedingInterpretation } from '../../lib/interpret.js';
 
 // Zeigt bei einem Repo-Import mit noch nicht interpretierten (template-losen)
 // Bausteinen einen Batch-Knopf. Repo interpretiert bewusst nur auf Knopfdruck.
-export default function InterpretAllBar({ result, onInterpretAll }) {
+export default function InterpretAllBar({ result, onInterpretAll, retryBusy }) {
   if (result?.source !== 'repo') return null;
   const todo = componentsNeedingInterpretation(result);
   const pending = Boolean(result?.interpretPending);
@@ -13,11 +13,15 @@ export default function InterpretAllBar({ result, onInterpretAll }) {
       <span className="text-zinc-600">
         {pending
           ? 'Bausteine werden interpretiert …'
-          : `${todo.length} gehobene Bausteine ohne Vorschau — optional per KI interpretieren.`}
+          : retryBusy
+            ? 'Einzel-Interpretation läuft — gleich wieder verfügbar …'
+            : `${todo.length} gehobene Bausteine ohne Vorschau — optional per KI interpretieren.`}
       </span>
       <button
         onClick={onInterpretAll}
-        disabled={pending}
+        // retryBusy: solange ein Einzel-Retry läuft, würde ein Batch denselben
+        // Baustein nochmal anfragen — konkurrierende Writes, letzter gewinnt.
+        disabled={pending || retryBusy}
         className="ml-auto text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 disabled:opacity-50"
       >
         Alle interpretieren

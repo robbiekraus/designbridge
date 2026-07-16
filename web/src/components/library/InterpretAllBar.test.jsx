@@ -22,4 +22,27 @@ describe('InterpretAllBar', () => {
     const { container } = render(<InterpretAllBar result={{ source: 'image', raw: { meta: {}, atomics: [], components: [], patterns: [] } }} onInterpretAll={() => {}} />);
     expect(container.firstChild).toBe(null);
   });
+
+  it('retryBusy: Knopf gesperrt + Hinweis „Einzel-Interpretation läuft — gleich wieder verfügbar …"', () => {
+    const onInterpretAll = vi.fn();
+    render(<InterpretAllBar result={repoWithTodo} onInterpretAll={onInterpretAll} retryBusy />);
+    expect(screen.getByRole('button', { name: /Alle interpretieren/ })).toBeDisabled();
+    expect(screen.getByText(/Einzel-Interpretation läuft — gleich wieder verfügbar/)).toBeInTheDocument();
+  });
+
+  it('retryBusy false: Knopf aktiv, Standard-Text unverändert', () => {
+    const onInterpretAll = vi.fn();
+    render(<InterpretAllBar result={repoWithTodo} onInterpretAll={onInterpretAll} retryBusy={false} />);
+    expect(screen.getByRole('button', { name: /Alle interpretieren/ })).not.toBeDisabled();
+    expect(screen.getByText(/gehobene Bausteine ohne Vorschau/)).toBeInTheDocument();
+    expect(screen.queryByText(/Einzel-Interpretation läuft/)).toBeNull();
+  });
+
+  it('pending schlägt retryBusy im Text (Batch-Meldung hat Vorrang)', () => {
+    const pendingResult = { ...repoWithTodo, interpretPending: true };
+    render(<InterpretAllBar result={pendingResult} onInterpretAll={() => {}} retryBusy />);
+    expect(screen.getByText(/Bausteine werden interpretiert/)).toBeInTheDocument();
+    expect(screen.queryByText(/Einzel-Interpretation läuft/)).toBeNull();
+    expect(screen.getByRole('button', { name: /Alle interpretieren/ })).toBeDisabled();
+  });
 });

@@ -107,6 +107,11 @@ export default function App() {
         });
       return;
     }
+    // Guard (Gegenrichtung der Retry-Race): Batch-Start während laufendem
+    // Einzel-Retry würde denselben Baustein doppelt anfragen — konkurrierende
+    // Writes, letzter gewinnt, doppelte Quota-Kosten. UI-seitig ist der Knopf
+    // via retryBusy schon gesperrt; das hier ist Defense in depth.
+    if (retryingNames.size > 0) return;
     const pending = { ...lastImport, interpretPending: true, interpretError: null, interpretFailed: [] };
     saveLastImport(pending);
     setLastImport(pending);
@@ -185,7 +190,7 @@ export default function App() {
           <div className="p-8">
             {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
             {lastImport && ['Atomics', 'Components', 'Patterns'].includes(page) && (
-              <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} />
+              <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
             )}
             {renderPage()}
           </div>
