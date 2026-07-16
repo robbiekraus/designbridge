@@ -119,6 +119,21 @@ test('sanitizeHtml entfernt javascript: URIs in href/src', () => {
   assert.doesNotMatch(clean, /javascript:/i);
 });
 
+test('sanitizeHtml ersetzt externe img-src durch Inline-Platzhalter', () => {
+  const out = sanitizeHtml('<img src="https://images.unsplash.com/photo-1.jpg" style="width:40px">');
+  // Nicht per se "kein http" prüfen: der SVG-Data-URI-Platzhalter selbst enthält
+  // den xmlns-Namespace http://www.w3.org/2000/svg. Stattdessen präzise auf ein
+  // verbliebenes externes src-Attribut prüfen.
+  assert.doesNotMatch(out, /src\s*=\s*"https?:/);
+  assert.ok(out.includes('data:image/svg+xml'));
+  assert.ok(out.includes('width:40px'));
+});
+
+test('sanitizeHtml lässt data-URI-Bilder unangetastet', () => {
+  const html = '<img src="data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'/>">';
+  assert.equal(sanitizeHtml(html), html);
+});
+
 test('Namens-Matching toleriert umgebende Leerzeichen', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: JSON.stringify({ interpretations: [{ name: '  Stat Card  ', html: '<div class="p-2">ok</div>', jsx: '' }] }) }] }) } };
   const res = await interpretComponents(

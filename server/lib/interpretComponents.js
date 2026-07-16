@@ -9,6 +9,11 @@ import { extractJson } from './aiJson.js';
 
 const MODEL = 'claude-sonnet-5';
 
+// Neutraler grauer Platzhalter statt externer Bilder: das Modell liefert trotz
+// Prompt-Verbot gelegentlich Stockfoto-URLs (Unsplash, Diagnose 16.07.) — die
+// laden fremde Inhalte ins iframe und gaukeln Originaltreue vor.
+const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48'><rect width='48' height='48' rx='6' fill='%23e4e4e7'/></svg>";
+
 export function sanitizeHtml(html) {
   return String(html ?? '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -22,7 +27,11 @@ export function sanitizeHtml(html) {
     // javascript:-URIs in navigierbaren Attributen entfernen
     .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*"\s*javascript:[^"]*"/gi, '')
     .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*'\s*javascript:[^']*'/gi, '')
-    .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*javascript:[^\s>]*/gi, '');
+    .replace(/\s(?:href|src|action|formaction|xlink:href)\s*=\s*javascript:[^\s>]*/gi, '')
+    // Externe Bild-URLs durch Inline-Platzhalter ersetzen (data:-URIs bleiben unangetastet)
+    .replace(/(<img\b[^>]*\ssrc\s*=\s*")(?:https?:)?\/\/[^"]*(")/gi, `$1${IMG_PLACEHOLDER}$2`)
+    .replace(/(<img\b[^>]*\ssrc\s*=\s*')(?:https?:)?\/\/[^']*(')/gi, `$1${IMG_PLACEHOLDER}$2`)
+    .replace(/(<img\b[^>]*\ssrc\s*=\s*)(?:https?:)?\/\/[^\s>]+/gi, `$1"${IMG_PLACEHOLDER}"`);
 }
 
 function buildPrompt(segments, hasFullImageFallback, hasStructure, hasCode) {
