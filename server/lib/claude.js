@@ -57,10 +57,13 @@ function normalizeTokenUnits(tokens) {
   return tokens;
 }
 
+const bboxArea = (b) => (b && typeof b.w === 'number' && typeof b.h === 'number' ? b.w * b.h : 0);
+
 // Die KI listet identische Bausteine mehrfach (Live-Fund 15.07.: dreimal
 // "button" für Chips + Send-Button) — gleichnamige Einträge verschmelzen,
-// Varianten vereinigen. Der erste Treffer behält bbox/notes/confidence.
-function mergeByName(items) {
+// Varianten vereinigen. Der erste Treffer behält notes/confidence; die bbox
+// gewinnt der größte Treffer.
+export function mergeByName(items) {
   const byName = new Map();
   for (const item of items ?? []) {
     const key = String(item.name ?? '').trim().toLowerCase();
@@ -73,6 +76,9 @@ function mergeByName(items) {
       prev.variants = [...new Set([...(prev.variants ?? []), ...item.variants])];
     }
     if (!prev.notes && item.notes) prev.notes = item.notes;
+    // Größte bbox gewinnt: der erste Treffer war oft ein Mini-Exemplar,
+    // dessen Crop downstream zu klein zum Interpretieren ist (Diagnose 16.07.).
+    if (bboxArea(item.bbox) > bboxArea(prev.bbox)) prev.bbox = item.bbox;
   }
   return [...byName.values()];
 }

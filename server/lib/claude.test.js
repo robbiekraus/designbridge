@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { analyzeScreenshot } from './claude.js';
+import { analyzeScreenshot, mergeByName } from './claude.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-scan-${Math.random().toString(36).slice(2)}.png`);
@@ -89,6 +89,29 @@ test('analyzeScreenshot: verschmilzt gleichnamige Bausteine und vereinigt Varian
   assert.equal(button.notes, 'Send message');
   assert.deepEqual(button.bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.05 }); // erster Treffer behält seine bbox
   assert.equal(result.components.length, 1);
+});
+
+test('mergeByName behält die größte bbox statt der ersten', () => {
+  const merged = mergeByName([
+    { name: 'button', bbox: { x: 0.1, y: 0.1, w: 0.05, h: 0.03 } },
+    { name: 'button', bbox: { x: 0.5, y: 0.5, w: 0.2, h: 0.1 } },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.deepEqual(merged[0].bbox, { x: 0.5, y: 0.5, w: 0.2, h: 0.1 });
+});
+
+test('mergeByName: erster Treffer behält seine bbox, wenn der zweite keine oder eine kleinere bbox hat', () => {
+  const mergedNoBbox = mergeByName([
+    { name: 'button', bbox: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 } },
+    { name: 'button' },
+  ]);
+  assert.deepEqual(mergedNoBbox[0].bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
+
+  const mergedSmaller = mergeByName([
+    { name: 'button', bbox: { x: 0.1, y: 0.1, w: 0.2, h: 0.1 } },
+    { name: 'button', bbox: { x: 0.5, y: 0.5, w: 0.05, h: 0.03 } },
+  ]);
+  assert.deepEqual(mergedSmaller[0].bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
 });
 
 test('analyzeScreenshot: abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
