@@ -109,7 +109,9 @@ test('makeGeminiClient wirft bei HTTP-Fehler mit Googles Meldung', async () => {
     status: 429,
     body: { error: { message: 'Resource has been exhausted (e.g. check quota).' } },
   });
-  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+  // 429 ist jetzt retrybar (Backoff-Retry, Testrunde 5) — sleepImpl fake
+  // halten, sonst wartet der Test über echte Timer (2s + 8s).
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl, sleepImpl: async () => {} });
 
   await assert.rejects(
     () => client.messages.create({ max_tokens: 100, messages: IMAGE_MSG }),
@@ -144,7 +146,8 @@ test('makeGeminiClient weicht bei 503/404 automatisch auf Fallback-Modelle aus',
 
 test('makeGeminiClient: wenn alle Modelle scheitern, kommt der letzte Fehler', async () => {
   const impl = async () => ({ ok: false, status: 503, json: async () => ({ error: { message: 'high demand' } }) });
-  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+  // sleepImpl fake halten (3 Retry-Runden würden sonst über echte Timer laufen).
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl, sleepImpl: async () => {} });
 
   await assert.rejects(
     () => client.messages.create({ max_tokens: 10, messages: IMAGE_MSG }),
@@ -158,17 +161,20 @@ test('makeGeminiClient: flash-lite steht NICHT mehr in der Fallback-Kette (Degra
     calls.push(url);
     return { ok: false, status: 503, json: async () => ({ error: { message: 'overloaded' } }) };
   };
-  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl });
+  // sleepImpl fake halten (Backoff-Retry, Testrunde 5) — sonst wartet der
+  // Test über echte Timer (2s + 8s) auf die 3 Runden.
+  const client = makeGeminiClient({ apiKey: 'g-key', fetchImpl: impl, sleepImpl: async () => {} });
 
   await assert.rejects(
     () => client.messages.create({ max_tokens: 10, messages: IMAGE_MSG }),
     /503/
   );
 
-  // Default-Modell + genau ein Fallback (gemini-3-flash-preview) — kein
-  // stilles Abgleiten auf flash-lite, das nachweislich generische Inhalte
-  // erfand statt des echten Bildausschnitts (Testrunden 2+3).
-  assert.equal(calls.length, 2);
+  // Default-Modell + genau ein Fallback (gemini-3-flash-preview), jetzt über
+  // 3 Retry-Runden (Backoff-Retry, Testrunde 5) = 6 Calls statt 2 — aber
+  // weiterhin kein stilles Abgleiten auf flash-lite, das nachweislich
+  // generische Inhalte erfand statt des echten Bildausschnitts (Testrunden 2+3).
+  assert.equal(calls.length, 6);
   assert.match(calls[0], /gemini-flash-latest:generateContent/);
   assert.match(calls[1], /gemini-3-flash-preview:generateContent/);
   assert.ok(calls.every((url) => !/flash-lite/.test(url)));
@@ -202,4 +208,40 @@ test('makeGeminiClient reicht eine explizit übergebene temperature durch', asyn
   await client.messages.create({ max_tokens: 100, temperature: 0.7, messages: IMAGE_MSG });
 
   assert.equal(calls[0].body.generationConfig.temperature, 0.7);
+});
+
+// --- Backoff-Retry (Testrunde 5, Task 1) ---
+
+test('429 in Runde 1 auf beiden Modellen, Erfolg in Runde 2 → kein Wurf', async () => {
+  let n = 0;
+  const sleeps = [];
+  const fetchImpl = async () => {
+    n++;
+    if (n <= 2) return { ok: false, status: 429, json: async () => ({ error: { message: 'quota', details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '3s' }] } }) };
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: '{}' }] } }] }) };
+  };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async (ms) => { sleeps.push(ms); } });
+  const res = await client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] });
+  assert.equal(res.stop_reason, 'end_turn');
+  assert.equal(n, 3); // 2 Fehlversuche Runde 1 + 1 Erfolg Runde 2
+  assert.equal(sleeps.length, 1);
+  assert.equal(sleeps[0], 3000); // retryDelay "3s" > Schedule 2000
+});
+
+test('dauerhaft 503 → nach 3 Runden über 2 Modelle = 6 Calls, 2 sleeps, wirft', async () => {
+  let n = 0;
+  const sleeps = [];
+  const fetchImpl = async () => { n++; return { ok: false, status: 503, json: async () => ({ error: { message: 'overloaded' } }) }; };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async (ms) => { sleeps.push(ms); } });
+  await assert.rejects(() => client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] }), /503/);
+  assert.equal(n, 6);
+  assert.deepEqual(sleeps, [2000, 8000]); // kein retryDelay in 503 → Schedule
+});
+
+test('400 wirft sofort ohne Retry-Runden', async () => {
+  let n = 0;
+  const fetchImpl = async () => { n++; return { ok: false, status: 400, json: async () => ({ error: { message: 'bad' } }) }; };
+  const client = makeGeminiClient({ apiKey: 'k', fetchImpl, sleepImpl: async () => {} });
+  await assert.rejects(() => client.messages.create({ max_tokens: 100, messages: [{ role: 'user', content: 'hi' }] }));
+  assert.equal(n, 1);
 });
