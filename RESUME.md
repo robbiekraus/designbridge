@@ -79,7 +79,18 @@ Zwei getrennte Zwecke, zwei einfache Wege — kein „Verlinken"/Setup nötig:
 - Tests: `npm run test:server` (150) · `cd web && npx vitest run` (303) · Plugin: `cd designbridge-plugin && npm run typecheck && npm run build`
 - Repo-Regel 7: nach Datei-Writes `find . -name '._*' -delete` (AppleDouble)
 
+## 👤 ROBS AUFGABEN — nächste Runde, gemeinsam mit Anleitung (Plan für den Wiedereinstieg)
+
+Die nächste Session ist **Robs Test-Session**: Claude führt Schritt für Schritt durch, Rob klickt/urteilt. Reihenfolge:
+
+1. **DEMO_FALLBACK auf Railway prüfen** (5 Min): railway.app → Projekt `appealing-mindfulness` → Service → Variables. Steht dort `DEMO_FALLBACK=1`? → auf `0` setzen oder Variable löschen (Redeploy passiert automatisch). Sonst liefert die App bei Interpret-Fehlern **unmarkierte Demo-Konserven** statt echter Ergebnisse — das verfälscht jeden Qualitätstest. **Diesen Schritt ZUERST, vor allen anderen Tests.**
+2. **Figma-Rundlauf** (15 Min): Anleitung liegt fertig in `designbridge-plugin/ANLEITUNG-LIVE-TEST.md` — kurz: Live-App → Import → Export-Tab → „An Figma senden"; dann Figma **Desktop** → Plugins → Development → „Import plugin from manifest…" → `designbridge-plugin/manifest.json` → Plugin öffnen → „Aus DesignBridge übernehmen". Plugin spricht seit 16.07. automatisch mit der Live-URL (localhost nur noch Dev-Fallback). Erwartung: Styles unter `DesignBridge/Color/*` + `/Text/*` + Sticker-Sheet-Seite.
+3. **Export-Verifikation im Ziel-Repo** (30 Min, gemeinsam): Zielprojekt = **rk-landing lokal** (falls Rob nichts anderes sagt). Live-App → Export-Tab → alle 4 Formate durchklicken (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (Zip). Dann bauen wir zusammen `tokens.css`/Tailwind-Config in rk-landing ein und prüfen: baut es, sieht es richtig aus?
+4. **Robs Qualitätsurteil Interpretation**: Contact-/Portfolio-Screenshot importieren, Interpretationen anschauen. WICHTIG: Das volle Urteil lohnt erst NACH Testrunde 4 (s. u.) — vorher sind die bekannten Schwächen (Mini-Crops, stille flash-lite-Degradierung) noch drin.
+
+Danach (oder parallel als eigene Runde): **Testrunde 4 = Interpretations-Qualität fixen** — die 7 priorisierten Empfehlungen aus der Diagnose (Session 16.07. oben): Mindest-Crop-Größe/Upscaling → temperature 0–0.2 → Modell-Badge + Degradierungs-Stopp vor flash-lite → Batch-Chunking → DEMO-Kennzeichnung → mergeByName größte bbox → sanitizeHtml externe Bilder. Gut subagent-orchestrierbar (Muster von Runde 3).
+
 ## Wiedereinstiegs-Prompt (nächste Session)
-> „Designbridge: Lies RESUME.md. Testrunde 3 ist durch (4 Fixes + Interpretations-Diagnose, Plugin spricht mit Live-URL). Weiter mit Testrunde 4 = Interpretations-Qualität fixen (Empfehlungen 1–7 aus der Diagnose, Session 16.07.), plus: (a) Export alle 4 Formate + Zip testen und Export-Verifikation in rk-landing lokal, (b) Figma-Rundlauf mit Rob (ANLEITUNG-LIVE-TEST.md), (c) DEMO_FALLBACK auf Railway prüfen."
+> „Designbridge: Lies RESUME.md. Testrunde 3 ist durch (4 Fixes live auf `c14a5a0`, Interpretations-Diagnose liegt vor). Heute ist Robs Test-Session: führe mich Schritt für Schritt durch die Aufgaben unter ‚ROBS AUFGABEN' (DEMO_FALLBACK-Check → Figma-Rundlauf → Export-Verifikation in rk-landing → Interpretations-Urteil), mit Anleitung je Schritt."
 
 **Separater Research-Task angelegt (15.07. spät):** „KI-Modell-Research für Designbridge-Interpretationen" — vergleicht Gemini-Tiers/Claude/Alternativen nach Treffsicherheit, Kosten und Payment-Hürde (Robs Anthropic-Payment scheitert an der Bank-Verifizierung; Ausweg prüfen, z. B. bezahlter Gemini-Tier). Deliverable: Entscheidungs-Doc unter docs/. Letzte Fixes Runde 2 (`443d6c2`): gleichnamige Bausteine werden verschmolzen (3× „button" → 1 mit Varianten) + Icon-Regel im Interpret-Prompt (keine grauen Platzhalter-Kästchen mehr). Robs Vergleichs-Import des Contact-Screenshots steht noch aus.
