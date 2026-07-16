@@ -49,7 +49,9 @@ export function makeGeminiClient({
             maxOutputTokens: params.max_tokens,
             // Rekonstruktion soll originalgetreu sein, nicht kreativ: die
             // Default-Temperature (~1.0) war Mitursache der "generischen"
-            // Interpretationen (Diagnose 16.07.).
+            // Interpretationen (Diagnose 16.07.). Gilt client-weit für alle
+            // 4 Callsites — auch Scan/Recognize/Deepen sind konservative
+            // JSON-Extraktion, niedrige Temperature ist dort ebenso richtig.
             temperature: params.temperature ?? 0.2,
             // Alle Callsites parsen JSON — erzwungenes JSON eliminiert
             // Gemini-Preambles ("Here is the JSON…"), die JSON.parse brechen.
@@ -90,6 +92,11 @@ export function makeGeminiClient({
             stop_reason: candidate.finishReason === 'MAX_TOKENS' ? 'max_tokens' : 'end_turn',
           };
         }
+        // Kette erschöpft (alle Modelle 404/429/503): sichtbar machen, damit
+        // gehäufte Doppel-Ausfälle in den Logs auffallen statt nur als
+        // Nutzer-Retries (seit dem Degradierungs-Stopp gibt es ein Modell
+        // weniger in der Kette).
+        console.warn(`[gemini] Fallback-Kette erschöpft (${candidates.join(' → ')}): ${lastError?.message}`);
         throw lastError;
       },
     },

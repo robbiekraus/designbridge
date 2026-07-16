@@ -68,6 +68,12 @@ COMPONENTS (in order): ${JSON.stringify(labels)}`;
 
 const CHUNK_SIZE = 4; // Diagnose 16.07.: 13 Bausteine in einem Call verwässern die Treue
 
+// Bare = kein eigenes Material (kein Crop, keine Struktur, kein Code) →
+// braucht das Vollbild als Fallback. EINE Definition für Orchestrator
+// (Gruppierung) und interpretChunk (Content-Aufbau), sonst driften sie.
+const isBare = (s) =>
+  !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code);
+
 export async function interpretComponents(imagePath, mimetype, segments, { client } = {}) {
   const c = client ?? getAiClient();
   // Vollbild nur einmal von Platte lesen, auch wenn mehrere Chunks es brauchen.
@@ -79,8 +85,6 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   // Vollbild-Base64 eingebettet — verstreut lägen sie in fast jedem Chunk,
   // gruppiert nur in ⌈bare/CHUNK_SIZE⌉ Chunks (Bild-Tokens!). Die Reihenfolge
   // im Ergebnis ist unkritisch: die Zuordnung läuft über Namen (byName).
-  const isBare = (s) =>
-    !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code);
   const ordered = [...segments.filter((s) => !isBare(s)), ...segments.filter(isBare)];
   const chunks = [];
   for (let i = 0; i < ordered.length; i += CHUNK_SIZE) chunks.push(ordered.slice(i, i + CHUNK_SIZE));
@@ -109,9 +113,7 @@ async function interpretChunk(c, fullImage, segments) {
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
   const withStructure = segments.filter((s) => s.structure && s.structure.html);
   const withCode = segments.filter((s) => s.structure && s.structure.code);
-  const bare = segments.filter(
-    (s) => !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code)
-  );
+  const bare = segments.filter(isBare);
   const hasFullImageFallback = bare.length > 0 && !!fullImage;
 
   const content = [];

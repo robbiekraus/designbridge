@@ -24,7 +24,9 @@ async function cropVisual(img, bbox) {
   const crop = img.clone().crop(x, y, w, h);
   // Winzige Crops (z. B. Avatar 34x31 px) geben dem Modell zu wenig Pixel —
   // es erfindet dann generische Inhalte statt des echten Ausschnitts.
-  // Kurze Kante auf MIN_CROP_EDGE hochskalieren, gedeckelt bei MAX_UPSCALE.
+  // Kurze Kante Richtung MIN_CROP_EDGE hochskalieren, gedeckelt bei
+  // MAX_UPSCALE — sehr kleine Crops (<32px Kante) erreichen die Zielkante
+  // dadurch bewusst nicht ganz (4× reicht dem Modell, ohne Matsch-Pixel).
   const scale = Math.min(MAX_UPSCALE, MIN_CROP_EDGE / Math.min(w, h));
   if (scale > 1) crop.scale(scale, Jimp.RESIZE_BICUBIC);
   const buf = await crop.getBufferAsync(Jimp.MIME_PNG);
