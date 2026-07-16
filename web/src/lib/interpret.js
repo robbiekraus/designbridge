@@ -172,6 +172,28 @@ export async function retryInterpretation(result, name) {
 }
 
 /**
+ * Reload-Limbo-Fix: normalisiert einen aus localStorage geladenen Zustand mit
+ * interpretPending:true (Reload während laufender Batch-/Chunk-Interpretation
+ * — der zugehörige Request/Signal ist weg, niemand startet ihn neu) zu
+ * "failed". Ohne das bleiben Bausteine für immer auf "Wird interpretiert …"
+ * hängen, ohne Retry-Knopf. Bestehende interpretFailed-Einträge bleiben
+ * erhalten (Union). Wirft nie, gibt bei sauberem/fehlendem Zustand dieselbe
+ * Referenz zurück (keine unnötigen Re-Renders/Re-Persists).
+ */
+export function normalizeStalePending(result) {
+  if (!result?.interpretPending) return result;
+  const todoNames = componentsNeedingInterpretation(result).map((c) => c.name);
+  const existingFailed = result.interpretFailed ?? [];
+  const interpretFailed = [...existingFailed, ...todoNames.filter((n) => !existingFailed.includes(n))];
+  return {
+    ...result,
+    interpretPending: false,
+    interpretFailed,
+    interpretError: 'Seite wurde neu geladen — Interpretation wurde unterbrochen. Bitte erneut versuchen.',
+  };
+}
+
+/**
  * Schützt gegen die Stale-Closure-Race bei überlappenden Importen: wendet
  * `next` nur an, wenn `cur` noch zum selben Import gehört (gleiche
  * raw.meta.import_id). Sonst — oder wenn `next` null ist — bleibt `cur`.

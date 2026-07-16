@@ -10,7 +10,7 @@ import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
 import InterpretAllBar from './components/library/InterpretAllBar.jsx';
-import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport } from './lib/interpret.js';
+import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport, normalizeStalePending } from './lib/interpret.js';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -64,7 +64,15 @@ export default function App() {
         setModalOpen(true);
       }
     } catch {}
-    setLastImport(loadLastImport());
+    // Reload-Limbo-Fix: ein beim letzten Reload noch laufender Batch/Chunk
+    // hat keinen Request mehr, der ihn fortführt — persistiertes
+    // interpretPending:true würde Bausteine für immer auf "Wird
+    // interpretiert …" hängen lassen. Auf failed normalisieren, damit der
+    // bestehende Retry-Knopf erscheint.
+    const loaded = loadLastImport();
+    const normalized = normalizeStalePending(loaded);
+    if (normalized !== loaded) saveLastImport(normalized);
+    setLastImport(normalized);
   }, []);
 
   const handleImported = (result) => {

@@ -7,6 +7,7 @@ import {
   runInterpretation,
   retryInterpretation,
   applyIfSameImport,
+  normalizeStalePending,
 } from './interpret.js';
 
 const RESULT = {
@@ -394,6 +395,50 @@ describe('runInterpretation — source repo', () => {
     expect(next).not.toBe(null);
     expect(calls[0].components[0].path).toBe('p.tsx');
     expect(next.interpretations.PricingWidget.html).toBe('<div/>');
+  });
+});
+
+describe('normalizeStalePending — Reload-Limbo-Fix', () => {
+  // Reload während einer laufenden Interpretation: der zugehörige Request ist
+  // weg (Seite neu geladen), aber der persistierte Zustand sagt noch
+  // interpretPending:true — ohne Fix bleiben die Bausteine für immer auf
+  // "Wird interpretiert …" hängen, ohne Retry-Knopf.
+  it('interpretPending:true → wird zu failed normalisiert (alle offenen Bausteine), Retry-Knopf erscheint', () => {
+    const stale = { ...RESULT, interpretPending: true };
+    const next = normalizeStalePending(stale);
+    expect(next.interpretPending).toBe(false);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
+    expect(next.interpretError).toBeTruthy();
+  });
+
+  it('interpretPending:false → unverändert (gleiche Referenz, keine Re-Renders)', () => {
+    const clean = { ...RESULT, interpretPending: false };
+    expect(normalizeStalePending(clean)).toBe(clean);
+  });
+
+  it('kein interpretPending-Feld → unverändert', () => {
+    expect(normalizeStalePending(RESULT)).toBe(RESULT);
+  });
+
+  it('null/undefined → wirft nie', () => {
+    expect(normalizeStalePending(null)).toBeNull();
+    expect(normalizeStalePending(undefined)).toBeUndefined();
+  });
+
+  it('bereits interpretierte Bausteine tauchen nicht in interpretFailed auf', () => {
+    const stale = {
+      ...RESULT,
+      interpretPending: true,
+      interpretations: { Avatar: { html: '<div/>', jsx: '' } },
+    };
+    const next = normalizeStalePending(stale);
+    expect(next.interpretFailed).toEqual(['Stat Card', 'Data Table', 'Metrics Overview']);
+  });
+
+  it('bestehende interpretFailed-Einträge bleiben erhalten (Union, keine Duplikate)', () => {
+    const stale = { ...RESULT, interpretPending: true, interpretFailed: ['Avatar'] };
+    const next = normalizeStalePending(stale);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
   });
 });
 
