@@ -166,3 +166,85 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
     expect(screen.queryByText(/gemini/)).not.toBeInTheDocument();
   });
 });
+
+describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
+  it('retryingNames enthält den Item-Namen: Button disabled + „Wird erneut interpretiert …", kein "fehlgeschlagen"-Text', () => {
+    const onRetryInterpret = vi.fn();
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={onRetryInterpret}
+        retryingNames={new Set(['Avatar'])}
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText(/Wird erneut interpretiert/)).toBeTruthy();
+    expect(screen.queryByText(/Interpretation fehlgeschlagen/)).toBeNull();
+    const button = screen.getByRole('button', { name: 'Erneut versuchen' });
+    expect(button).toBeDisabled();
+  });
+
+  it('batchPending (Batch läuft noch): Button disabled + „Interpretation läuft noch — Retry gleich möglich …"', () => {
+    const onRetryInterpret = vi.fn();
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={onRetryInterpret}
+        batchPending
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText(/Interpretation läuft noch — Retry gleich möglich/)).toBeTruthy();
+    expect(screen.queryByText(/Interpretation fehlgeschlagen/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeDisabled();
+  });
+
+  it('weder retryingNames noch batchPending: aktiver Button + „Interpretation fehlgeschlagen."', () => {
+    const onRetryInterpret = vi.fn();
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={onRetryInterpret}
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText('Interpretation fehlgeschlagen.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).not.toBeDisabled();
+  });
+
+  it('gehobener Baustein: batchPending sperrt auch den "Mit KI interpretieren"-Knopf', () => {
+    const onRetryInterpret = vi.fn();
+    const items = [{
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
+      lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
+      interpretFailed: false, interpretPending: false,
+    }];
+    render(<LibraryObjectList items={items} picks={{}} onRetryInterpret={onRetryInterpret} batchPending />);
+    fireEvent.click(screen.getByText('PricingWidget'));
+    expect(screen.getByRole('button', { name: /Mit KI interpretieren/ })).toBeDisabled();
+  });
+
+  it('gehobener Baustein: retryingNames sperrt auch den "Mit KI interpretieren"-Knopf', () => {
+    const onRetryInterpret = vi.fn();
+    const items = [{
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
+      lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
+      interpretFailed: false, interpretPending: false,
+    }];
+    render(
+      <LibraryObjectList
+        items={items}
+        picks={{}}
+        onRetryInterpret={onRetryInterpret}
+        retryingNames={new Set(['PricingWidget'])}
+      />
+    );
+    fireEvent.click(screen.getByText('PricingWidget'));
+    expect(screen.getByRole('button', { name: /Mit KI interpretieren/ })).toBeDisabled();
+  });
+});

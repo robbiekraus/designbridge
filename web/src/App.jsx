@@ -17,6 +17,7 @@ export default function App() {
   const [serverOk, setServerOk] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [lastImport, setLastImport] = useState(null);
+  const [retryingNames, setRetryingNames] = useState(() => new Set());
   const interpretAbortRef = useRef(null);
 
   // Startet (oder übernimmt) die Interpretation für `base`: bricht eine noch
@@ -87,13 +88,23 @@ export default function App() {
   // Mit `name`: Retry nur für diesen einen Baustein (per-row retry aus LibraryObjectList).
   const handleRetryInterpret = (name) => {
     if (name) {
-      retryInterpretation(lastImport, name).then((next) => {
-        setLastImport((cur) => {
-          const applied = applyIfSameImport(cur, next);
-          if (applied !== cur) saveLastImport(applied);
-          return applied;
+      if (retryingNames.has(name)) return; // Doppelklick-Schutz: nur ein Request pro Name
+      setRetryingNames((s) => new Set(s).add(name));
+      retryInterpretation(lastImport, name)
+        .then((next) => {
+          setLastImport((cur) => {
+            const applied = applyIfSameImport(cur, next);
+            if (applied !== cur) saveLastImport(applied);
+            return applied;
+          });
+        })
+        .finally(() => {
+          setRetryingNames((s) => {
+            const n = new Set(s);
+            n.delete(name);
+            return n;
+          });
         });
-      });
       return;
     }
     const pending = { ...lastImport, interpretPending: true, interpretError: null, interpretFailed: [] };
@@ -106,9 +117,9 @@ export default function App() {
     if (!lastImport) return <EmptyState onNewImport={() => setModalOpen(true)} />;
     switch (page) {
       case 'Tokens': return <Tokens result={lastImport} />;
-      case 'Atomics': return <Atomics result={lastImport} onRetryInterpret={handleRetryInterpret} />;
-      case 'Components': return <Components result={lastImport} onRetryInterpret={handleRetryInterpret} />;
-      case 'Patterns': return <Patterns result={lastImport} onRetryInterpret={handleRetryInterpret} />;
+      case 'Atomics': return <Atomics result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
+      case 'Components': return <Components result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
+      case 'Patterns': return <Patterns result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
       case 'Export': return <Export result={lastImport} />;
       case 'Dashboard':
       default: return <Dashboard result={lastImport} />;

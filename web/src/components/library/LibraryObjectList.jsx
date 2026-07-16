@@ -6,7 +6,7 @@ import InterpretedPreview from './InterpretedPreview.jsx';
 import { PREVIEWS } from '../../lib/components/templates/Previews.jsx';
 import { downloadFile } from '../../lib/download.js';
 
-function Row({ item, picks, onRetryInterpret }) {
+function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
   const [open, setOpen] = useState(false);
   const [variant, setVariant] = useState(item.variants[0] ?? null);
   const [copied, setCopied] = useState(false);
@@ -88,7 +88,8 @@ function Row({ item, picks, onRetryInterpret }) {
             <div className="pt-2">
               <button
                 onClick={() => onRetryInterpret(item.name)}
-                className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                disabled={retrying || batchPending}
+                className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Mit KI interpretieren
               </button>
@@ -96,11 +97,18 @@ function Row({ item, picks, onRetryInterpret }) {
           )}
           {item.interpretFailed && (
             <div className="flex items-center gap-2 pt-2 text-[11px] text-zinc-500">
-              <span>Interpretation fehlgeschlagen.</span>
+              <span>
+                {retrying
+                  ? 'Wird erneut interpretiert …'
+                  : batchPending
+                    ? 'Interpretation läuft noch — Retry gleich möglich …'
+                    : 'Interpretation fehlgeschlagen.'}
+              </span>
               {onRetryInterpret && (
                 <button
                   onClick={() => onRetryInterpret(item.name)}
-                  className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+                  disabled={retrying || batchPending}
+                  className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Erneut versuchen
                 </button>
@@ -136,14 +144,21 @@ function Row({ item, picks, onRetryInterpret }) {
   );
 }
 
-export default function LibraryObjectList({ items, picks, onRetryInterpret }) {
+export default function LibraryObjectList({ items, picks, onRetryInterpret, retryingNames, batchPending }) {
   if (!items || items.length === 0) {
     return <div className="text-sm text-zinc-500">Keine Objekte erkannt.</div>;
   }
   return (
     <div className="max-w-3xl border-t border-zinc-200">
       {items.map((item) => (
-        <Row key={item.slug + item.kind} item={item} picks={picks} onRetryInterpret={onRetryInterpret} />
+        <Row
+          key={item.slug + item.kind}
+          item={item}
+          picks={picks}
+          onRetryInterpret={onRetryInterpret}
+          retrying={retryingNames?.has(item.name) ?? false}
+          batchPending={batchPending}
+        />
       ))}
     </div>
   );
