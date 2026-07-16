@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **16.07.2026 abends (Testrunde 5 durch — Tempo/Backoff/Retry nach Robs Live-Test)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **192/192** · Web **342/342** · Plugin-Tests 39/39.
+Stand: **16.07.2026 spät (autonome Test- & Fix-Session nach Testrunde 5)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **202/202** · Web **348/348** · Plugin-Tests 39/39.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
@@ -8,6 +8,18 @@ Stand: **16.07.2026 abends (Testrunde 5 durch — Tempo/Backoff/Retry nach Robs 
 > 3. KI-Provider: **Gemini** (Railway-Variable `GEMINI_API_KEY`, Robs Gratis-Key von aistudio.google.com). Claude bleibt als Fallback im Code (gesetzter `ANTHROPIC_API_KEY` hätte Vorrang; `AI_PROVIDER` erzwingt). Modell = Alias `gemini-flash-latest` + Ausweich NUR noch auf `gemini-3-flash-preview` bei 404/429/503 — **flash-lite ist seit Testrunde 4 raus** (erfand generische Inhalte; lieber ehrlich scheitern + Retry). Temperature client-weit 0.2.
 > 4. Free-Tier-Limits: ~10 Anfragen/Min, 1.500/Tag — für Robs Nutzung irrelevant, aber bei Testreihen nicht im Sekundentakt scannen.
 > 5. Lokal entwickeln wie immer: `npm run dev` (bzw. `dev:demo`), Port-Falle beachten (`PORT=3047`). Lokal echten KI-Test: `GEMINI_API_KEY` in die lokale `.env` übernehmen (steht nur in Railway!).
+
+## Session 16.07.2026 spät — Autonome Test- & Fix-Session (Claude solo, Robs Vorarbeit abgenommen)
+
+**Erledigt & gepusht (`c69fbc9`..`ecf7682`, live):**
+1. **`/api/health` zeigt jetzt `demo_fallback`** (`c69fbc9`, testbarer Helper `server/lib/healthInfo.js`). **Live geprüft: `demo_fallback:false`** → Robs Schritt 1 (Railway-Variable prüfen) ist ERLEDIGT, kein Handlungsbedarf, alle Qualitätstests laufen auf echten Ergebnissen.
+2. **Reload-Limbo gefixt** (`2ddf31a`): `normalizeStalePending()` in `web/src/lib/interpret.js` — nach Reload werden hängende „Wird interpretiert…"-Zustände zu failed + „Erneut versuchen"-Knopf. 6 neue Tests.
+3. **Per-Fetch-Timeout im Gemini-Client** (`ecf7682`): AbortController, Default 60s, `GEMINI_TIMEOUT_MS`-Env, Timeout wird wie 503 behandelt (Kette+Backoff greifen). 5 neue Tests.
+4. Demo-model-Kosmetik-Befund vom 15.07. geprüft: **war schon sauber** (Testrunde 4 hatte alle Pfade abgedeckt; kein Claude-Name kann durchschlagen).
+
+**E2E live abgehakt:** URL-Import (Demo-Seite, 8/4/3/5/3 + 10 Inventar, Warnungen im Modal) · „Komponenten-Erkennung verfeinern" (Herkunfts-Pillen „Regeln + KI" korrekt; 1. Versuch 429, 2. Versuch grün) · Export alle 4 Formate + Zip ohne Konsolenfehler · „An Figma senden" → Payload serverseitig unter `/api/figma-export/latest` verifiziert · **Export-Verifikation rk-landing:** tokens.css + `@import` eingebaut, `npm run build` grün, Variablen lösen zur Laufzeit auf, Seite rendert unverändert. ⚠️ Die 2 Dateien liegen UNCOMMITTED in rk-landing (`src/tokens.css` neu, `src/index.css` +1 Zeile) — Rob entscheidet behalten/verwerfen.
+
+**🔑 KERNBEFUND — Gemini-Free-Tier-Quota ist das echte Limit:** Bild-Import-Test war NICHT möglich: 3× HTTP 429 über ~10 Min, auch nach 4 Min Pause → **Tages-Quota** (Metrik `generate_content_free_tier_requests`, **limit: 20, model: gemini-3-flash**). Zwei Verschärfer: (a) **beide Ketten-Modelle (`gemini-flash-latest` UND `gemini-3-flash-preview`) teilen sich denselben Quota-Topf** — der Modell-Fallback rettet bei 429 gar nichts; (b) **der Testrunde-5-Backoff verbrennt bis zu 6 API-Calls pro Klick** (2 Modelle × 3 Runden) — Quota-Verbrauch ×6. Reset Mitternacht PT ≈ **09:00 deutscher Zeit**. Folge-Ideen (offen, erst mit Rob): RPD-429 erkennen und NICHT retryen (Geminis Fehler nennt die Quota-Metrik) · Fallback in andere Modell-Familie · `ANTHROPIC_API_KEY` auf Railway (Payment-Hürde, s. 15.07.) · Robs Modell-Research-Task.
 
 ## Session 16.07.2026 abends — Testrunde 5: Robs Test-Befunde behoben
 
@@ -74,12 +86,12 @@ Rob testet bereits selbst auf der Live-App. Plan für die strukturierte Runde:
 
 ### E2E-Checkliste (Live-URL, gemeinsam abarbeiten)
 - [x] **Bild-Import** technisch ✅ (nach Doppelbug-Fix, 5/5 Scans grün) — **Robs Qualitätsurteil steht noch aus**
-- [ ] **KI-Interpretationen** je Baustein (Vorschau, „Erneut versuchen") → echte gerenderte Referenz?
-- [ ] **„Mit KI vertiefen"** nach URL-Import → Anreicherung + Herkunfts-Pillen korrekt?
+- [ ] **KI-Interpretationen** je Baustein (Vorschau, „Erneut versuchen") → echte gerenderte Referenz? ⚠️ 16.07. spät an Tages-Quota gescheitert — ab ~09:00 dt. Zeit wieder möglich
+- [x] **„Komponenten-Erkennung verfeinern"** nach URL-Import ✅ 16.07. spät (Herkunfts-Pillen „Regeln + KI" korrekt)
 - [x] **URL-Import** mit echter fremder Website ✅ (stripe.com 152 Tokens · linear.app nach Fix 278 Tokens)
 - [x] **Repo-Import** mit rk-landing ⚠️ läuft technisch, aber 0 Tokens (Tailwind-4-Lücke, s. Befund oben)
-- [ ] **Export alle 4 Formate** (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (zip)
-- [ ] **Export-Verifikation im Ziel-Repo** (rk-landing lokal)
+- [x] **Export alle 4 Formate** ✅ 16.07. spät (alle 4 rendern korrekt, Zip ohne Konsolenfehler, „An Figma senden" serverseitig bestätigt)
+- [x] **Export-Verifikation im Ziel-Repo** ✅ 16.07. spät (rk-landing: Build grün, Variablen lösen auf; Dateien uncommitted, Rob entscheidet)
 - [ ] **Figma-Rundlauf:** „An Figma senden" → Plugin „Aus DesignBridge übernehmen". ✅ Plugin spricht seit 16.07. mit der Live-URL (`8b6589c`) — **Robs Part:** Plugin in Figma Desktop laden, Anleitung: `designbridge-plugin/ANLEITUNG-LIVE-TEST.md`.
 - [x] **Fehlerpfade** ✅ (alle drei deutsch & verständlich, live verifiziert)
 - [ ] **Gemini-Qualität bewerten** (Robs Designer-Auge, Stichprobe vs. frühere Claude-Ergebnisse). Falls schwächer → Modell/`AI_PROVIDER` diskutieren.
@@ -110,10 +122,10 @@ Zwei getrennte Zwecke, zwei einfache Wege — kein „Verlinken"/Setup nötig:
 
 Die nächste Session ist **Robs Wiederholungstest** (der erste Durchlauf 16.07. 16:21–16:30 lief in die Free-Tier-Falle, siehe Testrunde 5 oben — die Fixes dafür sind live). Claude führt Schritt für Schritt durch, Rob klickt/urteilt. Reihenfolge:
 
-1. **DEMO_FALLBACK auf Railway prüfen** (5 Min): railway.app → Projekt `appealing-mindfulness` → Service → Variables. Steht dort `DEMO_FALLBACK=1`? → auf `0` setzen oder Variable löschen (Redeploy passiert automatisch). Sonst liefert die App bei Interpret-Fehlern **unmarkierte Demo-Konserven** statt echter Ergebnisse — das verfälscht jeden Qualitätstest. **Diesen Schritt ZUERST, vor allen anderen Tests.**
+1. ~~**DEMO_FALLBACK auf Railway prüfen**~~ ✅ **ERLEDIGT 16.07. spät ohne Rob:** `/api/health` zeigt jetzt `demo_fallback` an — live geprüft, steht auf `false`. Nichts zu tun.
 2. **Figma-Rundlauf** (15 Min): Anleitung liegt fertig in `designbridge-plugin/ANLEITUNG-LIVE-TEST.md` — kurz: Live-App → Import → Export-Tab → „An Figma senden"; dann Figma **Desktop** → Plugins → Development → „Import plugin from manifest…" → `designbridge-plugin/manifest.json` → Plugin öffnen → „Aus DesignBridge übernehmen". Plugin spricht seit 16.07. automatisch mit der Live-URL (localhost nur noch Dev-Fallback). Erwartung: Styles unter `DesignBridge/Color/*` + `/Text/*` + Sticker-Sheet-Seite. **⚠️ In eine LEERE Figma-Datei importieren** (die bisherige Testdatei enthält die alten Demo-Komponenten → Namens-Match vermischt alt/neu). **Erst exportieren, wenn die Bausteine in der App echte Vorschauen (mit Modell-Badge) haben** — Platzhalter in Figma = Interpretation fehlte.
-3. **Export-Verifikation im Ziel-Repo** (30 Min, gemeinsam): Zielprojekt = **rk-landing lokal** (falls Rob nichts anderes sagt). Live-App → Export-Tab → alle 4 Formate durchklicken (CSS/Tailwind/tokens.json/Figma) + „Ganze Library exportieren" (Zip). Dann bauen wir zusammen `tokens.css`/Tailwind-Config in rk-landing ein und prüfen: baut es, sieht es richtig aus?
-4. **Robs Qualitätsurteil Interpretation**: Contact-/Portfolio-Screenshot importieren, Interpretationen anschauen. ✅ Testrunde 4 ist durch — die bekannten Schwächen (Mini-Crops, stille flash-lite-Degradierung, Monsterbatch) sind gefixt, das Urteil lohnt jetzt. Das Modell-Badge an jedem Baustein zeigt, wer wirklich geantwortet hat; eine rote „Demo-Daten"-Pill heißt: DEMO_FALLBACK hat gegriffen → Schritt 1 prüfen!
+3. ~~**Export-Verifikation im Ziel-Repo**~~ ✅ **ERLEDIGT 16.07. spät ohne Rob** (rk-landing: Build grün, Tokens live aufgelöst, Seite unverändert). Robs Rest-Entscheidung: die 2 uncommitteten Dateien in rk-landing behalten oder `git checkout .`.
+4. **Robs Qualitätsurteil Interpretation**: Contact-/Portfolio-Screenshot importieren, Interpretationen anschauen. ✅ Testrunde 4 ist durch — die bekannten Schwächen (Mini-Crops, stille flash-lite-Degradierung, Monsterbatch) sind gefixt, das Urteil lohnt jetzt. Das Modell-Badge an jedem Baustein zeigt, wer wirklich geantwortet hat; eine rote „Demo-Daten"-Pill heißt: DEMO_FALLBACK hat gegriffen → Health-Endpoint prüfen! **⚠️ WICHTIG: erst ab ~09:00 dt. Zeit (Gemini-Tages-Quota-Reset) — und sparsam klicken: nur ~20 KI-Calls/Tag im `gemini-3-flash`-Topf, jeder fehlgeschlagene Klick kostet durch den Backoff bis zu 6 davon.**
 
 ✅ **Testrunde 4 + 5 sind FERTIG & LIVE** (beide Sessions 16.07., s. oben). Erwartungshaltung für den Wiederholungstest: Voll-Import braucht weiterhin 1–3 Min (Free-Tier, bewusst sequenziell), aber die UI füllt sich progressiv in 4er-Gruppen, Fehlschläge sind die Ausnahme (Backoff) und Retry zeigt Ladezustand. Zwischen zwei Imports kurz warten (Quota). Wenn Rob danach noch mehr Tempo will → Folge-Task „Chunk-Parallelität 2". Offener Chip: Reload-Limbo-Fix.
 
