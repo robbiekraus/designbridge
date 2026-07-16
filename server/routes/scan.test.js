@@ -58,6 +58,33 @@ test('POST /api/scan/image ohne API-Key + ohne DEMO_FALLBACK → 503 mit deutsch
   }
 });
 
+test('POST /api/scan/image mit DEMO_FALLBACK=1 ohne API-Key → demo:true + meta.model demo-fixture (nie unmarkierte Konserven)', async () => {
+  const prevAnthropic = process.env.ANTHROPIC_API_KEY;
+  const prevGemini = process.env.GEMINI_API_KEY;
+  const prevDemo = process.env.DEMO_FALLBACK;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  process.env.DEMO_FALLBACK = '1';
+  try {
+    await withScanServer(async base => {
+      const form = new FormData();
+      form.append('image', new Blob([Uint8Array.from([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' }), 'shot.png');
+
+      const res = await fetch(`${base}/api/scan/image`, { method: 'POST', body: form });
+
+      assert.equal(res.status, 200);
+      const data = await res.json();
+      assert.equal(data.meta.demo, true);
+      assert.equal(data.meta.model, 'demo-fixture');
+      assert.equal(data.meta.fallback, true);
+    });
+  } finally {
+    if (prevAnthropic !== undefined) process.env.ANTHROPIC_API_KEY = prevAnthropic;
+    if (prevGemini !== undefined) process.env.GEMINI_API_KEY = prevGemini;
+    if (prevDemo !== undefined) process.env.DEMO_FALLBACK = prevDemo; else delete process.env.DEMO_FALLBACK;
+  }
+});
+
 test('liftRepoInventory hebt Scan-Inventar-Code (Verdrahtung /repo)', async () => {
   const files = [{ path: 'src/components/ui/button.tsx', content: 'export const Button=()=><button/>;' }];
   const inv = [{ name: 'Button', path: 'src/components/ui/button.tsx', source: 'rules' }];

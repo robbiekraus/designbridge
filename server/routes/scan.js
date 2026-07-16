@@ -29,7 +29,7 @@ function loadDemoFallback(filename) {
   const raw = JSON.parse(
     fs.readFileSync(path.join(__dirname, '../fixtures/demo-dashboard.json'), 'utf8')
   );
-  raw.meta = { ...raw.meta, image_filename: filename, fallback: true };
+  raw.meta = { ...raw.meta, image_filename: filename, fallback: true, demo: true, model: 'demo-fixture' };
   return raw;
 }
 

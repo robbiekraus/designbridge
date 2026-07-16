@@ -60,7 +60,7 @@ router.post('/components', async (req, res) => {
         const file = kind === 'url' ? 'demo-url-interpretations.json'
           : kind === 'repo' ? 'demo-repo-interpretations.json'
           : 'demo-interpretations.json';
-        return res.json(loadDemoInterpretations(components.map((c) => c.name), file));
+        return res.json({ ...loadDemoInterpretations(components.map((c) => c.name), file), demo: true });
       } catch (fallbackErr) {
         console.error('[interpret] DEMO_FALLBACK failed:', fallbackErr.message);
         return res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
