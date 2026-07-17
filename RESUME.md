@@ -18,6 +18,16 @@ Stand: **17.07.2026 nachmittags (Testrunde 6 — alle 6 Befunde gefixt & deployt
 
 **Offen/nächste Kandidaten:** Thumbnail-Höhe bei kleinen Interpretationen großzügig (viel Weißraum — Polish); Tailwind-Runtime im htmlToPlan-Offscreen-Mount (größere Fidelity-Scheibe).
 
+## Session 17.07.2026 spätabends — Testrunde 7.5: Token-Limit + Fidelity-Befunde (`5c40739`)
+
+**Root Cause „Trend-Chart scheitert immer":** Antwort (langes SVG, HTML+JSX doppelt) wurde bei `max_tokens: 16384` abgeschnitten → Parse-Fehler → generischer 502, deterministisch bei jedem Retry (2× ~57s). Fix: **32768** + Route reicht die echte Ursache in der 502-Meldung durch (Row-UI zeigt sie seit Testrunde 6). Außerdem POOL_CONCURRENCY 3→6 (Batch jetzt ~1–2 Min).
+
+**Fidelity-Befunde aus Robs Figma-Import (`KXnDV0BzDIHuWYXQ9Mzy2K`, per MCP seziert) — Input für eine eigene „Plan-Fidelity"-Scheibe:**
+- Sidebar: gut, aber Texte überlappen (Logo/Nav, Storage-Karte) → **absolute Positionierung fehlt im Plan-Modell**
+- Energy-Chart: Legende ✅, farbige Balken-Segmente fehlen → **Prozent-Höhen lösen im Offscreen-Mount zu 0 auf**
+- Category-Donut: SVG-Passthrough ✅, „73 Known" neben statt im Donut → wieder absolute Positionierung
+- Tabellen: Zeilen ✅ (Fix E), Spaltenraster fluchtet nicht → Teil derselben Scheibe
+
 ## Session 17.07.2026 abends — Testrunde 7 (Robs UX-Feedback, `a15814e`..`be40030`)
 
 Alle 4 Punkte aus Robs Nachmittags-Test umgesetzt (Sonnet-Subagents, TDD, Browser-Smoke ✅, Suiten Server 208 · Web 412 · Plugin 53):
