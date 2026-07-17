@@ -191,9 +191,12 @@ describe('runInterpretation', () => {
   });
 
   it('läuft auch für source url und reicht selector durch', async () => {
-    let sentBody = null;
+    // Chunk-Größe 1: Avatar kann in irgendeinem der Requests stecken —
+    // alle Bodies einsammeln statt nur den letzten.
+    const sentComponents = [];
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-      sentBody = JSON.parse(opts.body);
+      const body = JSON.parse(opts.body);
+      sentComponents.push(...body.components);
       return {
         ok: true,
         json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
@@ -209,7 +212,7 @@ describe('runInterpretation', () => {
     };
     const next = await runInterpretation(urlResult);
     expect(next.interpretations.Avatar).toBeTruthy();
-    const avatar = sentBody.components.find((c) => c.name === 'Avatar');
+    const avatar = sentComponents.find((c) => c.name === 'Avatar');
     expect(avatar.selector).toBe('html > body > div');
   });
 
@@ -243,7 +246,7 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     },
   };
 
-  it('9 todo-Komponenten → 3 Chunk-Requests (≤4 je Body), onProgress je Chunk mit interpretPending:true, Endergebnis vollständig', async () => {
+  it('9 todo-Komponenten → 9 Einzel-Requests (1 je Body), onProgress je Chunk mit interpretPending:true, Endergebnis vollständig', async () => {
     const calls = [];
     const progressStates = [];
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
@@ -260,14 +263,14 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     const onProgress = vi.fn((state) => progressStates.push(state));
     const next = await runInterpretation(NINE, { onProgress });
 
-    expect(calls.length).toBe(3);
-    calls.forEach((c) => expect(c.length).toBeLessThanOrEqual(4));
+    expect(calls.length).toBe(9);
+    calls.forEach((c) => expect(c.length).toBe(1));
     expect(calls.flat()).toEqual([
       'Widget1', 'Widget2', 'Widget3', 'Widget4',
       'Widget5', 'Widget6', 'Widget7', 'Widget8',
       'Widget9',
     ]);
-    expect(onProgress).toHaveBeenCalledTimes(3);
+    expect(onProgress).toHaveBeenCalledTimes(9);
     progressStates.forEach((state) => expect(state.interpretPending).toBe(true));
     expect(next.interpretPending).toBe(false);
     expect(Object.keys(next.interpretations)).toHaveLength(9);
@@ -275,7 +278,7 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     expect(next.interpretError).toBeNull();
   });
 
-  it('Chunk 2 von 3 schlägt fehl → Chunk 1+3 kommen durch, Chunk-2-Namen in interpretFailed, kein interpretError (anySuccess)', async () => {
+  it('Request 2 von 9 schlägt fehl → Rest kommt durch, nur dessen Name in interpretFailed, kein interpretError (anySuccess)', async () => {
     let call = 0;
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
       call++;
@@ -291,9 +294,9 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     }));
     const next = await runInterpretation(NINE);
     expect(next.interpretError).toBeNull();
-    expect(next.interpretFailed).toEqual(['Widget5', 'Widget6', 'Widget7', 'Widget8']);
+    expect(next.interpretFailed).toEqual(['Widget2']);
     expect(Object.keys(next.interpretations).sort()).toEqual(
-      ['Widget1', 'Widget2', 'Widget3', 'Widget4', 'Widget9'].sort()
+      ['Widget1', 'Widget3', 'Widget4', 'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
     );
     expect(next.interpretPending).toBe(false);
   });
@@ -310,7 +313,7 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     expect(Object.keys(next.interpretations ?? {})).toHaveLength(0);
   });
 
-  it('Quota-Bremse: Chunk 2 meldet daily_quota → Schleife stoppt sofort, Chunk 3 wird NIE gesendet, alle Namen ab Chunk 2 failed', async () => {
+  it('Quota-Bremse: Request 2 meldet daily_quota → Schleife stoppt sofort, Request 3+ wird NIE gesendet, alle Namen ab Request 2 failed', async () => {
     let call = 0;
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
       call++;
@@ -334,17 +337,15 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     }));
     const next = await runInterpretation(NINE);
 
-    expect(call).toBe(2); // Chunk 3 (3. Request) wurde nie gesendet — Fail-Fast
+    expect(call).toBe(2); // Request 3+ wurde nie gesendet — Fail-Fast
     expect(next.interpretQuotaExhausted).toBe(true);
     expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
-    // Chunk 1 (Widget1-4) kam durch, Chunk 2 (Widget5-8) UND Chunk 3 (Widget9,
-    // nie gesendet) landen als failed.
+    // Request 1 (Widget1) kam durch; Widget2 (gescheitert) und Widget3-9
+    // (nie gesendet) landen als failed.
     expect(next.interpretFailed.sort()).toEqual(
-      ['Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
+      ['Widget2', 'Widget3', 'Widget4', 'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
     );
-    expect(Object.keys(next.interpretations).sort()).toEqual(
-      ['Widget1', 'Widget2', 'Widget3', 'Widget4'].sort()
-    );
+    expect(Object.keys(next.interpretations)).toEqual(['Widget1']);
     expect(next.interpretPending).toBe(false);
   });
 

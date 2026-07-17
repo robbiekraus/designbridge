@@ -27,9 +27,11 @@ const MAX_RETRY_DELAY_MS = 15000;
 
 // Per-Fetch-Timeout: ein hängender Request (kein Netzwerkfehler, keine
 // Antwort — Live-Fund 16.07., Folge-Kandidat aus Testrunde 5) darf nicht den
-// ganzen Chunk blockieren. Default 60s, per Env übersteuerbar; in Tests via
-// { timeoutMs } injizierbar (kleine Werte → Test läuft ohne echte Wartezeit).
-const DEFAULT_TIMEOUT_MS = 60000;
+// ganzen Chunk blockieren. Default 120s (Live-Messung 17.07.: EINZELNE
+// komplexe Interpretationen brauchen bis 54s — 60s war zu knapp und ließ
+// Mehrfach-Chunks reihenweise in den Timeout laufen), per Env übersteuerbar;
+// in Tests via { timeoutMs } injizierbar (kleine Werte → keine echte Wartezeit).
+const DEFAULT_TIMEOUT_MS = 120000;
 
 // Fetch mit AbortController-Timeout. Ein Timeout wird wie ein retrybarer
 // Serverfehler behandelt (503), damit die bestehende Fallback-/Backoff-Kette

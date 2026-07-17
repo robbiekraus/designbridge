@@ -39,9 +39,12 @@ export function componentsNeedingInterpretation(result) {
   return out;
 }
 
-// == Server-CHUNK_SIZE: 1 Client-Request = genau 1 KI-Call, damit der Nutzer
-// nach jedem Chunk sofort einen Zwischenstand sieht statt Minuten Blindflug.
-const CLIENT_CHUNK_SIZE = 4;
+// 1 Baustein pro Request (Live-Befund 17.07., Paid-Tier): 4 komplexe
+// Bausteine in EINEM Gemini-Call dauerten zusammen >60s und liefen reihenweise
+// in den Server-Timeout (502), während Einzel-Calls in 14–54s durchgehen.
+// Einzeln = kein Timeout-Stapeln, feinster Fortschritt in der UI, und auch im
+// Free-Tier unkritisch (sequenziell bei 15–55s/Call bleibt weit unter 10 RPM).
+const CLIENT_CHUNK_SIZE = 1;
 
 export async function requestInterpretations(importId, components, { signal } = {}) {
   const res = await fetch('/api/interpret/components', {
