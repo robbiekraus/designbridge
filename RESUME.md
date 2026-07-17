@@ -8,11 +8,22 @@ Stand: **17.07.2026 nachts (Testrunde-8-Fixes FERTIG, s. unten)** — **🚀 APP
 
 **Offene Entscheidungen von Rob:** (1) „Connect Figma"-Stub im Topbar entfernen? (empfohlen: ja); (2) Refracta-Go (Umbenennung wartet seit 14.07.).
 
+**📋 Breiten-Test der Eingabetypen (Robs Wunsch 17.07. nachts):** Qualitativer Vergleich Bild vs. URL vs. Repo — gleiche/vergleichbare Quelle durch alle drei Wege, Ergebnis nach Tokens/Bausteinen/Interpretationen vergleichen. **Termin: direkt NACH der Plan-Fidelity-Scheibe** (sonst verfälschen die bekannten Fidelity-Lücken das Urteil). Ablauf: Claude baut die Matrix + fährt alle Imports selbst über die Live-API (Kandidaten: rk-landing als Repo + Screenshot; stripe.com o. ä. als URL + Screenshot derselben Seite für den Direktvergleich URL↔Bild), Rob liefert nur das Designer-Urteil pro Zelle. ⚠️ Bekannte Vorbelastung einpreisen: Tailwind-4-Repos (rk-landing) liefern 0 Tokens (Befund 15.07.) — der Vergleich macht diese Lücke sichtbar/messbar, das ist gewollt.
+
 **Nächste Baustellen (priorisiert):**
 1. **Plan-Fidelity-Scheibe** (Spec ausstehend; Befunde in Session 7.5 + Testrunde 8 unten): **Prozent-BREITEN im 360px-Offscreen-Mount** (bewiesen, s. Testrunde 8 — Robs „Chart in der Breite gekroppt"), absolute Positionierung im Plan-Modell, Prozent-Höhen, Tabellen-Spaltenraster, ggf. Tailwind-Runtime im Mount.
 2. **Export-Ehrlichkeit** (Testrunde 8): Export-Tab warnt NICHT vor Bausteinen ohne Interpretation (`Export.jsx` kennt den Zustand gar nicht) → Rob exportierte den Donut als Platzhalter ohne Hinweis; Plugin-Meldung „13 Bausteine neu …, 1 Platzhalter" liest sich wie 13+1 (Platzhalter ist in den 13 ENTHALTEN); Token-Zahl-Diskrepanz kommunizieren (App 20 Tokens ↔ Figma 13 Styles, Spacing/Radius/Shadow sind BY DESIGN nicht im Figma-Payload).
 3. Figma-Seiten-Namespacing pro Import (Mehrfach-Importe mischen sich per Namens-Match).
 4. Polish: Scan-Retry bei abgeschnittener KI-Antwort (transient, 1× gesehen); Storybook-Emitter (Stub steht im Export-Tab); Patterns-Begriff mit Rob klären (ganze nachgebaute Seite zählt aktuell als „Pattern" — Rob versteht darunter etwas anderes).
+
+## Session 17.07.2026 spätnachts, Teil 3 — PLAN-FIDELITY Scheibe A+B (2 parallele Sonnet-Subagents, Spec `docs/superpowers/specs/2026-07-17-plan-fidelity-design.md`)
+
+Robs „ja" zur Fidelity-Spec. Umgesetzt & getestet:
+1. **Scheibe A — Absolute Positionierung:** CSS `position:absolute/fixed` → Plan-Feld `absolute:{x,y,width,height}` (Rect relativ zum DIREKTEN Parent, min 1px; Web lässt das Feld bei normalen Nodes WEG) → Plugin setzt `layoutPositioning='ABSOLUTE'` + x/y + resize NACH appendChild (`applyAbsolute` in renderPlan.ts; text: textAutoResize HEIGHT + Breite nur wenn >0). Soll lösen: Donut-Mitte („73%"), Y-Achsen-Labels, fehlende Monats-Labels, Sidebar-Überlappungen. Bewusste Vereinfachung: direkter Parent statt nächster POSITIONIERTER Vorfahre (dokumentiert).
+2. **Scheibe B — Höhen-Kontext:** Mount-Container zusätzlich `height: PREVIEW_VIRTUAL_HEIGHT=768` — Prozent-Höhen (Bar-Segmente) sollen wie in der Vorschau-iframe-Kette auflösen.
+Suiten: Server 208/208 · Web **425/425** (+7) · Plugin **74/74** (+20) · Typecheck · Build; Plugin-dist neu → **Rob: Dev-Plugin neu laden.** Echter Beweis = nächster Figma-Import (Donut-Mitte, Achsen-Labels, Sidebar prüfen). Bekannte offene Kante (Review-Notiz): absolute HUG-Boxen könnten trotz resize huggen (Figma-AUTO-Sizing) — erst bei Befund anfassen.
+
+**Danach begonnen: Report-Testseite für den Eingabetypen-Breiten-Test** (`demo-site/report.html`, orientiert an EcoMetrics-Elementklassen) — Ziel: dieselbe Quelle als URL- UND Bild-Import (Ground Truth bekannt), s. 📋-Absatz oben.
 
 ## Session 17.07.2026 nachts, Teil 2 — Testrunde-8-FIXES (2 parallele Sonnet-Subagents, Spec `docs/superpowers/specs/2026-07-17-testrunde8-fixes-design.md`)
 

@@ -19,6 +19,16 @@ export interface ColorRef {
 
 export type PlanTextAlign = 'left' | 'center' | 'right';
 
+/** Plan-Fidelity-Scheibe A (docs/superpowers/specs/2026-07-17-plan-fidelity-design.md):
+ *  CSS position:absolute/fixed-Entsprechung, relativ zum direkten Parent, in px.
+ *  PINNED zwischen Web (htmlToPlan) und Plugin — nicht abweichen/erweitern. */
+export interface AbsoluteRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface PlanText {
   type: 'text';
   content: string;
@@ -27,6 +37,7 @@ export interface PlanText {
   color: ColorRef;
   align: PlanTextAlign;
   lineHeight: number | null;
+  absolute?: AbsoluteRect | null;
 }
 
 export type PlanPrimaryAlign = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
@@ -46,11 +57,13 @@ export interface PlanBox {
   strokeWeight: number;
   primaryAlign: PlanPrimaryAlign;
   counterAlign: PlanCounterAlign;
+  absolute?: AbsoluteRect | null;
 }
 
 export interface PlanSvg {
   type: 'svg';
   markup: string;
+  absolute?: AbsoluteRect | null;
 }
 
 export interface PlanRef {
@@ -58,6 +71,7 @@ export interface PlanRef {
   name: string;
   variant: string | null;
   fallback: PlanBox | null;
+  absolute?: AbsoluteRect | null;
 }
 
 export type PlanNode = PlanBox | PlanText | PlanSvg | PlanRef;
@@ -123,11 +137,29 @@ function parseNullableNumber(v: unknown): number | null {
   return typeof v === 'number' ? v : null;
 }
 
+/** absolute-Feld validieren (Plan-Fidelity-Scheibe A): nur übernehmen, wenn alle 4 Werte
+ *  endliche Zahlen sind — sonst null (defensiv, kaputte/fehlende Werte dürfen den Node nicht
+ *  invalidieren, nur die absolute Positionierung entfällt). */
+function parseAbsolute(v: unknown): AbsoluteRect | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Record<string, unknown>;
+  const { x, y, width, height } = r;
+  if (
+    typeof x === 'number' && Number.isFinite(x) &&
+    typeof y === 'number' && Number.isFinite(y) &&
+    typeof width === 'number' && Number.isFinite(width) &&
+    typeof height === 'number' && Number.isFinite(height)
+  ) {
+    return { x, y, width, height };
+  }
+  return null;
+}
+
 /** svg-Node validieren: markup muss ein String sein und wie SVG-Markup aussehen. */
 function parseSvgNode(r: Record<string, unknown>): PlanSvg | null {
   if (typeof r.markup !== 'string') return null;
   if (!r.markup.trim().startsWith('<svg')) return null;
-  return { type: 'svg', markup: r.markup };
+  return { type: 'svg', markup: r.markup, absolute: parseAbsolute(r.absolute) };
 }
 
 /** component-ref-Node validieren: name Pflicht, variant optional, fallback rekursiv über den Box-Parser. */
@@ -138,6 +170,7 @@ function parseRefNode(r: Record<string, unknown>): PlanRef | null {
     name: r.name,
     variant: typeof r.variant === 'string' ? r.variant : null,
     fallback: parsePlan(r.fallback),
+    absolute: parseAbsolute(r.absolute),
   };
 }
 
@@ -156,6 +189,7 @@ function parsePlanNode(c: unknown): PlanNode | null {
       color,
       align: TEXT_ALIGNS.includes(r.align as (typeof TEXT_ALIGNS)[number]) ? (r.align as PlanTextAlign) : 'left',
       lineHeight: parseNullableNumber(r.lineHeight),
+      absolute: parseAbsolute(r.absolute),
     };
   }
   if (r.type === 'svg') return parseSvgNode(r);
@@ -194,6 +228,7 @@ function parsePlan(v: unknown): PlanBox | null {
     counterAlign: COUNTER_ALIGNS.includes(r.counterAlign as (typeof COUNTER_ALIGNS)[number])
       ? (r.counterAlign as PlanCounterAlign)
       : 'CENTER',
+    absolute: parseAbsolute(r.absolute),
   };
 }
 

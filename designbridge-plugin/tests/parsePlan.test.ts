@@ -32,7 +32,7 @@ function firstChild(json: string) {
 test('svg: valid markup starting with <svg parses', () => {
   const children = firstChild(payloadWith({ type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>' }));
   assert.equal(children.length, 1);
-  assert.deepEqual(children[0], { type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>' });
+  assert.deepEqual(children[0], { type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>', absolute: null });
 });
 
 test('svg: markup not starting with <svg is skipped', () => {
@@ -75,7 +75,9 @@ test('component-ref: valid with variant + box fallback parses', () => {
       strokeWeight: 1,
       primaryAlign: 'MIN',
       counterAlign: 'CENTER',
+      absolute: null,
     },
+    absolute: null,
   });
 });
 
@@ -83,12 +85,24 @@ test('component-ref: null variant + null fallback parses', () => {
   const children = firstChild(
     payloadWith({ type: 'component-ref', name: 'Button', variant: null, fallback: null })
   );
-  assert.deepEqual(children[0], { type: 'component-ref', name: 'Button', variant: null, fallback: null });
+  assert.deepEqual(children[0], {
+    type: 'component-ref',
+    name: 'Button',
+    variant: null,
+    fallback: null,
+    absolute: null,
+  });
 });
 
 test('component-ref: missing fallback field defaults to null', () => {
   const children = firstChild(payloadWith({ type: 'component-ref', name: 'Button', variant: null }));
-  assert.deepEqual(children[0], { type: 'component-ref', name: 'Button', variant: null, fallback: null });
+  assert.deepEqual(children[0], {
+    type: 'component-ref',
+    name: 'Button',
+    variant: null,
+    fallback: null,
+    absolute: null,
+  });
 });
 
 test('component-ref: missing name is skipped (whole node dropped)', () => {
@@ -105,14 +119,26 @@ test('component-ref: invalid fallback shape (not a box) degrades to null fallbac
   const children = firstChild(
     payloadWith({ type: 'component-ref', name: 'Button', variant: null, fallback: { type: 'not-a-box' } })
   );
-  assert.deepEqual(children[0], { type: 'component-ref', name: 'Button', variant: null, fallback: null });
+  assert.deepEqual(children[0], {
+    type: 'component-ref',
+    name: 'Button',
+    variant: null,
+    fallback: null,
+    absolute: null,
+  });
 });
 
 test('component-ref: non-string variant falls back to null', () => {
   const children = firstChild(
     payloadWith({ type: 'component-ref', name: 'Button', variant: 7, fallback: null })
   );
-  assert.deepEqual(children[0], { type: 'component-ref', name: 'Button', variant: null, fallback: null });
+  assert.deepEqual(children[0], {
+    type: 'component-ref',
+    name: 'Button',
+    variant: null,
+    fallback: null,
+    absolute: null,
+  });
 });
 
 // ─── PlanBox: new v2 fields (width/height/gap/strokeWeight/primaryAlign/counterAlign) ──────
@@ -245,7 +271,90 @@ test('box: backward-compat payload without any new fields parses with all v2 def
     strokeWeight: 1,
     primaryAlign: 'MIN',
     counterAlign: 'CENTER',
+    absolute: null,
   });
+});
+
+// ─── absolute (Plan-Fidelity-Scheibe A: docs/superpowers/specs/2026-07-17-plan-fidelity-design.md) ──
+
+test('box: valid absolute (all 4 finite numbers) parses as given', () => {
+  const plan = firstPlan(boxPayload({ absolute: { x: 10, y: 20, width: 100, height: 50 } }));
+  assert.deepEqual(plan?.absolute, { x: 10, y: 20, width: 100, height: 50 });
+});
+
+test('box: missing absolute defaults to null', () => {
+  const plan = firstPlan(boxPayload({}));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: explicit null absolute stays null', () => {
+  const plan = firstPlan(boxPayload({ absolute: null }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: absolute with a missing coordinate falls back to null', () => {
+  const plan = firstPlan(boxPayload({ absolute: { x: 10, y: 20, width: 100 } }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: absolute with a non-number coordinate falls back to null', () => {
+  const plan = firstPlan(boxPayload({ absolute: { x: '10', y: 20, width: 100, height: 50 } }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: absolute with NaN falls back to null', () => {
+  const plan = firstPlan(boxPayload({ absolute: { x: NaN, y: 20, width: 100, height: 50 } }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: absolute with Infinity falls back to null', () => {
+  const plan = firstPlan(boxPayload({ absolute: { x: 10, y: 20, width: Infinity, height: 50 } }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('box: absolute that is not an object falls back to null', () => {
+  const plan = firstPlan(boxPayload({ absolute: 'nope' }));
+  assert.equal(plan?.absolute, null);
+});
+
+test('text: valid absolute parses', () => {
+  const children = firstChild(textPayload({ absolute: { x: 1, y: 2, width: 3, height: 4 } }));
+  assert.deepEqual((children[0] as { absolute?: unknown }).absolute, { x: 1, y: 2, width: 3, height: 4 });
+});
+
+test('text: missing absolute defaults to null', () => {
+  const children = firstChild(textPayload({}));
+  assert.equal((children[0] as { absolute?: unknown }).absolute, null);
+});
+
+test('svg: valid absolute parses', () => {
+  const children = firstChild(
+    payloadWith({ type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>', absolute: { x: 1, y: 2, width: 3, height: 4 } })
+  );
+  assert.deepEqual((children[0] as { absolute?: unknown }).absolute, { x: 1, y: 2, width: 3, height: 4 });
+});
+
+test('svg: missing absolute defaults to null', () => {
+  const children = firstChild(payloadWith({ type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>' }));
+  assert.equal((children[0] as { absolute?: unknown }).absolute, null);
+});
+
+test('component-ref: valid absolute parses', () => {
+  const children = firstChild(
+    payloadWith({
+      type: 'component-ref',
+      name: 'Button',
+      variant: null,
+      fallback: null,
+      absolute: { x: 1, y: 2, width: 3, height: 4 },
+    })
+  );
+  assert.deepEqual((children[0] as { absolute?: unknown }).absolute, { x: 1, y: 2, width: 3, height: 4 });
+});
+
+test('component-ref: missing absolute defaults to null', () => {
+  const children = firstChild(payloadWith({ type: 'component-ref', name: 'Button', variant: null, fallback: null }));
+  assert.equal((children[0] as { absolute?: unknown }).absolute, null);
 });
 
 // ─── PlanText: new v2 fields (align/lineHeight) ─────────────────────────────
@@ -301,5 +410,6 @@ test('text: backward-compat payload without any new fields parses with v2 defaul
     color: { token: null, hex: '#000000' },
     align: 'left',
     lineHeight: null,
+    absolute: null,
   });
 });

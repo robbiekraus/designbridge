@@ -9,7 +9,7 @@
 // server/lib/recognizeComponents.js), Token-Bindung gegen tokens.colors, Nie-Werfen-Vertrag.
 
 import { slugify } from './slugify.js';
-import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
+import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
 const SVG_MAX_CHARS = 20000;
 const DATA_URI_RE = /^data:/i;
@@ -328,6 +328,47 @@ function ensureBox(node) {
   return { ...emptyBoxNode(), children: [node] };
 }
 
+/** Scheibe A (Spec §Scheibe A): `position:absolute|fixed` → zusätzliches `absolute`-Feld mit
+ *  Koordinaten/Größe relativ zum DIREKTEN Eltern-Element (bewusste Vereinfachung ggü. dem
+ *  nächsten POSITIONIERTEN Vorfahren — abweichend nur bei dazwischenliegenden nicht-
+ *  positionierten Ebenen, akzeptiert + dokumentiert lt. Spec). x/y = Rect-Differenz (kann negativ
+ *  sein, KEIN Clamp), width/height = eigene Rect-Größe, alles Math.round, width/height min 1
+ *  (ein Element mit 0 Ausdehnung ist im Plan/Plugin nicht sinnvoll darstellbar). `fixed` zählt
+ *  wie `absolute` (Spec: „fixed zählt wie absolute" — wir bilden nur die Geometrie ab, nicht den
+ *  Viewport-Bezug, den Figma ohnehin nicht kennt). Liefert `null`, wenn nicht positioniert, wenn
+ *  das Element keinen Eltern-Element hat (z. B. der Mess-Container selbst), oder wenn `el` kein
+ *  echtes Element ist (loser Textknoten ohne eigenes Element — s. buildNormalNode).
+ *
+ *  Entscheidung „Feld weglassen vs. null" (Spec verlangt Dokumentation): wir LASSEN DAS FELD WEG
+ *  (kein `absolute: null` auf jedem Node), weil der bestehende Test-Korpus (418 Tests) volle
+ *  Plan-Objekte per `toEqual` gegen Literale ohne `absolute`-Schlüssel prüft — `toEqual` behandelt
+ *  eine fehlende Eigenschaft NICHT wie eine mit Wert `null` (nur `undefined` wird ignoriert), ein
+ *  auf jedem Node gesetztes `absolute: null` hätte also den kompletten Bestandstest-Korpus
+ *  gebrochen. Das Plugin parst das Feld ohnehin defensiv (Spec §Plugin: `parsePayload.ts` behandelt
+ *  fehlend/undefined wie null). */
+function readAbsolute(el, computed) {
+  if (computed.position !== 'absolute' && computed.position !== 'fixed') return null;
+  const parent = el.parentElement;
+  if (!parent || typeof el.getBoundingClientRect !== 'function') return null;
+  const rect = el.getBoundingClientRect();
+  const parentRect = parent.getBoundingClientRect();
+  return {
+    x: Math.round(rect.left - parentRect.left),
+    y: Math.round(rect.top - parentRect.top),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+}
+
+/** Hängt `absolute` an einen bereits gebauten Node an — nur wenn `readAbsolute` etwas geliefert
+ *  hat (s. Kommentar dort zur „weglassen statt null"-Entscheidung). Node bleibt in jedem Fall ein
+ *  normales Kind im `children`-Array seines Elternknotens (Spec: aus dem Fluss nimmt erst das
+ *  Figma-Plugin ihn per `layoutPositioning = 'ABSOLUTE'`). */
+function withAbsolute(node, el, computed) {
+  const absolute = readAbsolute(el, computed);
+  return absolute ? { ...node, absolute } : node;
+}
+
 function isSvgElement(el) {
   return (el.tagName || '').toLowerCase() === 'svg';
 }
@@ -388,7 +429,7 @@ function convertSvgElement(el, ctx) {
     markup = markup.slice(0, SVG_MAX_CHARS);
     ctx.warnings.add(`SVG-Markup > ${SVG_MAX_CHARS} Zeichen — gekappt.`);
   }
-  return { type: 'svg', markup };
+  return withAbsolute({ type: 'svg', markup }, el, getComputedStyle(el));
 }
 
 /**
@@ -435,8 +476,8 @@ function buildNormalNode(el, ctx) {
 
   if (!isBox) {
     const text = (el.textContent || '').trim();
-    if (text) return buildTextNode(text, computed, ctx);
-    return buildBoxNode(el, computed, [], ctx);
+    if (text) return withAbsolute(buildTextNode(text, computed, ctx), el, computed);
+    return withAbsolute(buildBoxNode(el, computed, [], ctx), el, computed);
   }
 
   const children = [];
@@ -450,7 +491,7 @@ function buildNormalNode(el, ctx) {
       if (text) children.push(buildTextNode(text, computed, ctx));
     }
   }
-  return buildBoxNode(el, computed, children, ctx);
+  return withAbsolute(buildBoxNode(el, computed, children, ctx), el, computed);
 }
 
 /**
@@ -466,7 +507,12 @@ function convertElement(el, ctx) {
 
   const match = matchKnownComponent(el);
   if (match && ctx.knownComponents.some((c) => c.name === match.name)) {
-    return { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx)) };
+    // absolute bezieht sich auf DIESEN component-ref-Knoten (das referenzierte Element selbst),
+    // nicht auf den Fallback-Baum — buildNormalNode() unten baut den Fallback bereits mit seinem
+    // eigenen (identischen) absolute-Feld, falls zutreffend; hier zusätzlich für den ref-Knoten,
+    // weil das Plugin bei erfolgreicher Referenz-Auflösung den Fallback verwirft (Spec §Konverter).
+    const refNode = { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx)) };
+    return withAbsolute(refNode, el, getComputedStyle(el));
   }
 
   return buildNormalNode(el, ctx);
@@ -494,6 +540,10 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [] } = {}) {
     container.style.top = '0px';
     container.style.left = '-99999px';
     container.style.width = `${PREVIEW_VIRTUAL_WIDTH}px`;
+    // Scheibe B (Spec §Scheibe B): zusätzlicher Höhen-Kontext, rein additiv — löst Prozent-
+    // Höhen-Ketten (height:100% → height:30% in Bar-Segmenten) auf, die sonst ohne einen
+    // Referenzwert zu 0px kollabieren (Höhen-Pendant zu PREVIEW_VIRTUAL_WIDTH oben).
+    container.style.height = `${PREVIEW_VIRTUAL_HEIGHT}px`;
     container.style.boxSizing = 'border-box';
     container.innerHTML = html;
 

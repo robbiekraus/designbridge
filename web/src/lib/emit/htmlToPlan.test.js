@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { htmlToPlan } from './htmlToPlan.js';
-import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
+import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
 // ---------------------------------------------------------------------------
 // jsdom-Testgrenze (Spec §jsdom-Testgrenze & Verifikation, verbindlich für diese Datei):
@@ -923,5 +923,115 @@ describe('htmlToPlan — Offscreen-Container-Cleanup (Spec §Kernidee Schritt 4:
       htmlToPlan(`<div style="padding:${i}px"><span>${i}</span></div>`);
     }
     expect(document.body.children.length).toBe(before);
+  });
+});
+
+describe('htmlToPlan — Höhen-Kontext des Mess-Containers (Scheibe B, Spec §Scheibe B)', () => {
+  // Wie der Breiten-Test oben (Testrunde 8 §Fix 1): spy auf document.body.appendChild fängt den
+  // Container VOR dem finally-Cleanup ab. Prüft nur MECHANISCH, dass die Höhe gesetzt wird —
+  // die eigentliche %-Höhen-Auflösung braucht eine echte Layout-Engine (s. jsdom-Grenze oben).
+  it('Offscreen-Mess-Container wird zusätzlich mit PREVIEW_VIRTUAL_HEIGHT (768) Höhe gemountet', () => {
+    const spy = vi.spyOn(document.body, 'appendChild');
+    try {
+      htmlToPlan('<div style="padding:8px">Hi</div>');
+      expect(spy).toHaveBeenCalledTimes(1);
+      const mountedContainer = spy.mock.calls[0][0];
+      expect(mountedContainer.style.height).toBe(`${PREVIEW_VIRTUAL_HEIGHT}px`);
+      expect(PREVIEW_VIRTUAL_HEIGHT).toBe(768);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe('htmlToPlan — absolute Positionierung (Scheibe A, Spec §Scheibe A)', () => {
+  // jsdom hat keine Layout-Engine (s. Kopf-Kommentar dieser Datei) — getBoundingClientRect()
+  // liefert nativ nur Nullen. Um die reine MAPPING-Logik (Rect-Differenz → {x,y,width,height})
+  // zu prüfen, wird Element.prototype.getBoundingClientRect für die Dauer dieser describe-Suite
+  // gemockt: jedes Element trägt sein gewünschtes Test-Rect als `data-mock-rect='{"x":..,"y":..,
+  // "width":..,"height":..}'` JSON-Attribut direkt im HTML-Fixture, der Mock liest es per `this`
+  // aus. Das entspricht dem im Spec vorgeschlagenen Ansatz „Mapping-Logik rein testen, computed/
+  // rects injizierbar" — hier injiziert über ein data-Attribut im Fixture statt über einen
+  // separaten Funktionsparameter, weil convertElement() intern getBoundingClientRect direkt auf
+  // den Live-Elementen aufruft (kein eigener Rect-Parameter in der Konverter-Signatur).
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  it('absolutes Kind bekommt {x,y,width,height} relativ zum direkten Parent, gerundet', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":300,"height":200}'>
+        <div style="position:absolute;padding:4px" data-mock-rect='{"x":30.4,"y":40.6,"width":120.4,"height":59.6}'>Abs</div>
+        <div style="padding:4px" data-mock-rect='{"x":0,"y":60,"width":100,"height":40}'>Normal</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+
+    expect(plan.absolute).toBeUndefined();
+    expect(plan.children[0].absolute).toEqual({ x: 30, y: 41, width: 120, height: 60 });
+    expect(plan.children[1].absolute).toBeUndefined();
+  });
+
+  it('fixed zählt wie absolute', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":300,"height":200}'>
+        <div style="position:fixed;padding:4px" data-mock-rect='{"x":10,"y":20,"width":50,"height":25}'>Fixed</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.children[0].absolute).toEqual({ x: 10, y: 20, width: 50, height: 25 });
+  });
+
+  it('normales (static) Kind bekommt kein absolute-Feld', () => {
+    const { plan } = htmlToPlan('<div><div style="padding:4px">Normal</div></div>');
+    expect(plan.children[0].absolute).toBeUndefined();
+    expect('absolute' in plan.children[0]).toBe(false);
+  });
+
+  it('width/height werden auf mindestens 1 gekappt (nie 0)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":300,"height":200}'>
+        <div style="position:absolute;padding:4px" data-mock-rect='{"x":0,"y":0,"width":0.3,"height":0}'>Tiny</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.children[0].absolute).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+  });
+
+  it('gilt auch für text-Nodes (Blatt-Element ohne Box-Trigger, aber position:absolute)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":300,"height":200}'>
+        <span style="position:absolute" data-mock-rect='{"x":5,"y":6,"width":40,"height":18}'>Hi</span>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.children[0].type).toBe('text');
+    expect(plan.children[0].absolute).toEqual({ x: 5, y: 6, width: 40, height: 18 });
   });
 });

@@ -141,6 +141,29 @@ async function renderComponentRef(
   return found.defaultVariant.createInstance();
 }
 
+/** Plan-Fidelity-Scheibe A (docs/superpowers/specs/2026-07-17-plan-fidelity-design.md):
+ *  positioniert ein bereits eingehängtes Kind absolut innerhalb seines Auto-Layout-Parents.
+ *  MUSS erst NACH frame.appendChild(node) aufgerufen werden — layoutPositioning='ABSOLUTE' auf
+ *  einem Node, der noch nicht Kind eines Auto-Layout-Frames ist, wirft in der Figma-API.
+ *  box/svg/component-ref: feste Größe per resize(). text: nur Höhe automatisch (textAutoResize
+ *  'HEIGHT'), Breite wird nur fixiert, wenn absolute.width > 0 (0 würde eine leere/kollabierte
+ *  Textbox erzwingen). */
+function applyAbsolute(node: SceneNode, el: PlanNode): void {
+  const abs = el.absolute;
+  if (!abs) return;
+  const positioned = node as SceneNode & { layoutPositioning: 'AUTO' | 'ABSOLUTE'; x: number; y: number };
+  positioned.layoutPositioning = 'ABSOLUTE';
+  positioned.x = abs.x;
+  positioned.y = abs.y;
+  if (el.type === 'text') {
+    const t = node as TextNode;
+    t.textAutoResize = 'HEIGHT';
+    if (abs.width > 0) t.resize(abs.width, t.height);
+  } else {
+    (node as SceneNode & { resize(w: number, h: number): void }).resize(abs.width, abs.height);
+  }
+}
+
 async function renderNode(
   el: PlanNode,
   paintByName: Map<string, PaintStyle>,
@@ -185,6 +208,7 @@ export async function renderPlan(
     for (const child of plan.children) {
       const node = await renderNode(child, paintByName, warnings, sections);
       frame.appendChild(node);
+      applyAbsolute(node, child);
     }
     // Fixe Größen erst NACH layoutMode + Kindern anwenden: erst die betroffene Achse
     // (primary vs. counter, abhängig von row/column) auf FIXED umstellen, dann resizen.

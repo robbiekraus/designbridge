@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPlan } from '../src/writer/renderPlan';
-import type { PlanBox, SectionFrames } from '../src/writer/parsePayload';
+import type { PlanBox, PlanText, SectionFrames } from '../src/writer/parsePayload';
 
 type FrameStub = {
   type: 'FRAME';
@@ -35,7 +35,11 @@ type FrameStub = {
   clipsContent: boolean;
   width: number;
   height: number;
+  x: number;
+  y: number;
+  layoutPositioning: string;
   children: unknown[];
+  removed: boolean;
   appendChild(node: unknown): void;
   resize(w: number, h: number): void;
   remove(): void;
@@ -64,7 +68,12 @@ function makeFrameStub(): FrameStub {
     clipsContent: true,
     width: 100,
     height: 100,
+    x: 0,
+    y: 0,
+    // Figma-Realverhalten: Kinder eines Auto-Layout-Frames starten mit layoutPositioning 'AUTO'.
+    layoutPositioning: 'AUTO',
     children: [],
+    removed: false,
     appendChild(node: unknown) {
       this.children.push(node);
     },
@@ -72,37 +81,78 @@ function makeFrameStub(): FrameStub {
       this.width = w;
       this.height = h;
     },
-    remove() {},
+    remove() {
+      this.removed = true;
+    },
   };
 }
 
-/** Installiert einen minimalen figma-Stub global. Nur Box-Pläne ohne Text-/SVG-/component-ref-
- *  Kinder werden hier gerendert, daher genügt createFrame — createText/createNodeFromSvg/
- *  loadFontAsync sind Stubs, die im Testpfad nicht aufgerufen werden, aber typenmäßig vorhanden
- *  sein müssen, falls renderPlan.ts sie referenziert. */
-function installFigmaStub(): { frames: FrameStub[] } {
+type TextStub = {
+  type: 'TEXT';
+  characters: string;
+  fontSize: number;
+  fontName: unknown;
+  textAlignHorizontal: string;
+  lineHeight: unknown;
+  fills: unknown[];
+  x: number;
+  y: number;
+  layoutPositioning: string;
+  width: number;
+  height: number;
+  textAutoResize: string;
+  setFillStyleIdAsync(id: string): Promise<void>;
+  resize(w: number, h: number): void;
+};
+
+function makeTextStub(): TextStub {
+  return {
+    type: 'TEXT',
+    characters: '',
+    fontSize: 16,
+    fontName: null,
+    textAlignHorizontal: 'LEFT',
+    lineHeight: undefined,
+    fills: [],
+    x: 0,
+    y: 0,
+    layoutPositioning: 'AUTO',
+    width: 100,
+    height: 20,
+    textAutoResize: 'WIDTH_AND_HEIGHT',
+    setFillStyleIdAsync: async () => {},
+    resize(w: number, h: number) {
+      this.width = w;
+      this.height = h;
+    },
+  };
+}
+
+/** Installiert einen minimalen figma-Stub global. Nur Box-Pläne ohne SVG-/component-ref-
+ *  Kinder werden hier gerendert, daher bleibt createNodeFromSvg ein Stub, der im Testpfad
+ *  nicht aufgerufen wird, aber typenmäßig vorhanden sein muss, falls renderPlan.ts ihn
+ *  referenziert. createText/loadFontAsync werden für die absolute-Positionierungs-Tests
+ *  auf Text-Kindern gebraucht (Fix Plan-Fidelity-Scheibe A). */
+function installFigmaStub(): { frames: FrameStub[]; texts: TextStub[] } {
   const frames: FrameStub[] = [];
+  const texts: TextStub[] = [];
   (globalThis as unknown as { figma: unknown }).figma = {
     createFrame: () => {
       const f = makeFrameStub();
       frames.push(f);
       return f;
     },
-    createText: () => ({
-      characters: '',
-      fontSize: 16,
-      fontName: null,
-      textAlignHorizontal: 'LEFT',
-      lineHeight: undefined,
-      fills: [],
-      setFillStyleIdAsync: async () => {},
-    }),
+    createText: () => {
+      const t = makeTextStub();
+      texts.push(t);
+      return t;
+    },
     createNodeFromSvg: () => {
       throw new Error('createNodeFromSvg nicht erwartet in diesem Test');
     },
     loadFontAsync: async () => {},
   };
-  return { frames };
+  return { frames, texts };
 }
 
 function emptySections(): SectionFrames {
@@ -128,6 +178,19 @@ function emptyBox(overrides: Partial<PlanBox> = {}): PlanBox {
     primaryAlign: 'MIN',
     counterAlign: 'CENTER',
     children: [],
+    ...overrides,
+  };
+}
+
+function emptyText(overrides: Partial<PlanText> = {}): PlanText {
+  return {
+    type: 'text',
+    content: 'Hi',
+    fontSize: 14,
+    fontWeight: 400,
+    color: { token: null, hex: '#000000' },
+    align: 'left',
+    lineHeight: null,
     ...overrides,
   };
 }
@@ -164,4 +227,92 @@ test('Box mit explizit gesetzter height (layout column) → primaryAxisSizingMod
   assert.equal(frame.primaryAxisSizingMode, 'FIXED');
   assert.equal(frame.counterAxisSizingMode, 'AUTO');
   assert.equal(frame.clipsContent, true);
+});
+
+// ─── absolute (Plan-Fidelity-Scheibe A: docs/superpowers/specs/2026-07-17-plan-fidelity-design.md) ──
+//
+// Figma-Fallstrick: layoutPositioning='ABSOLUTE' auf einem Kind wirft, solange es noch nicht
+// in seinen Auto-Layout-Parent eingehängt ist. renderPlan.ts muss appendChild() also VOR dem
+// Setzen von layoutPositioning aufrufen — die Reihenfolge wird hier indirekt mitgeprüft: der
+// Stub trackt appendChild via children.push, layoutPositioning landet auf dem bereits im Array
+// befindlichen Kind-Objekt (Referenzgleichheit), ein Vertauschen der Reihenfolge im Produktivcode
+// würde die Assertions unten trotzdem erfüllen — die echte Reihenfolge-Garantie kommt aus dem
+// Figma-Laufzeitverhalten selbst (throw bei ABSOLUTE vor appendChild), nicht aus diesem Stub.
+// Der Smoke-Test unten deckt das nur so weit ab, wie ein reiner Objekt-Stub kann.
+
+test('Box-Kind mit absolute bekommt layoutPositioning ABSOLUTE + x/y + resize(width, height)', async () => {
+  installFigmaStub();
+  const child = emptyBox({ absolute: { x: 12, y: 34, width: 56, height: 78 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.x, 12);
+  assert.equal(rendered.y, 34);
+  assert.equal(rendered.width, 56);
+  assert.equal(rendered.height, 78);
+});
+
+test('Box-Kind ohne absolute bleibt layoutPositioning AUTO (unverändertes Rendern)', async () => {
+  installFigmaStub();
+  const child = emptyBox();
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutPositioning, 'AUTO');
+  assert.equal(rendered.x, 0);
+  assert.equal(rendered.y, 0);
+});
+
+test('Payload ohne absolute-Feld überhaupt (Rückwärtskompatibilität) rendert wie zuvor', async () => {
+  installFigmaStub();
+  // absolute wird gar nicht im Objekt gesetzt (kein `absolute: null`, kein Feld) —
+  // genau der Fall eines alten Payloads, das den Parser vor dieser Änderung nie kannte.
+  const child = emptyBox();
+  delete (child as { absolute?: unknown }).absolute;
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutPositioning, 'AUTO');
+  assert.equal(frame.clipsContent, false);
+});
+
+test('Text-Kind mit absolute: textAutoResize HEIGHT + Breite fixiert, wenn width > 0', async () => {
+  installFigmaStub();
+  const child = emptyText({ absolute: { x: 5, y: 6, width: 200, height: 40 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as TextStub;
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.x, 5);
+  assert.equal(rendered.y, 6);
+  assert.equal(rendered.textAutoResize, 'HEIGHT');
+  assert.equal(rendered.width, 200);
+});
+
+test('Text-Kind mit absolute width 0: Breite wird NICHT fixiert (nur width > 0 löst resize aus)', async () => {
+  installFigmaStub();
+  const child = emptyText({ absolute: { x: 5, y: 6, width: 0, height: 40 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as TextStub;
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.textAutoResize, 'HEIGHT');
+  // Stub-Startwert (100) bleibt unverändert, weil resize() bei width<=0 nicht aufgerufen wird.
+  assert.equal(rendered.width, 100);
+});
+
+test('Waisen-Cleanup bleibt intakt: absolute-Kind schon gerendert + positioniert, ein späteres Geschwister wirft → Parent-Frame wird entfernt', async () => {
+  const { frames } = installFigmaStub();
+  const goodChild = emptyBox({ absolute: { x: 1, y: 2, width: 3, height: 4 } });
+  // fill mit ungültigem Hex bringt hexToRgb (parsePayload.ts) zum Werfen — bestehender Fehlerpfad,
+  // unabhängig von der absolute-Änderung.
+  const badChild = emptyBox({ fill: { token: null, hex: 'not-a-color' } });
+  const parent = emptyBox({ children: [goodChild, badChild] });
+  await assert.rejects(() => renderPlan(parent, new Map(), [], emptySections()));
+  // frames[0] ist der Parent-Frame (zuerst erzeugt, siehe renderPlan.ts: figma.createFrame() ist
+  // die erste Zeile). Er muss trotz bereits erfolgreich positioniertem ersten Kind wieder
+  // entfernt werden — die absolute-Änderung darf den bestehenden Waisen-Cleanup-Pfad nicht
+  // aushebeln.
+  assert.equal(frames[0].removed, true);
 });
