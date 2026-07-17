@@ -16,7 +16,11 @@ Stand: **17.07.2026 nachmittags (Testrunde 6 — alle 6 Befunde gefixt & deployt
 
 **⚠️ Für Robs nächsten Figma-Test:** Plugin wurde neu gebaut (`npm run build` im Plugin-Ordner, dist aktuell) — in Figma das Dev-Plugin neu laden, dann Import wiederholen (leere Datei oder neue Seite). Erwartung: Trend-Chart sichtbar mit beiden Linien.
 
-**Offen/nächste Kandidaten:** Thumbnail-Höhe bei kleinen Interpretationen großzügig (viel Weißraum — Polish); Tailwind-Runtime im htmlToPlan-Offscreen-Mount (größere Fidelity-Scheibe); Modell-Entscheidung (Gemini Paid vs. Anthropic) = nur noch Quota-Frage, Qualität passt.
+**Offen/nächste Kandidaten:** Thumbnail-Höhe bei kleinen Interpretationen großzügig (viel Weißraum — Polish); Tailwind-Runtime im htmlToPlan-Offscreen-Mount (größere Fidelity-Scheibe).
+
+## Session 17.07.2026 später Nachmittag — Gemini Paid + Timeout-Root-Cause
+
+**💳 Gemini Paid AKTIV** (Rob: Google Cloud Billing, 10-€-Budget) — Modell-Frage ERLEDIGT, Key/Railway unverändert, kein 429 mehr. **Danach echter Root Cause der Massen-Fehlschläge gefunden (`b45915f`):** 4 Bausteine pro Gemini-Call > 60s → Server-Timeout → 502 für den ganzen Chunk. Einzeln gehen 14–54s durch. **Fix:** CLIENT_CHUNK_SIZE 4→1 + DEFAULT_TIMEOUT_MS 60s→120s (Env `GEMINI_TIMEOUT_MS` bleibt Übersteuerung). Diagnose lief komplett über die Live-API (curl-Flow siehe Memory).
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
