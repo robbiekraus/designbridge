@@ -10,7 +10,7 @@ import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
 import InterpretAllBar from './components/library/InterpretAllBar.jsx';
-import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyIfSameImport, normalizeStalePending } from './lib/interpret.js';
+import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyRetryOutcome, carryInterpretations, applyIfSameImport, normalizeStalePending } from './lib/interpret.js';
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -88,8 +88,12 @@ export default function App() {
   };
 
   const handleDeepened = (result) => {
-    saveLastImport(result);
-    setLastImport(result);
+    // Fix Verfeinern-Schwund: adaptScanResponse liefert ein frisches Result —
+    // ohne carryInterpretations gingen interpretations/interpretFailed/
+    // interpretQuotaExhausted verloren (Pillen verschwinden).
+    const merged = carryInterpretations(lastImport, result);
+    saveLastImport(merged);
+    setLastImport(merged);
   };
 
   // Ohne `name`: Batch-Retry aller fehlgeschlagenen Bausteine.
@@ -98,10 +102,17 @@ export default function App() {
     if (name) {
       if (retryingNames.has(name)) return; // Doppelklick-Schutz: nur ein Request pro Name
       setRetryingNames((s) => new Set(s).add(name));
+      // Fix Race paralleler Einzel-Retries: import_id beim Start merken und
+      // das Outcome als DELTA auf den zum Antwortzeitpunkt AKTUELLEN State
+      // mergen (applyRetryOutcome) — nicht auf die veraltete Render-Closure
+      // `lastImport` ersetzen. Zwei parallele Retries verschiedener Namen
+      // überschreiben sich so nicht mehr gegenseitig.
+      const importId = lastImport?.raw?.meta?.import_id;
       retryInterpretation(lastImport, name)
-        .then((next) => {
+        .then((outcome) => {
           setLastImport((cur) => {
-            const applied = applyIfSameImport(cur, next);
+            if (cur?.raw?.meta?.import_id !== importId) return cur; // neuer Import hat übernommen
+            const applied = applyRetryOutcome(cur, name, outcome);
             if (applied !== cur) saveLastImport(applied);
             return applied;
           });

@@ -6,6 +6,8 @@ import {
   attachInterpretations,
   runInterpretation,
   retryInterpretation,
+  applyRetryOutcome,
+  carryInterpretations,
   applyIfSameImport,
   normalizeStalePending,
 } from './interpret.js';
@@ -368,7 +370,11 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
   });
 });
 
-describe('retryInterpretation', () => {
+describe('retryInterpretation — führt nur den Request aus, liefert ein Outcome', () => {
+  // Fix Race paralleler Einzel-Retries: retryInterpretation mergt nicht mehr
+  // selbst in irgendeinen State (dafür ist applyRetryOutcome zuständig,
+  // siehe unten) — es liefert nur noch {name, data} | {name, error} |
+  // {name, skipped:true}.
   const FAILED_RESULT = {
     ...RESULT,
     interpretFailed: ['Avatar', 'Stat Card'],
@@ -392,49 +398,22 @@ describe('retryInterpretation', () => {
     });
   });
 
-  it('Erfolg: entfernt nur den einen Namen aus interpretFailed, andere bleiben', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
-    })));
-    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
-    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '', model: null, demo: false });
-    expect(next.interpretFailed).toEqual(['Stat Card']);
-    expect(next.interpretError).toBeNull();
+  it('Erfolg: liefert {name, data}', async () => {
+    const payload = { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => payload })));
+    const outcome = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(outcome).toEqual({ name: 'Avatar', data: payload });
   });
 
-  it('Fehler: behält den Namen (und die anderen) in interpretFailed, setzt interpretError', async () => {
+  it('Fehler: liefert {name, error} statt zu werfen', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({ error: 'immer noch kaputt' }) })));
-    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
-    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
-    expect(next.interpretError).toBe('immer noch kaputt');
-    expect(next.interpretPending).toBe(false);
+    const outcome = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(outcome.name).toBe('Avatar');
+    expect(outcome.error).toBeInstanceOf(Error);
+    expect(outcome.error.message).toBe('immer noch kaputt');
   });
 
-  it('Server meldet den Namen weiterhin als failed: bleibt drin, andere bleiben unberührt', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ interpretations: [], failed: ['Avatar'] }),
-    })));
-    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
-    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
-  });
-
-  it('wirft nie und gibt das Result unverändert zurück, wenn der Baustein unbekannt ist', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const next = await retryInterpretation(FAILED_RESULT, 'Unbekannt');
-    expect(next).toBe(FAILED_RESULT);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('wirft nie ohne import_id', async () => {
-    const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
-    const next = await retryInterpretation(noImportId, 'Avatar');
-    expect(next).toBe(noImportId);
-  });
-
-  it('Quota-Bremse: daily_quota-Fehler setzt zusätzlich interpretQuotaExhausted:true', async () => {
+  it('Quota-Bremse: error trägt dailyQuota:true durch', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false,
       json: async () => ({
@@ -442,20 +421,153 @@ describe('retryInterpretation', () => {
         daily_quota: true,
       }),
     })));
-    const next = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    const outcome = await retryInterpretation(FAILED_RESULT, 'Avatar');
+    expect(outcome.error.dailyQuota).toBe(true);
+    expect(outcome.error.message).toMatch(/Tages-Kontingent erschöpft/);
+  });
+
+  it('unbekannter Baustein → {name, skipped:true}, kein fetch', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const outcome = await retryInterpretation(FAILED_RESULT, 'Unbekannt');
+    expect(outcome).toEqual({ name: 'Unbekannt', skipped: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('ohne import_id → {name, skipped:true}, kein fetch', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const noImportId = { ...FAILED_RESULT, raw: { ...FAILED_RESULT.raw, meta: {} } };
+    const outcome = await retryInterpretation(noImportId, 'Avatar');
+    expect(outcome).toEqual({ name: 'Avatar', skipped: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyRetryOutcome', () => {
+  // Übernimmt die fachliche Semantik der alten retryInterpretation-Tests,
+  // jetzt aber als reines State-Merge auf einen beliebigen `cur`.
+  const FAILED_RESULT = {
+    ...RESULT,
+    interpretFailed: ['Avatar', 'Stat Card'],
+    interpretError: 'kaputt',
+  };
+
+  it('Erfolg: entfernt nur den einen Namen aus interpretFailed, andere bleiben', () => {
+    const outcome = { name: 'Avatar', data: { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] } };
+    const next = applyRetryOutcome(FAILED_RESULT, 'Avatar', outcome);
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '', model: null, demo: false });
+    expect(next.interpretFailed).toEqual(['Stat Card']);
+    expect(next.interpretError).toBeNull();
+  });
+
+  it('Fehler: behält den Namen (und die anderen) in interpretFailed, setzt interpretError', () => {
+    const outcome = { name: 'Avatar', error: new Error('immer noch kaputt') };
+    const next = applyRetryOutcome(FAILED_RESULT, 'Avatar', outcome);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
+    expect(next.interpretError).toBe('immer noch kaputt');
+    expect(next.interpretPending).toBe(false);
+  });
+
+  it('Server meldet den Namen weiterhin als failed: bleibt drin, andere bleiben unberührt', () => {
+    const outcome = { name: 'Avatar', data: { interpretations: [], failed: ['Avatar'] } };
+    const next = applyRetryOutcome(FAILED_RESULT, 'Avatar', outcome);
+    expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
+  });
+
+  it('skipped:true → cur unverändert (gleiche Referenz)', () => {
+    const outcome = { name: 'Unbekannt', skipped: true };
+    const next = applyRetryOutcome(FAILED_RESULT, 'Unbekannt', outcome);
+    expect(next).toBe(FAILED_RESULT);
+  });
+
+  it('Quota-Bremse: daily_quota-Fehler setzt zusätzlich interpretQuotaExhausted:true', () => {
+    const e = new Error('Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.');
+    e.dailyQuota = true;
+    const outcome = { name: 'Avatar', error: e };
+    const next = applyRetryOutcome(FAILED_RESULT, 'Avatar', outcome);
     expect(next.interpretQuotaExhausted).toBe(true);
     expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
     expect(next.interpretFailed).toEqual(['Avatar', 'Stat Card']);
   });
 
-  it('Quota-Bremse: Erfolg nach einer Quota-Sperre räumt interpretQuotaExhausted wieder', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] }),
-    })));
+  it('Quota-Bremse: Erfolg nach einer Quota-Sperre räumt interpretQuotaExhausted wieder', () => {
     const blocked = { ...FAILED_RESULT, interpretQuotaExhausted: true };
-    const next = await retryInterpretation(blocked, 'Avatar');
+    const outcome = { name: 'Avatar', data: { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] } };
+    const next = applyRetryOutcome(blocked, 'Avatar', outcome);
     expect(next.interpretQuotaExhausted).toBe(false);
+  });
+
+  it('Regressionstest A: zwei überlappende Retries verschiedener Namen landen beide im finalen State', () => {
+    // Simuliert die vorher kaputte Race: Retry 1 (Avatar) löst zuerst auf und
+    // wird auf den aktuellen State angewendet. Retry 2 (Stat Card) löst
+    // DANACH auf und wird auf das ERGEBNIS von Retry 1 angewendet (nicht auf
+    // den veralteten Ausgangs-State) — genau das verhindert das Überschreiben.
+    const base = { ...RESULT, interpretFailed: ['Avatar', 'Stat Card'] };
+    const outcome1 = { name: 'Avatar', data: { interpretations: [{ name: 'Avatar', html: '<div>A</div>', jsx: '' }], failed: [] } };
+    const outcome2 = { name: 'Stat Card', data: { interpretations: [{ name: 'Stat Card', html: '<div>S</div>', jsx: '' }], failed: [] } };
+    const afterFirst = applyRetryOutcome(base, 'Avatar', outcome1);
+    const afterSecond = applyRetryOutcome(afterFirst, 'Stat Card', outcome2);
+    expect(afterSecond.interpretations.Avatar.html).toBe('<div>A</div>');
+    expect(afterSecond.interpretations['Stat Card'].html).toBe('<div>S</div>');
+    expect(afterSecond.interpretFailed).toEqual([]);
+  });
+});
+
+describe('carryInterpretations', () => {
+  // Fix Verfeinern-Schwund: deepenWithAi baut ein frisches Result —
+  // carryInterpretations trägt die alten Interpretationen weiter.
+  const prev = {
+    source: 'url',
+    raw: {
+      meta: { import_id: 'u1' },
+      atomics: [{ name: 'Avatar' }],
+      components: [{ name: 'Stat Card' }],
+      patterns: [],
+    },
+    interpretations: { Avatar: { html: '<div/>', jsx: '' } },
+    interpretFailed: ['Stat Card', 'Verschwundener Baustein'],
+    interpretQuotaExhausted: true,
+  };
+  const next = {
+    source: 'url',
+    raw: {
+      meta: { import_id: 'u1', ai_deepened: true },
+      atomics: [{ name: 'Avatar' }],
+      components: [{ name: 'Stat Card' }],
+      patterns: [],
+    },
+  };
+
+  it('übernimmt vorhandene Interpretationen in ein frisches Result nach Verfeinern (Akzeptanz B)', () => {
+    const merged = carryInterpretations(prev, next);
+    expect(merged.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '' });
+    expect(merged.raw.meta.ai_deepened).toBe(true); // next-Felder bleiben erhalten
+  });
+
+  it('filtert interpretFailed auf Namen, die im neuen Inventar noch existieren', () => {
+    const merged = carryInterpretations(prev, next);
+    expect(merged.interpretFailed).toEqual(['Stat Card']);
+  });
+
+  it('übernimmt interpretQuotaExhausted', () => {
+    const merged = carryInterpretations(prev, next);
+    expect(merged.interpretQuotaExhausted).toBe(true);
+  });
+
+  it('verwaiste interpretations-Keys stören nicht (Map bleibt wie sie ist)', () => {
+    const nextWithoutAvatar = { ...next, raw: { ...next.raw, atomics: [] } };
+    const merged = carryInterpretations(prev, nextWithoutAvatar);
+    expect(merged.interpretations.Avatar).toBeTruthy();
+  });
+
+  it('ohne prev → next unverändert (gleiche Referenz)', () => {
+    expect(carryInterpretations(null, next)).toBe(next);
+  });
+
+  it('next null/undefined → wirft nie, gibt next zurück', () => {
+    expect(carryInterpretations(prev, null)).toBeNull();
+    expect(carryInterpretations(prev, undefined)).toBeUndefined();
   });
 });
 

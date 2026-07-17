@@ -169,37 +169,88 @@ function findRawComponent(raw, name) {
 }
 
 /**
- * Retry für genau EINEN Baustein (per-row retry) — anders als runInterpretation
- * rührt das nicht an den interpretFailed-Einträgen der anderen Bausteine: bei
- * Erfolg wird nur `name` aus interpretFailed entfernt, bei Fehler bleibt (bzw.
- * kommt wieder) nur `name` rein. Wirft nie.
+ * Retry für genau EINEN Baustein (per-row retry). Führt NUR den Request aus
+ * und liefert ein Outcome — mergt NICHT selbst in irgendeinen State (Fix
+ * Race paralleler Einzel-Retries: der Aufrufer wendet das Outcome per
+ * `applyRetryOutcome` auf den zum Antwortzeitpunkt AKTUELLEN State an, statt
+ * ein komplettes, potenziell veraltetes Result zurückzugeben). Wirft nie:
+ * - kein import_id / Baustein unbekannt → `{ name, skipped: true }` (kein
+ *   Request wird gesendet, es gibt nichts zu mergen).
+ * - Server-Antwort → `{ name, data }`.
+ * - Exception → `{ name, error }`.
  */
 export async function retryInterpretation(result, name) {
   const raw = result?.raw;
   const importId = raw?.meta?.import_id;
   const comp = raw ? findRawComponent(raw, name) : null;
-  const existingFailed = result?.interpretFailed ?? [];
-  if (!importId || !comp) return result;
+  if (!importId || !comp) return { name, skipped: true };
   try {
     const data = await requestInterpretations(importId, [comp]);
-    const merged = attachInterpretations(result, data);
-    const stillFailed = (data.failed ?? []).includes(name);
+    return { name, data };
+  } catch (e) {
+    return { name, error: e };
+  }
+}
+
+/**
+ * Wendet ein Retry-Outcome (aus `retryInterpretation`) auf einen BELIEBIGEN
+ * aktuellen State `cur` an — nicht zwingend denselben, der den Request
+ * ausgelöst hat. Damit überschreiben parallele Retries verschiedener Namen
+ * einander nicht mehr: jeder Outcome wird als Delta auf den jeweils
+ * aktuellen State gemergt statt ein komplettes Result zu ersetzen.
+ * `skipped` (kein import_id / unbekannter Baustein) → `cur` unverändert.
+ * `data` → attachInterpretations + `name` aus interpretFailed entfernen,
+ * es sei denn der Server meldet `name` weiterhin in `data.failed`.
+ * `error` → interpretError setzen, `name` in interpretFailed ergänzen,
+ * interpretQuotaExhausted aus `error.dailyQuota`.
+ */
+export function applyRetryOutcome(cur, name, outcome) {
+  if (!cur || !outcome || outcome.skipped) return cur;
+  const existingFailed = cur.interpretFailed ?? [];
+  if (outcome.data) {
+    const merged = attachInterpretations(cur, outcome.data);
+    const stillFailed = (outcome.data.failed ?? []).includes(name);
     const nextFailed = stillFailed
       ? (existingFailed.includes(name) ? existingFailed : [...existingFailed, name])
       : existingFailed.filter((n) => n !== name);
     return { ...merged, interpretFailed: nextFailed };
-  } catch (e) {
-    return {
-      ...result,
-      interpretPending: false,
-      interpretError: e.message || String(e),
-      interpretFailed: existingFailed.includes(name) ? existingFailed : [...existingFailed, name],
-      // Quota-Bremse: ein Retry, der auf Tages-Quota trifft, sperrt auch den
-      // Batch-Knopf (InterpretAllBar) — ein Klick würde sofort denselben
-      // Fehler wiederholen.
-      interpretQuotaExhausted: Boolean(e.dailyQuota),
-    };
   }
+  const e = outcome.error;
+  return {
+    ...cur,
+    interpretPending: false,
+    interpretError: e?.message || String(e),
+    interpretFailed: existingFailed.includes(name) ? existingFailed : [...existingFailed, name],
+    // Quota-Bremse: ein Retry, der auf Tages-Quota trifft, sperrt auch den
+    // Batch-Knopf (InterpretAllBar) — ein Klick würde sofort denselben
+    // Fehler wiederholen.
+    interpretQuotaExhausted: Boolean(e?.dailyQuota),
+  };
+}
+
+/**
+ * Verfeinern (deepenWithAi/handleDeepened) baut per adaptScanResponse ein
+ * FRISCHES Result — ohne Fix gingen `interpretations`/`interpretFailed` etc.
+ * verloren (die Pillen verschwinden). Trägt sie von `prev` nach `next`
+ * weiter: Map bleibt wie sie ist (verwaiste Keys stören nicht,
+ * componentsNeedingInterpretation prüft ohnehin per Name), `interpretFailed`
+ * wird auf Namen gefiltert, die im neuen raw-Inventar (atomics/components/
+ * patterns) noch existieren, `interpretQuotaExhausted` wird übernommen.
+ */
+export function carryInterpretations(prev, next) {
+  if (!next || !prev) return next;
+  const raw = next.raw ?? {};
+  const namesInInventory = new Set();
+  for (const [rawKey] of KINDS) {
+    for (const item of raw[rawKey] ?? []) namesInInventory.add(item.name);
+  }
+  const carriedFailed = (prev.interpretFailed ?? []).filter((n) => namesInInventory.has(n));
+  return {
+    ...next,
+    interpretations: { ...(prev.interpretations ?? {}), ...(next.interpretations ?? {}) },
+    interpretFailed: carriedFailed,
+    interpretQuotaExhausted: Boolean(prev.interpretQuotaExhausted),
+  };
 }
 
 /**
