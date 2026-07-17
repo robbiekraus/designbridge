@@ -9,6 +9,18 @@ const FIGMA_FORMAT = EXPORT_FORMATS.find(f => f.id === 'figma');
 
 export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
+  // Export-Ehrlichkeit (Testrunde 8, Fix 2): Bausteine ohne Template-Treffer und ohne
+  // KI-Interpretation laufen als placeholder:true in exports.figma mit — in Figma werden
+  // sie nur als leere Platzhalter-Karte angelegt. Rob soll das VOR dem Senden sehen.
+  const placeholderComponents = useMemo(() => {
+    if (!exports?.figma) return [];
+    try {
+      const parsed = JSON.parse(exports.figma);
+      return Array.isArray(parsed.components) ? parsed.components.filter((c) => c.placeholder === true) : [];
+    } catch {
+      return [];
+    }
+  }, [exports]);
   const [activeId, setActiveId] = useState('css');
   const [copied, setCopied] = useState(null);
   const [sent, setSent] = useState(null);
@@ -91,6 +103,21 @@ export default function Export({ result }) {
           <p className="text-xs text-zinc-500 leading-relaxed">
             In Figma das DesignBridge-Plugin öffnen → <strong>Aus DesignBridge übernehmen</strong>. Legt Paint-
             und Text-Styles sowie erkannte Komponenten an.
+          </p>
+          {placeholderComponents.length > 0 && (
+            <div
+              data-testid="export-figma-placeholder-warning"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+            >
+              <p className="text-xs text-amber-800 leading-relaxed">
+                {placeholderComponents.length} Baustein{placeholderComponents.length === 1 ? '' : 'e'} ohne
+                Interpretation ({placeholderComponents.map((c) => c.name).join(', ')}) — {placeholderComponents.length === 1 ? 'wird' : 'werden'} in
+                Figma nur als Platzhalter-Karte angelegt. Vorher unter Components/Atomics erneut interpretieren.
+              </p>
+            </div>
+          )}
+          <p className="text-[11px] text-zinc-400 leading-relaxed">
+            Nach Figma gehen Farben & Textstile; Spacing, Radius und Schatten stecken in den Code-Formaten.
           </p>
           <button
             onClick={() => setFigmaJsonOpen(o => !o)}

@@ -12,8 +12,12 @@
 //   ein Overlay mit einem zweiten, groß skalierten iframe (scrollbar, normale
 //   pointer-events).
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { PREVIEW_VIRTUAL_WIDTH } from '../../lib/previewWidth.js';
 
-const THUMB_VIRTUAL_WIDTH = 1024;
+// Virtuelle Breite des Thumbnail-iframes = PREVIEW_VIRTUAL_WIDTH, dieselbe Konstante, mit der
+// emit/htmlToPlan.js seinen Offscreen-Mess-Container aufspannt (Vertrag: WYSIWYG — was die
+// Vorschau hier zeigt, kommt so auch in Figma an, siehe Spec Testrunde 8 §Fix 1).
+const THUMB_VIRTUAL_WIDTH = PREVIEW_VIRTUAL_WIDTH;
 const THUMB_VIRTUAL_HEIGHT = 640;
 const THUMB_FALLBACK_WIDTH = 672; // jsdom / erster Render ohne Layout: Fallback statt scale(0)
 const THUMB_MAX_HEIGHT = 800;

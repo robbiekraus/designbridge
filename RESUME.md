@@ -1,10 +1,10 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **17.07.2026 spätabends (Testrunden 6 + 7 + 7.5 komplett, `a791ae8`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **208/208** · Web **412/412** · Plugin **53/53**.
+Stand: **17.07.2026 nachts (Testrunde-8-Fixes FERTIG, s. unten)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **208/208** · Web **418/418** · Plugin **54/54**.
 
 ## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Robs Plan: nächster Test)
 
-**Robs Testprogramm:** App laden → neuer Bild-Import (z. B. `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png`) → Erwartung: **alle 13 Bausteine interpretieren in ~1–2 Min** (Pool 6, Auto-Retry, 32k-Token-Limit) → Export-Tab (neuer ZIELE-Bereich) → „An Figma senden" → Plugin-Import in leere Seite/Datei. In Figma erwartet: Trend-Chart MIT Linien, Tabelle zeilenweise, keine Platzhalter außer echten Doppel-Fehlschlägen. Claude kann das Figma-Ergebnis per Figma-MCP selbst verifizieren (Rob muss nur die Datei im Desktop offen haben; Link geben).
+**Robs Testprogramm (Wiederholung nach Testrunde-8-Fixes):** ⚠️ **Dev-Plugin in Figma NEU LADEN** (dist neu gebaut) → App laden → Bild-Import → prüfen, dass ALLE Bausteine echte Vorschauen haben (Export-Tab warnt jetzt in Amber, wenn Platzhalter dabei wären) → „An Figma senden" → Plugin-Import in **leere** Seite/Datei. In Figma erwartet: **Emissions-Trend-Chart in voller Breite** (nicht mehr 360px-gequetscht), Meldung sagt „…, davon N Platzhalter". Claude kann das Figma-Ergebnis per Figma-MCP selbst verifizieren (Rob muss nur die Datei im Desktop offen haben; Link geben).
 
 **Offene Entscheidungen von Rob:** (1) „Connect Figma"-Stub im Topbar entfernen? (empfohlen: ja); (2) Refracta-Go (Umbenennung wartet seit 14.07.).
 
@@ -13,6 +13,14 @@ Stand: **17.07.2026 spätabends (Testrunden 6 + 7 + 7.5 komplett, `a791ae8`)** �
 2. **Export-Ehrlichkeit** (Testrunde 8): Export-Tab warnt NICHT vor Bausteinen ohne Interpretation (`Export.jsx` kennt den Zustand gar nicht) → Rob exportierte den Donut als Platzhalter ohne Hinweis; Plugin-Meldung „13 Bausteine neu …, 1 Platzhalter" liest sich wie 13+1 (Platzhalter ist in den 13 ENTHALTEN); Token-Zahl-Diskrepanz kommunizieren (App 20 Tokens ↔ Figma 13 Styles, Spacing/Radius/Shadow sind BY DESIGN nicht im Figma-Payload).
 3. Figma-Seiten-Namespacing pro Import (Mehrfach-Importe mischen sich per Namens-Match).
 4. Polish: Scan-Retry bei abgeschnittener KI-Antwort (transient, 1× gesehen); Storybook-Emitter (Stub steht im Export-Tab); Patterns-Begriff mit Rob klären (ganze nachgebaute Seite zählt aktuell als „Pattern" — Rob versteht darunter etwas anderes).
+
+## Session 17.07.2026 nachts, Teil 2 — Testrunde-8-FIXES (2 parallele Sonnet-Subagents, Spec `docs/superpowers/specs/2026-07-17-testrunde8-fixes-design.md`)
+
+Robs Go („macht schnell, kritisch, autonom"). Bewusst schmaler Zuschnitt — große Fidelity-Scheibe bleibt separat:
+1. **Fix 1 — Mess-Breite 360→1024:** gemeinsame Konstante `PREVIEW_VIRTUAL_WIDTH=1024` (`web/src/lib/previewWidth.js`), genutzt von `htmlToPlan.js` (Offscreen-Mount) UND `InterpretedPreview.jsx` (Thumbnail). Vertrag: **WYSIWYG — Figma-Vermessung = Vorschau-Breite.** Damit lösen `width:100%`-Wurzeln zu 1024 statt 360 auf → Robs „Chart in der Breite gekroppt" behoben. ⚠️ jsdom löst `width:100%` nicht auf — Tests sichern per Spy die Container-Breite + Konstanten-Gleichheit ab, echter Beweis = Robs nächster Figma-Import.
+2. **Fix 2 — Export-Ehrlichkeit:** Export-Tab zeigt Amber-Warnkasten mit Namen, wenn Platzhalter-Bausteine im Figma-Payload sind (vorher: stiller Platzhalter-Export, s. Donut-Befund) + einzeiliger Scope-Hinweis (Farben+Textstile → Figma; Spacing/Radius/Schatten → Code-Formate). Plugin-Meldung sagt jetzt „…, **davon** N Platzhalter" (in den „X neu" enthalten, nicht 13+1).
+
+Suiten: Server 208/208 · Web 418/418 (+6) · Plugin 54/54 (+1) + Typecheck; Plugin-dist neu gebaut → **Rob: Dev-Plugin neu laden.** Offen bleibt (unverändert): Plan-Fidelity-Scheibe, Namespacing, Patterns-Begriff, Refracta, Connect-Figma-Stub.
 
 ## Session 17.07.2026 nachts — Testrunde 8: Diagnose zu Robs Figma-Test (Screenshots `Testdaten/interpretation 1707- 4`)
 

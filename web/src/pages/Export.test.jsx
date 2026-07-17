@@ -12,6 +12,19 @@ const imageResult = {
 };
 const mockResult = { source: 'url', mocked: true, raw: null };
 
+// Baustein ohne Template-Treffer und ohne KI-Interpretation → landet als
+// placeholder:true im exports.figma-Payload (siehe emitFigmaComponents.js).
+const placeholderResult = {
+  source: 'image', mocked: false, raw: {
+    tokens: {
+      colors: [{ hex: '#022d2c', role: 'primary button', confidence: 'high' }],
+      typography: [], spacing: [], border_radius: [], shadows: [],
+    },
+    atomics: [{ name: 'Category Of Emissions Chart', variants: [], confidence: 'low', source: 'ai', notes: null }],
+    components: [], patterns: [],
+  },
+};
+
 describe('Export page', () => {
   it('shows an empty notice when there is no token detail', () => {
     render(<Export result={mockResult} />);
@@ -65,6 +78,25 @@ describe('Export page', () => {
     const btn = screen.getByRole('button', { name: /nach storybook/i });
     expect(btn).toBeDisabled();
     expect(btn).toHaveAttribute('title', 'Folgt in einer späteren Version');
+  });
+
+  it('shows an amber placeholder warning naming the affected Baustein when the Figma payload contains placeholders', () => {
+    render(<Export result={placeholderResult} />);
+    const warning = screen.getByTestId('export-figma-placeholder-warning');
+    expect(warning).toBeInTheDocument();
+    expect(warning.textContent).toContain('1');
+    expect(warning.textContent).toContain('Category Of Emissions Chart');
+    expect(warning.textContent).toMatch(/platzhalter-karte/i);
+  });
+
+  it('does not show the placeholder warning when the Figma payload has no placeholders', () => {
+    render(<Export result={imageResult} />);
+    expect(screen.queryByTestId('export-figma-placeholder-warning')).not.toBeInTheDocument();
+  });
+
+  it('shows a scope hint about what goes to Figma vs. code formats', () => {
+    render(<Export result={imageResult} />);
+    expect(screen.getByText(/nach figma gehen farben & textstile/i)).toBeInTheDocument();
   });
 
   it('expands the Figma JSON preview when "JSON anzeigen" is clicked', () => {

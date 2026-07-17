@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import InterpretedPreview, { buildSrcdoc } from './InterpretedPreview.jsx';
 import { sourceLabel } from './SourcePill.jsx';
+import { PREVIEW_VIRTUAL_WIDTH } from '../../lib/previewWidth.js';
 
 describe('buildSrcdoc', () => {
   it('bettet das HTML und die Tailwind-Laufzeit ein', () => {
@@ -41,6 +42,18 @@ describe('InterpretedPreview — Thumbnail', () => {
     const frame = screen.getByTitle('Vorschau: Avatar');
     expect(frame.style.transform).toMatch(/scale\(/);
     expect(frame.style.transformOrigin).toBe('top left');
+  });
+
+  // Testrunde 8, Spec §Fix 1: die Thumbnail-Breite und htmlToPlan.js' Offscreen-Mess-Breite
+  // muessen dieselbe Konstante (PREVIEW_VIRTUAL_WIDTH, s. web/src/lib/previewWidth.js) sein —
+  // sonst friert die Figma-Vermessung inline-%-Breiten anders ein als die Vorschau sie zeigt
+  // (bewiesener Bug: 360px-Mess-Container vs. 1024px-Vorschau). Siehe die analoge Assertion in
+  // src/lib/emit/htmlToPlan.test.js ("gemeinsame Mess-Breite").
+  it('das Thumbnail-iframe rendert mit PREVIEW_VIRTUAL_WIDTH (1024) — derselben Konstante wie htmlToPlan.js', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const frame = screen.getByTitle('Vorschau: Avatar');
+    expect(PREVIEW_VIRTUAL_WIDTH).toBe(1024);
+    expect(frame.style.width).toBe(`${PREVIEW_VIRTUAL_WIDTH}px`);
   });
 
   it('der Thumbnail-Wrapper hat overflow-hidden und eine feste Höhe', () => {

@@ -9,14 +9,11 @@
 // server/lib/recognizeComponents.js), Token-Bindung gegen tokens.colors, Nie-Werfen-Vertrag.
 
 import { slugify } from './slugify.js';
+import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 
 const SVG_MAX_CHARS = 20000;
 const DATA_URI_RE = /^data:/i;
 const HREF_LIKE_ATTRS = ['href', 'xlink:href', 'src'];
-
-// Breite des Offscreen-Mount-Containers. Orientiert an der Vorschaukarte (Spec §Risiken); exakter
-// Wert ist eine Startannahme — wird bei der Browser-Verifikation (Schritt 4 der Spec) nachjustiert.
-const OFFSCREEN_WIDTH = 360;
 
 // Port von server/lib/recognizeComponents.js — dieselben Muster, damit Web und Server dieselben
 // Bausteine erkennen (Spec §Konverter Punkt 2). Bleibt klassen-/tag-basiert: component-ref-Erkennung
@@ -489,13 +486,14 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [] } = {}) {
     }
 
     // Container OFF-SCREEN aber NICHT display:none/visibility:hidden — sonst löst der Browser
-    // Layout (Flex/%) nicht auf (Spec §Kernidee Schritt 1). Feste Breite orientiert an der
-    // Vorschaukarte, damit prozentuale/Flex-Größen realistisch auflösen.
+    // Layout (Flex/%) nicht auf (Spec §Kernidee Schritt 1). Breite = PREVIEW_VIRTUAL_WIDTH, dieselbe
+    // virtuelle Breite, mit der InterpretedPreview.jsx die Vorschaukarte rendert (Vertrag: WYSIWYG —
+    // was die Vorschau zeigt, kommt so in Figma an, siehe Spec Testrunde 8 §Fix 1).
     container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.top = '0px';
     container.style.left = '-99999px';
-    container.style.width = `${OFFSCREEN_WIDTH}px`;
+    container.style.width = `${PREVIEW_VIRTUAL_WIDTH}px`;
     container.style.boxSizing = 'border-box';
     container.innerHTML = html;
 

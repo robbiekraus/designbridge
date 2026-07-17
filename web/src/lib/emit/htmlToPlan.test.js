@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { htmlToPlan } from './htmlToPlan.js';
+import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 
 // ---------------------------------------------------------------------------
 // jsdom-Testgrenze (Spec §jsdom-Testgrenze & Verifikation, verbindlich für diese Datei):
@@ -877,6 +878,29 @@ describe('htmlToPlan — Token-Bindung (unverändert, Eingabe jetzt rgb→hex st
       tokens: { colors: [{ hex: '#222222', role: 'primary', name: 'primary-2' }] },
     });
     expect(plan.fill).toEqual({ hex: '#222222', token: 'primary-2' });
+  });
+});
+
+describe('htmlToPlan — gemeinsame Mess-Breite (Testrunde 8, Spec §Fix 1: WYSIWYG mit der Vorschau)', () => {
+  // Befund Testrunde 8: htmlToPlan maß in einem 360px-Container, waehrend InterpretedPreview.jsx
+  // (die App-Vorschaukarte) mit 1024px virtueller Breite rendert — inline width:100% fror dadurch
+  // mit einem ganz anderen (zu schmalen) px-Wert ein als das, was die Vorschau zeigte. Fix 1: beide
+  // Stellen importieren dieselbe Konstante PREVIEW_VIRTUAL_WIDTH aus web/src/lib/previewWidth.js.
+  // Dieser Test prueft NICHT die (in jsdom nicht aufloesbare, s. Kopf-Kommentar dieser Datei)
+  // %-Layout-Wirkung, sondern MECHANISCH, dass der Offscreen-Mess-Container tatsaechlich mit der
+  // geteilten Konstante aufgespannt wird — spy auf document.body.appendChild faengt den Container
+  // VOR dem finally-Cleanup ab.
+  it('Offscreen-Mess-Container wird mit PREVIEW_VIRTUAL_WIDTH (1024) Breite gemountet', () => {
+    const spy = vi.spyOn(document.body, 'appendChild');
+    try {
+      htmlToPlan('<div style="padding:8px">Hi</div>');
+      expect(spy).toHaveBeenCalledTimes(1);
+      const mountedContainer = spy.mock.calls[0][0];
+      expect(mountedContainer.style.width).toBe(`${PREVIEW_VIRTUAL_WIDTH}px`);
+      expect(PREVIEW_VIRTUAL_WIDTH).toBe(1024);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

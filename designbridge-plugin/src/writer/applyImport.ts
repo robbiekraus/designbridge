@@ -125,7 +125,9 @@ function formatKindBreakdown(byKind: Partial<Record<ImportComponentKind, number>
 /** Baut die Kernaussage der Fertig-Meldung ("10 Farben neu, …, 13 Bausteine neu (…)").
  *  Ersetzt den Sammelbegriff „Komponenten" durch „Bausteine" (Kollision mit der
  *  App-Kategorie „Components" vermeiden) und hängt die Kind-Aufschlüsselung in
- *  Klammern an, falls vorhanden. Farben/Textstile/Platzhalter unverändert. */
+ *  Klammern an, falls vorhanden. Farben/Textstile unverändert; Platzhalter als
+ *  „davon N Platzhalter" (Testrunde 8, Fix 2) — die sind in „X Bausteine neu"
+ *  bereits enthalten, keine zusätzliche Zählung. */
 export function formatImportSummary(s: ImportSummary): string {
   const createdBreakdown = formatKindBreakdown(s.componentsCreatedByKind);
   const updatedBreakdown = formatKindBreakdown(s.componentsUpdatedByKind);
@@ -141,7 +143,9 @@ export function formatImportSummary(s: ImportSummary): string {
     s.componentsUpdated
       ? `${s.componentsUpdated} Bausteine aktualisiert${updatedBreakdown ? ` (${updatedBreakdown})` : ''}`
       : '',
-    s.placeholders ? `${s.placeholders} Platzhalter` : '',
+    // "davon" macht klar: die Platzhalter sind in "X Bausteine neu" bereits ENTHALTEN,
+    // keine zusätzlichen Bausteine (Testrunde 8, Fix 2 — sonst liest sich "13, 1" wie 13+1).
+    s.placeholders ? `davon ${s.placeholders} Platzhalter` : '',
   ]
     .filter(Boolean)
     .join(', ');

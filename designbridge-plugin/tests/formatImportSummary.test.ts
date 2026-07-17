@@ -32,7 +32,7 @@ test('spec example: 13 Bausteine neu with mixed-kind breakdown', () => {
   );
   assert.equal(
     text,
-    '10 Farben neu, 4 Textstile neu, 13 Bausteine neu (3 Atomics, 9 Components, 1 Pattern), 5 Platzhalter'
+    '10 Farben neu, 4 Textstile neu, 13 Bausteine neu (3 Atomics, 9 Components, 1 Pattern), davon 5 Platzhalter'
   );
 });
 
@@ -102,7 +102,7 @@ test('missing byKind data degrades gracefully to no parentheses (backward compat
   assert.equal(text, '0 Farben neu, 0 Textstile neu, 6 Bausteine neu');
 });
 
-test('colorsUpdated / textUpdated / placeholders wording is untouched', () => {
+test('colorsUpdated / textUpdated wording is untouched; placeholders reads "davon N Platzhalter"', () => {
   const text = formatImportSummary(
     baseSummary({
       colorsCreated: 1,
@@ -114,6 +114,18 @@ test('colorsUpdated / textUpdated / placeholders wording is untouched', () => {
   );
   assert.equal(
     text,
-    '1 Farben neu, 2 Farben aktualisiert, 3 Textstile neu, 4 Textstile aktualisiert, 5 Platzhalter'
+    '1 Farben neu, 2 Farben aktualisiert, 3 Textstile neu, 4 Textstile aktualisiert, davon 5 Platzhalter'
   );
+});
+
+test('"davon N Platzhalter" makes clear placeholders are already counted within Bausteine neu, not additional', () => {
+  const text = formatImportSummary(
+    baseSummary({
+      componentsCreated: 13,
+      componentsCreatedByKind: { atomic: 3, component: 9, pattern: 1 },
+      placeholders: 1,
+    })
+  );
+  assert.ok(text.includes('davon 1 Platzhalter'));
+  assert.ok(!text.includes(', 1 Platzhalter'));
 });
