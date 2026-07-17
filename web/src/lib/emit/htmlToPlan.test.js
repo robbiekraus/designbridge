@@ -293,6 +293,79 @@ describe('htmlToPlan — Layout (display:flex + flex-direction, computed)', () =
   });
 });
 
+describe('htmlToPlan — Tabellen (CSS-Table-Displays, Fix E, Testrunde 7)', () => {
+  // Befund (Figma-Datei `test1707 -3`, Reports Table H=2199px): Fix 6 macht JEDEN Nicht-Flex-
+  // Container mit Element-Kindern zur Spalte — auch <tr>. Echte Tabellen kamen dadurch als ein
+  // vertikaler Turm aus Zellen an. jsdom liefert die CSS-table-*-Displays nativ als UA-Default
+  // über getComputedStyle (empirisch geprüft, kein Raten): table→"table", thead→
+  // "table-header-group", tbody→"table-row-group", tr→"table-row", th/td→"table-cell".
+  const tableHtml =
+    '<table><thead><tr><th>Plant</th><th>Process</th></tr></thead>' +
+    '<tbody><tr><td>Bangalore</td><td>Printing</td></tr></tbody></table>';
+
+  it('<table> (display:table) → layout column (Zeilen stapeln vertikal)', () => {
+    const { plan } = htmlToPlan(tableHtml);
+    expect(plan.layout).toBe('column');
+  });
+
+  it('<thead> (table-header-group) → layout column', () => {
+    const { plan } = htmlToPlan(tableHtml);
+    const thead = plan.children[0];
+    expect(thead.layout).toBe('column');
+  });
+
+  it('<tbody> (table-row-group) → layout column', () => {
+    const { plan } = htmlToPlan(tableHtml);
+    const tbody = plan.children[1];
+    expect(tbody.layout).toBe('column');
+  });
+
+  it('<tr> (table-row) → layout row mit th/td-Kindern (nicht mehr fälschlich column)', () => {
+    const { plan } = htmlToPlan(tableHtml);
+    const headerRow = plan.children[0].children[0];
+    expect(headerRow.layout).toBe('row');
+    expect(headerRow.children).toHaveLength(2);
+
+    // th/td (table-cell, kein eigenes Element-Kind) fallen auf den Block-Default durch:
+    // hasElementChildren ist false → die Zelle selbst bekommt layout 'row'. jsdoms UA-Stylesheet
+    // gibt th/td zusätzlich 1px Padding (td auch fontWeight normal, th zusätzlich bold), wodurch
+    // die Zelle über hasBoxTrigger zur Box statt zu reinem Text wird — der Zelltext lebt dann als
+    // Text-Kind darin. Kern der Aussage: die ZEILE ist 'row', nicht mehr fälschlich 'column' wie
+    // vor Fix E (dort hätte der Block-Default die ganze Zeile wegen ihrer Element-Kinder in
+    // 'column' geplant).
+    expect(headerRow.children[0].layout).toBe('row');
+    expect(headerRow.children[0].children[0]).toMatchObject({ type: 'text', content: 'Plant' });
+    expect(headerRow.children[1].children[0]).toMatchObject({ type: 'text', content: 'Process' });
+
+    const bodyRow = plan.children[1].children[0];
+    expect(bodyRow.layout).toBe('row');
+    expect(bodyRow.children).toHaveLength(2);
+    expect(bodyRow.children[0].layout).toBe('row');
+    expect(bodyRow.children[0].children[0]).toMatchObject({ type: 'text', content: 'Bangalore' });
+    expect(bodyRow.children[1].children[0]).toMatchObject({ type: 'text', content: 'Printing' });
+  });
+
+  it('table-cell OHNE jeden Box-Trigger-Stil (Padding explizit auf 0 zurückgesetzt) bleibt reines Text-Blatt', () => {
+    // Isoliert den table-cell-Zweig von jsdoms UA-Default-Padding (s. Test oben): mit
+    // padding:0 verschwindet der einzige Box-Trigger, und die Zelle fällt bis zum Text-Blatt durch —
+    // belegt, dass table-cell tatsächlich dem BESTEHENDEN Block-Default folgt (kein Sonderfall
+    // durch Fix E), nicht dass es grundsätzlich immer zur Box wird.
+    const html = '<table><tbody><tr><td style="padding:0">Bangalore</td></tr></tbody></table>';
+    const { plan } = htmlToPlan(html);
+    const cell = plan.children[0].children[0].children[0]; // table(column) -> tbody(column) -> tr(row) -> td
+    expect(cell.type).toBe('text');
+    expect(cell.content).toBe('Bangalore');
+  });
+
+  it('table-cell MIT Element-Kindern folgt weiterhin dem Block-Default (column), unverändert durch Fix E', () => {
+    const html = '<table><tbody><tr><td><span>A</span><span>B</span></td></tr></tbody></table>';
+    const { plan } = htmlToPlan(html);
+    const cellBox = plan.children[0].children[0].children[0]; // tbody(column) -> tr(row) -> td-Box
+    expect(cellBox.type).toBe('box');
+    expect(cellBox.layout).toBe('column');
+  });
+});
+
 describe('htmlToPlan — primaryAlign / counterAlign (justify-content/align-items, Spec §Vertrags-Erweiterung)', () => {
   it('justify-content:center → primaryAlign CENTER', () => {
     const { plan } = htmlToPlan('<div style="display:flex;justify-content:center"></div>');

@@ -147,18 +147,48 @@ function isFlexLike(display) {
   return typeof display === 'string' && /flex|grid/.test(display);
 }
 
+// Fix E (Testrunde 7, Spec §Fix E): CSS-Table-Displays, die ihre Kinder ZEILENWEISE stapeln
+// (table selbst sowie die drei row-group-Varianten thead/tbody/tfoot) → 'column'. `table-row`
+// dagegen ordnet seine Zellen HORIZONTAL nebeneinander an → 'row'. jsdom liefert diese Werte
+// als UA-Default nativ über getComputedStyle (empirisch mit jsdom 29 geprüft, kein Raten nötig:
+// table→"table", thead→"table-header-group", tbody→"table-row-group", tfoot→
+// "table-footer-group", tr→"table-row", th/td→"table-cell"). `table-cell` ist bewusst NICHT
+// hier gelistet — eine Zelle ist strukturell ein normaler Block-Container und fällt auf den
+// Block-Default weiter unten durch (Element-Kinder → column, sonst row/Leaf), genau wie vor Fix E.
+const TABLE_COLUMN_GROUP_DISPLAYS = new Set([
+  'table',
+  'inline-table',
+  'table-row-group',
+  'table-header-group',
+  'table-footer-group',
+]);
+
 /** Fix 6 (Testrunde 6, Spec §Fix 6): computed flex/grid → wie bisher entscheidet flexDirection
  *  row/column. NICHT-flex Container MIT Element-Kindern sind Block-Flow und stapeln ihre Kinder
  *  im Browser vertikal → 'column' (vorher fälschlich 'row', das im Figma-Plugin ein HORIZONTAL-
  *  Auto-Layout erzeugte und Inhalte wegclippte). Elemente OHNE Element-Kinder bleiben bei 'row'
  *  (unkritisch — werden ohnehin zu Text/Leaf-Boxen ohne Kinder zum Anordnen). `hasElementChildren`
  *  wird von den Aufrufstellen übergeben (el.children.length > 0), damit readLayout selbst kein
- *  DOM-Element braucht. */
+ *  DOM-Element braucht.
+ *
+ *  Fix E (Testrunde 7, Spec §Fix E): der Block-Default oben behandelte JEDEN Nicht-Flex-Container
+ *  mit Element-Kindern gleich — auch <tr>, dessen computed display 'table-row' ist. Das plante
+ *  jede Tabellenzeile als eigene Spalte, und eine ganze Tabelle kam als vertikaler Turm aus
+ *  Einzelzellen an (Live-Befund: Figma-Datei `test1707 -3`, Reports Table H=2199px). Die
+ *  CSS-Table-Displays werden deshalb VOR dem Block-Default explizit gemappt (s. oben).
+ *
+ *  Bekannte Grenze (dokumentiert, nicht gefixt — Spec §Fix E): jede Zeile (tr) wird unabhängig
+ *  geplant, ihre Zellen bekommen kein gemeinsames Spaltenraster — Spaltenbreiten sind je Zeile
+ *  HUG (aus dem jeweiligen Zell-Inhalt), nicht über alle Zeilen ausgerichtet. Reale Tabellen mit
+ *  exakt fluchtenden Spalten brauchen ein eigenes Spalten-Layout-Konzept (eigene Scheibe). */
 function readLayout(computed, hasElementChildren) {
   if (isFlexLike(computed.display)) {
     if (computed.flexDirection === 'column' || computed.flexDirection === 'column-reverse') return 'column';
     return 'row';
   }
+  const display = computed.display;
+  if (display === 'table-row') return 'row';
+  if (TABLE_COLUMN_GROUP_DISPLAYS.has(display)) return 'column';
   return hasElementChildren ? 'column' : 'row';
 }
 
