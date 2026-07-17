@@ -155,7 +155,11 @@ async function interpretChunk(c, fullImage, segments) {
 
   const response = await c.messages.create({
     model: MODEL,
-    max_tokens: 16384,
+    // 32768 statt 16384 (Live-Befund 17.07.): Interpretationen mit langen
+    // SVG-Pfaden (Linien-Charts) tragen HTML UND JSX in einer Antwort —
+    // 16k wurde reproduzierbar am MAX_TOKENS-Limit abgeschnitten, der Parse
+    // scheiterte deterministisch bei jedem Retry (~57s × 2 pro Klick).
+    max_tokens: 32768,
     messages: [{ role: 'user', content }],
   });
 

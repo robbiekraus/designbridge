@@ -50,7 +50,10 @@ export function componentsNeedingInterpretation(result) {
 // bleibt unter 10 RPM) + eine automatische zweite Runde für alles, was in
 // Runde 1 gescheitert ist — nur ein echter Doppel-Fehlschlag verlangt noch
 // den manuellen Retry-Knopf.
-const POOL_CONCURRENCY = 3;
+// 6 statt 3 (Robs Feedback 17.07. abends: „mehrere Minuten"): auf dem Paid-
+// Tier problemlos, und selbst im Free-Tier bleiben 6 parallele Calls à
+// 15–55s unter 10 RPM (Requests starten versetzt, nicht im Sekundentakt).
+const POOL_CONCURRENCY = 6;
 
 export async function requestInterpretations(importId, components, { signal } = {}) {
   const res = await fetch('/api/interpret/components', {

@@ -71,7 +71,13 @@ router.post('/components', async (req, res) => {
     if (err.isDailyQuota) {
       return res.status(429).json({ error: err.message, daily_quota: true });
     }
-    res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });
+    // Echte Ursache durchreichen (Token-Limit, ungültiges JSON, …) statt sie
+    // hinter einem generischen Satz zu verstecken — die Row-UI zeigt die
+    // Meldung seit Testrunde 6 an, und ohne Ursache ist jeder Fehlschlag
+    // Blindflug (Live-Befund 17.07.: MAX_TOKENS-Abschnitt sah aus wie ein
+    // zufälliger 502).
+    const detail = err.message && !/^\d+ /.test(err.message) ? ` (${err.message})` : '';
+    res.status(502).json({ error: `KI-Interpretation fehlgeschlagen${detail} — bitte erneut versuchen.` });
   }
 });
 

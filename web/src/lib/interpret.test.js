@@ -235,7 +235,7 @@ describe('runInterpretation', () => {
   });
 });
 
-describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort', () => {
+describe('runInterpretation — Worker-Pool (Konkurrenz 6) + Auto-Retry + Abort', () => {
   const NINE = {
     source: 'image',
     raw: {
@@ -284,7 +284,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
     expect(next.interpretError).toBeNull();
   });
 
-  it('Pool-Konkurrenz: nie mehr als 3 Requests gleichzeitig in Flight (über manuell auflösbare Promises geprüft)', async () => {
+  it('Pool-Konkurrenz: nie mehr als 6 Requests gleichzeitig in Flight (über manuell auflösbare Promises geprüft)', async () => {
     let inFlight = 0;
     let maxInFlight = 0;
     let totalStarted = 0;
@@ -310,7 +310,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
 
     const runPromise = runInterpretation(NINE);
     await flush();
-    expect(inFlight).toBe(3); // Pool sofort auf Konkurrenz 3 ausgeschöpft, nichts aufgelöst
+    expect(inFlight).toBe(6); // Pool sofort auf Konkurrenz 6 ausgeschöpft, nichts aufgelöst
 
     while (totalStarted < 9 || pendingResolvers.length > 0) {
       const resolvers = pendingResolvers;
@@ -320,7 +320,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
     }
     const next = await runPromise;
 
-    expect(maxInFlight).toBe(3); // nie mehr als Konkurrenz 3
+    expect(maxInFlight).toBe(6); // nie mehr als Konkurrenz 6
     expect(totalStarted).toBe(9);
     expect(Object.keys(next.interpretations)).toHaveLength(9);
     expect(next.interpretPending).toBe(false);
@@ -381,14 +381,14 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
 
   it('Quota-Bremse: kein neuer Start nach Fail-Fast, laufende Antworten werden noch eingesammelt, alle nicht erfolgreichen Namen failed, KEINE Auto-Retry-Runde', async () => {
     // Deterministisch über manuell auflösbare Promises statt Call-Counts:
-    // Pool-Konkurrenz 3 → W1-W3 starten "gleichzeitig". W2 meldet daily_quota
-    // während W1/W3 noch offen sind. Kein W4+ darf je gesendet werden — auch
-    // nicht nach der Auto-Retry-Prüfung (die hier komplett entfällt).
+    // Pool-Konkurrenz 6 → W1-W6 starten "gleichzeitig". W2 meldet daily_quota
+    // während die anderen noch offen sind. Kein W7+ darf je gesendet werden —
+    // auch nicht nach der Auto-Retry-Prüfung (die hier komplett entfällt).
     const six = {
       source: 'image',
       raw: {
         meta: { import_id: 'quota1' },
-        atomics: Array.from({ length: 6 }, (_, i) => ({ name: `W${i + 1}`, variants: [], notes: '' })),
+        atomics: Array.from({ length: 10 }, (_, i) => ({ name: `W${i + 1}`, variants: [], notes: '' })),
         components: [],
         patterns: [],
       },
@@ -403,7 +403,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
 
     const runPromise = runInterpretation(six);
     await flush();
-    expect(fetchMock).toHaveBeenCalledTimes(3); // W1, W2, W3 in Flight
+    expect(fetchMock).toHaveBeenCalledTimes(6); // W1-W6 in Flight
 
     defs.W2({
       ok: false,
@@ -414,18 +414,19 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
     });
     await flush();
 
-    defs.W1({ ok: true, json: async () => ({ interpretations: [{ name: 'W1', html: '<div/>', jsx: '' }], failed: [] }) });
-    defs.W3({ ok: true, json: async () => ({ interpretations: [{ name: 'W3', html: '<div/>', jsx: '' }], failed: [] }) });
+    for (const n of ['W1', 'W3', 'W4', 'W5', 'W6']) {
+      defs[n]({ ok: true, json: async () => ({ interpretations: [{ name: n, html: '<div/>', jsx: '' }], failed: [] }) });
+    }
     await flush();
 
     const next = await runPromise;
 
-    expect(fetchMock).toHaveBeenCalledTimes(3); // W4-W6 wurden NIE gesendet — auch kein Auto-Retry für W2
+    expect(fetchMock).toHaveBeenCalledTimes(6); // W7-W10 wurden NIE gesendet — auch kein Auto-Retry für W2
     expect(next.interpretQuotaExhausted).toBe(true);
     expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
     expect(next.interpretPending).toBe(false);
-    expect(Object.keys(next.interpretations).sort()).toEqual(['W1', 'W3']);
-    expect(next.interpretFailed.sort()).toEqual(['W2', 'W4', 'W5', 'W6']);
+    expect(Object.keys(next.interpretations).sort()).toEqual(['W1', 'W3', 'W4', 'W5', 'W6']);
+    expect(next.interpretFailed.sort()).toEqual(['W10', 'W2', 'W7', 'W8', 'W9']);
   });
 
   it('signal bereits aborted vor Item 2 → gibt null zurück, kein weiterer fetch', async () => {
@@ -466,7 +467,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
 
     const runPromise = runInterpretation(NINE, { signal: controller.signal });
     await flush();
-    expect(totalCalls).toBe(3); // Pool-Konkurrenz voll ausgeschöpft, noch nichts aufgelöst
+    expect(totalCalls).toBe(6); // Pool-Konkurrenz voll ausgeschöpft, noch nichts aufgelöst
 
     controller.abort();
     resolvers.forEach((r) => r()); // laufende Requests dürfen noch auflösen
@@ -475,7 +476,7 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort'
 
     const next = await runPromise;
     expect(next).toBeNull();
-    expect(totalCalls).toBe(3); // keine neuen Starts nach Abort
+    expect(totalCalls).toBe(6); // keine neuen Starts nach Abort
   });
 });
 
