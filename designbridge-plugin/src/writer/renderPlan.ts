@@ -200,6 +200,14 @@ export async function renderPlan(
       }
       frame.resize(plan.width ?? frame.width, plan.height ?? frame.height);
     }
+    // Fix 6 (Testrunde 6, Spec §Fix 6, Punkt 3): figma.createFrame() liefert clipsContent
+    // DEFAULT true — ungesetzt clippt also JEDE Box, auch eine HUG-Box (plan.width/height beide
+    // null), sobald ein Kind aus irgendeinem Grund über die gehuggte Größe hinausreicht (z. B.
+    // durch eine der beiden Vorgängerursachen dieses Bugs: falsches layout:'row' auf einem
+    // Block-Container, siehe htmlToPlan.js readLayout). Vertrag laut Spec: clipsContent nur bei
+    // EXPLIZIT gesetzter Größe (dieselbe Bedingung wie oben für FIXED) — eine HUG-Box zeigt ihren
+    // Inhalt immer vollständig.
+    frame.clipsContent = plan.width !== null || plan.height !== null;
     return frame;
   } catch (err) {
     // Waise vermeiden: bereits erzeugten Frame (samt Kindern) abräumen, dann re-throwen.

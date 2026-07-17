@@ -260,13 +260,35 @@ describe('htmlToPlan — Layout (display:flex + flex-direction, computed)', () =
     expect(plan.layout).toBe('column');
   });
 
-  it('display:flex ohne flex-direction → layout row (Default "row")', () => {
+  it('display:flex ohne flex-direction → layout row (echtes Flex-row bleibt row, Spec Fix 6)', () => {
     const { plan } = htmlToPlan('<div style="display:flex"><span>A</span><span>B</span></div>');
     expect(plan.layout).toBe('row');
   });
 
-  it('gar kein display-Style → layout row (Default)', () => {
+  // Fix 6 (Testrunde 6, docs/superpowers/specs/2026-07-17-testrunde6-fixes-design.md):
+  // ein normaler Block-Container (display:block, der Default) stapelt seine Kind-ELEMENTE im
+  // Browser vertikal — der Plan muss das als 'column' abbilden, nicht als 'row'. Vor diesem Fix
+  // stand hier `expect(plan.layout).toBe('row')` und schrieb genau den Bug fest (Figma-Plugin baut
+  // daraus HORIZONTAL-Auto-Layout → Clipping, siehe Fix 6 „Befund"). Test umgezogen auf 'column'.
+  it('Block-Container (kein flex/grid) MIT Element-Kindern → layout column (Block-Flow stapelt vertikal)', () => {
     const { plan } = htmlToPlan('<div><span>A</span></div>');
+    expect(plan.layout).toBe('column');
+  });
+
+  // Echtes Regressionsmuster aus dem Befund: Wrapper-div (block) mit Header-div + Body-div,
+  // wie es die KI-Interpretation eines Charts erzeugt (Titelzeile über Chart-Body).
+  it('Wrapper-div (block) mit Header-div + Body-div → layout column (echtes Bug-Muster aus Fix 6)', () => {
+    const { plan } = htmlToPlan('<div><div style="padding:4px">A</div><div>B</div></div>');
+    expect(plan.layout).toBe('column');
+  });
+
+  it('Block-Container OHNE Element-Kinder (nur Text) → layout bleibt row (Blatt, unkritisch laut Spec)', () => {
+    const { plan } = htmlToPlan('<div style="padding:8px">Hallo</div>');
+    expect(plan.layout).toBe('row');
+  });
+
+  it('gar kein display-Style, keine Kind-Elemente (leere Box) → layout row (Default, unveraendert)', () => {
+    const { plan } = htmlToPlan('<div></div>');
     expect(plan.layout).toBe('row');
   });
 });
@@ -326,6 +348,18 @@ describe('htmlToPlan — gap (jetzt abgebildet statt nur gewarnt, Spec §Vertrag
   it('kein gap-Style → gap 0 (Default)', () => {
     const { plan } = htmlToPlan('<div style="display:flex"></div>');
     expect(plan.gap).toBe(0);
+  });
+
+  // Fix 6, Punkt 2: seit Block-Container jetzt layout:'column' bekommen (statt 'row'), muss
+  // readGap() für den row-gap-Zweig (layout==='column') robust bleiben, obwohl ein normaler
+  // Block-Fluss (kein flex/grid) gar kein "gap" im CSS-Sinn kennt — computed.rowGap ist dort
+  // das Keyword "normal", NICHT parsbar. pxOr0 faengt das ab (Number.isFinite-Check), landet
+  // also bei 0, niemals NaN.
+  it('Block-Container (layout column, kein flex) ohne echtes CSS-gap → gap 0, niemals NaN', () => {
+    const { plan } = htmlToPlan('<div><div>A</div><div>B</div></div>');
+    expect(plan.layout).toBe('column');
+    expect(plan.gap).toBe(0);
+    expect(Number.isNaN(plan.gap)).toBe(false);
   });
 });
 

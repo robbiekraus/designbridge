@@ -147,11 +147,19 @@ function isFlexLike(display) {
   return typeof display === 'string' && /flex|grid/.test(display);
 }
 
-function readLayout(computed) {
-  if (isFlexLike(computed.display) && (computed.flexDirection === 'column' || computed.flexDirection === 'column-reverse')) {
-    return 'column';
+/** Fix 6 (Testrunde 6, Spec §Fix 6): computed flex/grid → wie bisher entscheidet flexDirection
+ *  row/column. NICHT-flex Container MIT Element-Kindern sind Block-Flow und stapeln ihre Kinder
+ *  im Browser vertikal → 'column' (vorher fälschlich 'row', das im Figma-Plugin ein HORIZONTAL-
+ *  Auto-Layout erzeugte und Inhalte wegclippte). Elemente OHNE Element-Kinder bleiben bei 'row'
+ *  (unkritisch — werden ohnehin zu Text/Leaf-Boxen ohne Kinder zum Anordnen). `hasElementChildren`
+ *  wird von den Aufrufstellen übergeben (el.children.length > 0), damit readLayout selbst kein
+ *  DOM-Element braucht. */
+function readLayout(computed, hasElementChildren) {
+  if (isFlexLike(computed.display)) {
+    if (computed.flexDirection === 'column' || computed.flexDirection === 'column-reverse') return 'column';
+    return 'row';
   }
-  return 'row';
+  return hasElementChildren ? 'column' : 'row';
 }
 
 function readAlignment(computed) {
@@ -222,7 +230,7 @@ function hasBoxTrigger(el, computed) {
   if (readRadius(computed) > 0) return true;
   if (normalizeColor(computed.backgroundColor) != null) return true;
   if ([computed.borderTopWidth, computed.borderRightWidth, computed.borderBottomWidth, computed.borderLeftWidth].some((w) => pxOr0(w) > 0)) return true;
-  const { width, height } = readSize(el, computed, readLayout(computed));
+  const { width, height } = readSize(el, computed, readLayout(computed, el.children.length > 0));
   if (width != null || height != null) return true;
   return false;
 }
@@ -240,7 +248,7 @@ function buildTextNode(text, computed, ctx) {
 }
 
 function buildBoxNode(el, computed, children, ctx) {
-  const layout = readLayout(computed);
+  const layout = readLayout(computed, el.children.length > 0);
   const { primaryAlign, counterAlign } = readAlignment(computed);
   const { stroke, strokeWeight } = readBorder(computed, ctx);
   const { width, height } = readSize(el, computed, layout);
