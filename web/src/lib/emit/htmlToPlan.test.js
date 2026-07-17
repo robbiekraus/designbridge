@@ -1034,4 +1034,41 @@ describe('htmlToPlan — absolute Positionierung (Scheibe A, Spec §Scheibe A)',
     expect(plan.children[0].type).toBe('text');
     expect(plan.children[0].absolute).toEqual({ x: 5, y: 6, width: 40, height: 18 });
   });
+
+  // Regression Figma-Test `test6` (18.07.): Ein Auto-Layout-Frame huggt in Figma NUR In-Flow-
+  // Kinder. Hat ein Element AUSSCHLIESSLICH absolute Kinder (Chart-Body: Y-Achse, SVG, Tooltip,
+  // X-Labels), kollabiert der Frame auf ~0 und clippt alles weg. Vertrag: Ein Parent mit
+  // mindestens einem absoluten Kind friert seine fehlenden Maße aus dem eigenen Rect ein.
+  it('Parent mit absolutem Kind friert fehlende width/height aus dem eigenen Rect ein', () => {
+    const html = `
+      <div style="display:flex" data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
+        <div style="position:absolute;padding:2px" data-mock-rect='{"x":40,"y":0,"width":800,"height":240}'>Chart</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBe(870);
+    expect(plan.height).toBe(240);
+  });
+
+  it('Parent mit absolutem Kind behält explizit gesetzte Maße (kein Überschreiben)', () => {
+    const html = `
+      <div style="display:flex;height:280px" data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
+        <div style="position:absolute;padding:2px" data-mock-rect='{"x":0,"y":0,"width":100,"height":100}'>A</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.height).toBe(280);
+    expect(plan.width).toBe(870);
+  });
+
+  it('Parent OHNE absolute Kinder bleibt HUG (width/height null)', () => {
+    const html = `
+      <div style="display:flex" data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
+        <div style="padding:2px" data-mock-rect='{"x":0,"y":0,"width":100,"height":100}'>A</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBeNull();
+    expect(plan.height).toBeNull();
+  });
 });

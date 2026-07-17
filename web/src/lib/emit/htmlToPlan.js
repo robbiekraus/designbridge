@@ -278,7 +278,18 @@ function buildBoxNode(el, computed, children, ctx) {
   const layout = readLayout(computed, el.children.length > 0);
   const { primaryAlign, counterAlign } = readAlignment(computed);
   const { stroke, strokeWeight } = readBorder(computed, ctx);
-  const { width, height } = readSize(el, computed, layout);
+  let { width, height } = readSize(el, computed, layout);
+
+  // Figma-Auto-Layout huggt NUR In-Flow-Kinder: Ein Parent, dessen Kinder (teils) absolut
+  // positioniert sind, würde sonst kollabieren und die absoluten Kinder wegclippen
+  // (Regression Figma-Test `test6`, 18.07. — Chart-Body bestand NUR aus absoluten Kindern).
+  // Vertrag: fehlende Maße aus dem eigenen gemessenen Rect einfrieren; explizit gesetzte
+  // Maße (readSize) behalten Vorrang.
+  if ((width == null || height == null) && children.some((c) => c && c.absolute)) {
+    const rect = el.getBoundingClientRect();
+    if (width == null) width = Math.max(1, Math.round(rect.width));
+    if (height == null) height = Math.max(1, Math.round(rect.height));
+  }
   return {
     type: 'box',
     layout,
