@@ -1,6 +1,22 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **17.07.2026 Nachtschicht (Quota-Bremse + Modell-Research)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **208/208** · Web **355/355** · Plugin-Tests 39/39.
+Stand: **17.07.2026 nachmittags (Testrunde 6 — alle 6 Befunde gefixt & deployt, `afb1995`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **208/208** · Web **391/391** · Plugin-Tests 53/53.
+
+## Session 17.07.2026 mittags/nachmittags — Testrunde 6 (Robs Bild-Test + Figma-Rundlauf)
+
+**Testergebnis vormittags:** Figma-Rundlauf mechanisch ✅ (leere Datei, Zahlen exakt, Tokens/Textstile sauber, Metric Cards fast pixelgenau). **KI-Qualität ✅ auch im Free-Tier** (Modell-Alias liefert jetzt `gemini-3.5-flash`) — alle Probleme lagen in unserem Code. Robs Screenshots: `Testdaten/interpretation 1707_1`. Figma-Testdatei `ys40ZWYrbHsyhM6gykrhOg` (Seite „🌉 DesignBridge") — **per Figma-MCP direkt inspizierbar** (get_metadata/use_figma; nur die in Figma sichtbare Seite ist zugreifbar).
+
+**Alle 6 Befunde gefixt (Commits `b5d081c`..`afb1995`, subagent-getrieben Sonnet, TDD):**
+1. **Retry-Race (ernstester Bug):** parallele Einzel-Retries verschiedener Bausteine überschrieben sich gegenseitig (stale Closure) → Interpretationen „verschwanden". Jetzt Delta-Merge via `applyRetryOutcome(cur,name,outcome)`; `retryInterpretation` liefert nur noch Outcome, wirft nie.
+2. **Verfeinern-Schwund:** `handleDeepened` ersetzte das Result komplett → `carryInterpretations(prev,next)` trägt interpretations/gefiltertes interpretFailed/Quota-Flag weiter.
+3. **Quota-Meldung an der Zeile:** Row zeigt echte Fehlermeldung (inkl. Tages-Quota-Text), bei Quota-Erschöpfung alle Retry-Knöpfe gesperrt (vorher: Meldung nur in InterpretAllBar → stiller Blindflug).
+4. **Sichtbare Aktivität:** Spinner im Detail + Pille „interpretiert …" im zugeklappten Header, Button „Läuft …".
+5. **Vorschau:** skaliertes Thumbnail (virtuelle Breite 1024, transform:scale) + Klick = Vollbild-Modal (90vw×85vh, ESC/Backdrop/×). Browser-Smoke ✅.
+6. **Figma-Layout-Bug (per MCP bewiesen & gefixt):** Chart kam KOMPLETT an, war aber unsichtbar — (a) `readLayout` machte Block-Container zu `row` → HORIZONTAL+Clip; jetzt: Nicht-Flex mit Element-Kindern → `column`. (b) `figma.createFrame()` clippt per API-DEFAULT → `renderPlan` setzt clipsContent nur noch bei expliziter Größe. Plugin-Meldung schlüsselt jetzt auf: „13 Bausteine neu (3 Atomics, 9 Components, 1 Pattern)".
+
+**⚠️ Für Robs nächsten Figma-Test:** Plugin wurde neu gebaut (`npm run build` im Plugin-Ordner, dist aktuell) — in Figma das Dev-Plugin neu laden, dann Import wiederholen (leere Datei oder neue Seite). Erwartung: Trend-Chart sichtbar mit beiden Linien.
+
+**Offen/nächste Kandidaten:** Thumbnail-Höhe bei kleinen Interpretationen großzügig (viel Weißraum — Polish); Tailwind-Runtime im htmlToPlan-Offscreen-Mount (größere Fidelity-Scheibe); Modell-Entscheidung (Gemini Paid vs. Anthropic) = nur noch Quota-Frage, Qualität passt.
 
 > ## ⚠️ BETRIEBS-REGELN (seit heute)
 > 1. **Jeder Push auf `main` = automatischer Railway-Re-Deploy.** Was auf main landet, geht live.
