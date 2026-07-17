@@ -2,11 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { buildExports, EXPORT_FORMATS, buildLibraryZip } from '../lib/emit/index.js';
 import { downloadFile, downloadBlob } from '../lib/download.js';
 
+// Figma is a "Ziel" (destination), not a code format — kept out of the FORMAT
+// list but its data (exports.figma) stays reachable via the JSON preview below.
+const FORMAT_LIST = EXPORT_FORMATS.filter(f => f.id !== 'figma');
+const FIGMA_FORMAT = EXPORT_FORMATS.find(f => f.id === 'figma');
+
 export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
   const [activeId, setActiveId] = useState('css');
   const [copied, setCopied] = useState(null);
   const [sent, setSent] = useState(null);
+  const [figmaJsonOpen, setFigmaJsonOpen] = useState(false);
+  const [figmaCopied, setFigmaCopied] = useState(null);
 
   if (!exports) {
     return (
@@ -16,7 +23,7 @@ export default function Export({ result }) {
     );
   }
 
-  const current = EXPORT_FORMATS.find(f => f.id === activeId) ?? EXPORT_FORMATS[0];
+  const current = FORMAT_LIST.find(f => f.id === activeId) ?? FORMAT_LIST[0];
   const code = exports[activeId];
 
   const handleCopy = async () => {
@@ -30,6 +37,8 @@ export default function Export({ result }) {
   };
 
   const handleDownloadAll = () => {
+    // Includes designbridge-figma.json even though it's no longer a FORMAT
+    // list entry — "Alle herunterladen" stays a complete bundle.
     EXPORT_FORMATS.forEach(f => downloadFile(f.filename, exports[f.id], f.mime));
   };
 
@@ -56,12 +65,80 @@ export default function Export({ result }) {
     }
   };
 
+  const handleCopyFigmaJson = async () => {
+    try {
+      await navigator.clipboard.writeText(exports.figma);
+      setFigmaCopied('ok');
+    } catch {
+      setFigmaCopied('fail');
+    }
+    setTimeout(() => setFigmaCopied(null), 1500);
+  };
+
   return (
     <div className="flex gap-6 max-w-5xl">
       <aside className="w-48 flex-shrink-0">
-        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">Format</div>
+        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">Ziele</div>
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={handleSendToFigma}
+            className="w-full text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+          >
+            An Figma senden
+          </button>
+          {sent === 'ok' && <span className="text-[11px] text-emerald-600">bereit — jetzt im Plugin „Aus DesignBridge übernehmen"</span>}
+          {sent === 'fail' && <span className="text-[11px] text-red-600">fehlgeschlagen — läuft der Server?</span>}
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            In Figma das DesignBridge-Plugin öffnen → <strong>Aus DesignBridge übernehmen</strong>. Legt Paint-
+            und Text-Styles sowie erkannte Komponenten an.
+          </p>
+          <button
+            onClick={() => setFigmaJsonOpen(o => !o)}
+            className="text-xs text-zinc-500 hover:text-zinc-900 underline underline-offset-2 text-left transition-colors"
+          >
+            {figmaJsonOpen ? 'JSON ausblenden' : 'JSON anzeigen'}
+          </button>
+          {figmaJsonOpen && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-mono text-zinc-500 truncate">{FIGMA_FORMAT.filename}</span>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {figmaCopied === 'ok' && <span className="text-[10px] text-emerald-600">kopiert</span>}
+                  {figmaCopied === 'fail' && <span className="text-[10px] text-red-600">n/v</span>}
+                  <button
+                    onClick={handleCopyFigmaJson}
+                    className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
+                  >
+                    Kopieren
+                  </button>
+                  <button
+                    onClick={() => downloadFile(FIGMA_FORMAT.filename, exports.figma, FIGMA_FORMAT.mime)}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+                  >
+                    Herunterladen
+                  </button>
+                </div>
+              </div>
+              <pre
+                data-testid="export-figma-json-preview"
+                className="text-[10px] font-mono bg-zinc-50 border border-zinc-200 rounded p-2 overflow-auto max-h-64 whitespace-pre"
+              >
+                {exports.figma}
+              </pre>
+            </div>
+          )}
+          <button
+            disabled
+            title="Folgt in einer späteren Version"
+            className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-500 opacity-40 cursor-not-allowed"
+          >
+            Nach Storybook (folgt)
+          </button>
+        </div>
+
+        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mt-6 mb-3">Format</div>
         <div className="flex flex-col gap-0.5">
-          {EXPORT_FORMATS.map(f => (
+          {FORMAT_LIST.map(f => (
             <button
               key={f.id}
               onClick={() => setActiveId(f.id)}
@@ -115,27 +192,6 @@ export default function Export({ result }) {
         >
           {code}
         </pre>
-        {activeId === 'figma' && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSendToFigma}
-                className="text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
-              >
-                An Figma senden
-              </button>
-              {sent === 'ok' && <span className="text-[11px] text-emerald-600">bereit — jetzt im Plugin „Aus DesignBridge übernehmen"</span>}
-              {sent === 'fail' && <span className="text-[11px] text-red-600">fehlgeschlagen — läuft der Server?</span>}
-            </div>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Schnellster Weg: <strong>An Figma senden</strong> → in Figma das DesignBridge-Plugin öffnen →
-              <strong> Aus DesignBridge übernehmen</strong>. Alternativ JSON <strong>Kopieren</strong> und im
-              Plugin unter „Code → Figma" einfügen. Legt Paint- und Text-Styles an (Gruppe „DesignBridge/…")
-              und baut jetzt auch die erkannten Komponenten als Figma-Komponenten auf einer eigenen Seite
-              „🌉 DesignBridge". v2: Farben + Typografie + Komponenten.
-            </p>
-          </div>
-        )}
       </section>
     </div>
   );
