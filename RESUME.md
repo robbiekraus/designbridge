@@ -1,6 +1,17 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **17.07.2026 nachmittags (Testrunde 6 — alle 6 Befunde gefixt & deployt, `afb1995`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **echter, dauerhaft kostenloser KI** (Google Gemini Free-Tier). Server **208/208** · Web **391/391** · Plugin-Tests 53/53.
+Stand: **17.07.2026 spätabends (Testrunden 6 + 7 + 7.5 komplett, `a791ae8`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **208/208** · Web **412/412** · Plugin **53/53**.
+
+## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Robs Plan: nächster Test)
+
+**Robs Testprogramm:** App laden → neuer Bild-Import (z. B. `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png`) → Erwartung: **alle 13 Bausteine interpretieren in ~1–2 Min** (Pool 6, Auto-Retry, 32k-Token-Limit) → Export-Tab (neuer ZIELE-Bereich) → „An Figma senden" → Plugin-Import in leere Seite/Datei. In Figma erwartet: Trend-Chart MIT Linien, Tabelle zeilenweise, keine Platzhalter außer echten Doppel-Fehlschlägen. Claude kann das Figma-Ergebnis per Figma-MCP selbst verifizieren (Rob muss nur die Datei im Desktop offen haben; Link geben).
+
+**Offene Entscheidungen von Rob:** (1) „Connect Figma"-Stub im Topbar entfernen? (empfohlen: ja); (2) Refracta-Go (Umbenennung wartet seit 14.07.).
+
+**Nächste Baustellen (priorisiert):**
+1. **Plan-Fidelity-Scheibe** (Spec ausstehend; Befunde in Session 7.5 unten): absolute Positionierung im Plan-Modell, Prozent-Größen im Offscreen-Mount, Tabellen-Spaltenraster, ggf. Tailwind-Runtime im Mount.
+2. Figma-Seiten-Namespacing pro Import (Mehrfach-Importe mischen sich per Namens-Match).
+3. Polish: Scan-Retry bei abgeschnittener KI-Antwort (transient, 1× gesehen); Storybook-Emitter (Stub steht im Export-Tab).
 
 ## Session 17.07.2026 mittags/nachmittags — Testrunde 6 (Robs Bild-Test + Figma-Rundlauf)
 
