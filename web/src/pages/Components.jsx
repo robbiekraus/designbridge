@@ -17,6 +17,8 @@ export default function Components({ result, onRetryInterpret, retryingNames }) 
       onRetryInterpret={onRetryInterpret}
       retryingNames={retryingNames}
       batchPending={result?.interpretPending ?? false}
+      interpretError={result?.interpretError ?? null}
+      quotaExhausted={result?.interpretQuotaExhausted ?? false}
     />
   );
 }

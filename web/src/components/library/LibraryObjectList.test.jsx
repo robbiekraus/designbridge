@@ -168,7 +168,7 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
 });
 
 describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
-  it('retryingNames enthält den Item-Namen: Button disabled + „Wird erneut interpretiert …", kein "fehlgeschlagen"-Text', () => {
+  it('retryingNames enthält den Item-Namen: Button disabled + „Wird erneut interpretiert …", kein "fehlgeschlagen"-Text, Button-Label „Läuft …" (Fix 2)', () => {
     const onRetryInterpret = vi.fn();
     render(
       <LibraryObjectList
@@ -181,7 +181,8 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
     fireEvent.click(screen.getByText('Avatar'));
     expect(screen.getByText(/Wird erneut interpretiert/)).toBeTruthy();
     expect(screen.queryByText(/Interpretation fehlgeschlagen/)).toBeNull();
-    const button = screen.getByRole('button', { name: 'Erneut versuchen' });
+    // Fix 2: Button zeigt "Läuft …" statt "Erneut versuchen", solange die Zeile retried.
+    const button = screen.getByRole('button', { name: 'Läuft …' });
     expect(button).toBeDisabled();
   });
 
@@ -228,7 +229,7 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
     expect(screen.getByRole('button', { name: /Mit KI interpretieren/ })).toBeDisabled();
   });
 
-  it('gehobener Baustein: retryingNames sperrt auch den "Mit KI interpretieren"-Knopf', () => {
+  it('gehobener Baustein: retryingNames sperrt den Knopf und zeigt "Läuft …" (Fix 2 — Label wechselt während des Retries)', () => {
     const onRetryInterpret = vi.fn();
     const items = [{
       name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
@@ -245,6 +246,136 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
       />
     );
     fireEvent.click(screen.getByText('PricingWidget'));
-    expect(screen.getByRole('button', { name: /Mit KI interpretieren/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Mit KI interpretieren/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Läuft …' })).toBeDisabled();
+  });
+});
+
+const liftedItem = (overrides = {}) => ({
+  name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+  code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
+  lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
+  interpretFailed: false, interpretPending: false,
+  ...overrides,
+});
+
+describe('LibraryObjectList — Fix 1: echte Fehlermeldung + Quota-Sperre an der Zeile', () => {
+  it('quotaExhausted: Zeile zeigt die Server-Meldung aus interpretError, beide Button-Typen disabled mit title', () => {
+    const onRetryInterpret = vi.fn();
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true }), liftedItem()]}
+        picks={{}}
+        onRetryInterpret={onRetryInterpret}
+        interpretError="Tages-Kontingent erschöpft (RPD)."
+        quotaExhausted
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText('Tages-Kontingent erschöpft (RPD).')).toBeInTheDocument();
+    const retryButton = screen.getByRole('button', { name: 'Erneut versuchen' });
+    expect(retryButton).toBeDisabled();
+    expect(retryButton).toHaveAttribute('title', 'Tages-Kontingent erschöpft (RPD).');
+
+    fireEvent.click(screen.getByText('PricingWidget'));
+    const interpretButton = screen.getByRole('button', { name: /Mit KI interpretieren/ });
+    expect(interpretButton).toBeDisabled();
+    expect(interpretButton).toHaveAttribute('title', 'Tages-Kontingent erschöpft (RPD).');
+  });
+
+  it('quotaExhausted ohne interpretError: zeigt den deutschen Fallback-Text mit Reset-Hinweis', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={vi.fn()}
+        quotaExhausted
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(
+      screen.getByText('Tages-Kontingent der KI ist aufgebraucht — Reset ca. 09:00 deutscher Zeit.')
+    ).toBeInTheDocument();
+  });
+
+  it('interpretError ohne Quota: Meldungstext enthält die echte Fehlermeldung, Button bleibt aktiv', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={vi.fn()}
+        interpretError="Netzwerkfehler beim Interpretieren"
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(
+      screen.getByText('Interpretation fehlgeschlagen: Netzwerkfehler beim Interpretieren')
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).not.toBeDisabled();
+  });
+
+  it('weder interpretError noch quotaExhausted: unveränderter generischer Text', () => {
+    render(
+      <LibraryObjectList items={[item({ interpretFailed: true })]} picks={{}} onRetryInterpret={vi.fn()} />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText('Interpretation fehlgeschlagen.')).toBeInTheDocument();
+  });
+});
+
+describe('LibraryObjectList — Fix 2: sichtbare Retry-Aktivität', () => {
+  it('retrying: Spinner im Detail (Status-Zeile) UND im zugeklappten Header', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={vi.fn()}
+        retryingNames={new Set(['Avatar'])}
+      />
+    );
+    // Header-Pille sichtbar auch OHNE die Zeile aufzuklappen:
+    expect(screen.getByText(/interpretiert …/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Avatar'));
+    // Mind. zwei Spinner: Header-Pille + Detail-Statuszeile.
+    expect(screen.getAllByRole('status').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('batchPending + offener Baustein (keine Interpretation, keine Vorschau): Header-Pille "interpretiert …" sichtbar', () => {
+    render(<LibraryObjectList items={[item()]} picks={{}} batchPending />);
+    expect(screen.getByText(/interpretiert …/)).toBeInTheDocument();
+  });
+
+  it('interpretierter Baustein bei batchPending: KEINE Header-Pille', () => {
+    render(
+      <LibraryObjectList items={[item({ interpretedHtml: '<div>A</div>' })]} picks={{}} batchPending />
+    );
+    expect(screen.queryByText(/interpretiert …/)).not.toBeInTheDocument();
+  });
+
+  it('Baustein mit Template-Vorschau bei batchPending: KEINE Header-Pille', () => {
+    render(
+      <LibraryObjectList
+        items={[{ ...item(), hasPreview: true, templateKey: 'button', variants: ['primary'] }]}
+        picks={{}}
+        batchPending
+      />
+    );
+    expect(screen.queryByText(/interpretiert …/)).not.toBeInTheDocument();
+  });
+
+  it('retrying: Vorschau-Bereich zeigt "Wird interpretiert …" mit Spinner statt "keine Vorschau"', () => {
+    render(
+      <LibraryObjectList
+        items={[item({ interpretFailed: true })]}
+        picks={{}}
+        onRetryInterpret={vi.fn()}
+        retryingNames={new Set(['Avatar'])}
+      />
+    );
+    fireEvent.click(screen.getByText('Avatar'));
+    expect(screen.getByText('Wird interpretiert …')).toBeInTheDocument();
+    expect(screen.queryByText('keine Vorschau')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 });

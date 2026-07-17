@@ -6,11 +6,33 @@ import InterpretedPreview from './InterpretedPreview.jsx';
 import { PREVIEWS } from '../../lib/components/templates/Previews.jsx';
 import { downloadFile } from '../../lib/download.js';
 
-function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
+// Fix 1 (Testrunde 6): Fallback-Text, wenn die Tages-Quota erschöpft ist, aber
+// der Server (noch) keine eigene Fehlermeldung mitgeliefert hat.
+const QUOTA_FALLBACK_MESSAGE = 'Tages-Kontingent der KI ist aufgebraucht — Reset ca. 09:00 deutscher Zeit.';
+
+// Fix 2 (Testrunde 6): CSS-only Spinner (kein neues Package) — im zinc-Stil,
+// wiederverwendet im Header, im Detail-Status und in der PreviewPlaceholder.
+function Spinner({ className = '' }) {
+  return (
+    <span
+      role="status"
+      aria-label="lädt"
+      className={`inline-block h-3 w-3 rounded-full border-2 border-zinc-300 border-t-zinc-600 animate-spin ${className}`}
+    />
+  );
+}
+
+function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
   const [open, setOpen] = useState(false);
   const [variant, setVariant] = useState(item.variants[0] ?? null);
   const [copied, setCopied] = useState(false);
   const Preview = item.hasPreview ? PREVIEWS[item.templateKey] : null;
+  // Fix 1: Quota-Sperre disabled ALLE Retry-Buttons dieser Zeile, mit Grund im title.
+  const quotaTitle = quotaExhausted ? (interpretError || QUOTA_FALLBACK_MESSAGE) : undefined;
+  const retryDisabled = retrying || batchPending || quotaExhausted;
+  // Fix 2: Header-Pille auch im zugeklappten Zustand, solange die Zeile retried
+  // oder ein laufender Batch diesen (noch offenen) Baustein noch nicht erreicht hat.
+  const showActivityPill = retrying || (batchPending && !item.interpretedHtml && !item.hasPreview);
 
   const copy = async () => {
     try {
@@ -41,6 +63,12 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
         {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && !item.lifted && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
             generischer Stub
+          </span>
+        )}
+        {showActivityPill && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600">
+            <Spinner />
+            interpretiert …
           </span>
         )}
         <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
@@ -78,6 +106,8 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
               <div className="w-full">
                 <InterpretedPreview html={item.interpretedHtml} title={item.name} />
               </div>
+            ) : retrying ? (
+              <PreviewPlaceholder label="Wird interpretiert …" spinner />
             ) : item.interpretPending ? (
               <PreviewPlaceholder label="Wird interpretiert …" />
             ) : (
@@ -88,29 +118,36 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
             <div className="pt-2">
               <button
                 onClick={() => onRetryInterpret(item.name)}
-                disabled={retrying || batchPending}
+                disabled={retryDisabled}
+                title={quotaTitle}
                 className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Mit KI interpretieren
+                {retrying ? 'Läuft …' : 'Mit KI interpretieren'}
               </button>
             </div>
           )}
           {item.interpretFailed && (
             <div className="flex items-center gap-2 pt-2 text-[11px] text-zinc-500">
+              {retrying && <Spinner />}
               <span>
                 {retrying
                   ? 'Wird erneut interpretiert …'
                   : batchPending
                     ? 'Interpretation läuft noch — Retry gleich möglich …'
-                    : 'Interpretation fehlgeschlagen.'}
+                    : quotaExhausted
+                      ? (interpretError || QUOTA_FALLBACK_MESSAGE)
+                      : interpretError
+                        ? `Interpretation fehlgeschlagen: ${interpretError}`
+                        : 'Interpretation fehlgeschlagen.'}
               </span>
               {onRetryInterpret && (
                 <button
                   onClick={() => onRetryInterpret(item.name)}
-                  disabled={retrying || batchPending}
+                  disabled={retryDisabled}
+                  title={quotaTitle}
                   className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Erneut versuchen
+                  {retrying ? 'Läuft …' : 'Erneut versuchen'}
                 </button>
               )}
             </div>
@@ -144,7 +181,15 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending }) {
   );
 }
 
-export default function LibraryObjectList({ items, picks, onRetryInterpret, retryingNames, batchPending }) {
+export default function LibraryObjectList({
+  items,
+  picks,
+  onRetryInterpret,
+  retryingNames,
+  batchPending,
+  interpretError,
+  quotaExhausted,
+}) {
   if (!items || items.length === 0) {
     return <div className="text-sm text-zinc-500">Keine Objekte erkannt.</div>;
   }
@@ -158,6 +203,8 @@ export default function LibraryObjectList({ items, picks, onRetryInterpret, retr
           onRetryInterpret={onRetryInterpret}
           retrying={retryingNames?.has(item.name) ?? false}
           batchPending={batchPending}
+          interpretError={interpretError}
+          quotaExhausted={quotaExhausted}
         />
       ))}
     </div>
