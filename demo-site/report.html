@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ACME Metrics — Reports</title>
+  <link rel="stylesheet" href="/demo/report.css" />
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- ============ Sidebar ============ -->
+    <aside class="sidebar">
+      <div class="sidebar-logo">
+        <span class="sidebar-logo-mark">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="8" cy="8" r="6" stroke="#ffffff" stroke-width="1.6"/>
+            <circle cx="8" cy="8" r="2" fill="#ffffff"/>
+          </svg>
+        </span>
+        <span class="sidebar-logo-word">ACME Metrics</span>
+      </div>
+
+      <ul class="nav-list">
+        <li>
+          <a class="nav-item" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 12l9-8 9 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 10v9h14v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Übersicht
+          </a>
+        </li>
+        <li>
+          <a class="nav-item is-active" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="12" width="4" height="8" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="10" y="7" width="4" height="13" rx="1" stroke="currentColor" stroke-width="1.8"/><rect x="16" y="3" width="4" height="17" rx="1" stroke="currentColor" stroke-width="1.8"/></svg>
+            Berichte
+          </a>
+        </li>
+        <li>
+          <a class="nav-item" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 21V9l9-6 9 6v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 21v-7h6v7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Standorte
+          </a>
+        </li>
+        <li>
+          <a class="nav-item" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3a5 5 0 015 5v3l1.6 3.2A1 1 0 0117.7 16H6.3a1 1 0 01-.9-1.8L7 11V8a5 5 0 015-5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 19a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Warnungen
+          </a>
+        </li>
+        <li>
+          <a class="nav-item" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="1.8"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M15 15.3c2.6.4 4.5 2 4.5 4.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            Team
+          </a>
+        </li>
+        <li>
+          <a class="nav-item" href="#">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19 12a7 7 0 00-.14-1.4l2-1.5-2-3.4-2.3.9a7 7 0 00-2.4-1.4L14 3h-4l-.16 2.2a7 7 0 00-2.4 1.4l-2.3-.9-2 3.4 2 1.5A7 7 0 005 12c0 .47.05.94.14 1.4l-2 1.5 2 3.4 2.3-.9c.7.6 1.5 1.1 2.4 1.4L10 21h4l.16-2.2a7 7 0 002.4-1.4l2.3.9 2-3.4-2-1.5c.09-.46.14-.93.14-1.4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            Einstellungen
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-spacer"></div>
+
+      <div class="storage-card">
+        <div class="storage-card-head">
+          <span>Speicherplatz</span>
+        </div>
+        <p class="storage-meta">12.8 GB von 25 GB genutzt</p>
+        <div class="storage-track"><div class="storage-fill"></div></div>
+        <button class="btn btn--secondary" style="width:100%; justify-content:center;">Upgrade</button>
+      </div>
+
+      <div class="user-row">
+        <span class="avatar-circle">PK</span>
+        <div>
+          <p class="user-name">Priya Kapoor</p>
+          <p class="user-role">Sustainability Lead</p>
+        </div>
+        <div class="user-row-spacer"></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3" stroke="#94a3b8" stroke-width="1.8"/><path d="M19 12a7 7 0 00-.14-1.4l2-1.5-2-3.4-2.3.9a7 7 0 00-2.4-1.4L14 3h-4l-.16 2.2a7 7 0 00-2.4 1.4l-2.3-.9-2 3.4 2 1.5A7 7 0 005 12c0 .47.05.94.14 1.4l-2 1.5 2 3.4 2.3-.9c.7.6 1.5 1.1 2.4 1.4L10 21h4l.16-2.2a7 7 0 002.4-1.4l2.3.9 2-3.4-2-1.5c.09-.46.14-.93.14-1.4z" stroke="#94a3b8" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </div>
+    </aside>
+
+    <!-- ============ Main ============ -->
+    <main class="main">
+
+      <!-- Topbar -->
+      <header class="topbar">
+        <div>
+          <h1 class="greeting-title">Guten Tag, Priya</h1>
+          <p class="greeting-subtitle">Alle Werke · Stand 17. Juli 2026</p>
+        </div>
+        <div class="topbar-spacer"></div>
+        <input class="search-input" type="search" placeholder="Berichte durchsuchen…" />
+        <button class="icon-button" aria-label="Benachrichtigungen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3a5 5 0 015 5v3l1.6 3.2A1 1 0 0117.7 16H6.3a1 1 0 01-.9-1.8L7 11V8a5 5 0 015-5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M10 19a2 2 0 004 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="notif-badge">3</span>
+        </button>
+        <select class="select-control">
+          <option>Dieser Monat</option>
+          <option>Letztes Quartal</option>
+          <option>Dieses Jahr</option>
+        </select>
+        <button class="btn btn--primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v13" stroke="#fff" stroke-width="2" stroke-linecap="round"/><path d="M7 11l5 5 5-5" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 21h16" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+          Bericht exportieren
+        </button>
+      </header>
+
+      <!-- KPI cards -->
+      <section class="kpi-row">
+        <div class="card kpi-card">
+          <div class="kpi-card-head">
+            <p class="kpi-label">CO₂-Ausstoß</p>
+            <span class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 20c8 1 14-4 14-12 0-1 0-2-.3-3-4 0-8 2-10 5C7 12 6 15 6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">28.410</span>
+            <span class="kpi-unit">tCO₂e</span>
+          </div>
+          <span class="trend-pill trend-pill--positive">↓ 8,2%<span class="trend-context">ggü. Vormonat</span></span>
+        </div>
+
+        <div class="card kpi-card">
+          <div class="kpi-card-head">
+            <p class="kpi-label">Energieverbrauch</p>
+            <span class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">9.742</span>
+            <span class="kpi-unit">MWh</span>
+          </div>
+          <span class="trend-pill trend-pill--negative">↑ 4,1%<span class="trend-context">ggü. Vormonat</span></span>
+        </div>
+
+        <div class="card kpi-card">
+          <div class="kpi-card-head">
+            <p class="kpi-label">Wasser aufbereitet</p>
+            <span class="kpi-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3s7 8 7 13a7 7 0 01-14 0c0-5 7-13 7-13z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            </span>
+          </div>
+          <div class="kpi-value-row">
+            <span class="kpi-value">6.203</span>
+            <span class="kpi-unit">kL</span>
+          </div>
+          <span class="trend-pill trend-pill--positive">↑ 19,5%<span class="trend-context">ggü. Vormonat</span></span>
+        </div>
+      </section>
+
+      <!-- Chart row: line chart + stacked bar -->
+      <section class="chart-row">
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Emissionsverlauf</h2>
+            <div class="legend">
+              <span class="legend-item"><span class="legend-dot" style="background:var(--color-primary);"></span>Aktueller Zeitraum</span>
+              <span class="legend-item"><span class="legend-dot" style="background:var(--color-warning);"></span>Vorjahreszeitraum</span>
+              <select class="select-control select-control--sm">
+                <option>Diese Woche</option>
+                <option>Dieser Monat</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="line-chart-outer">
+            <div class="line-chart-wrap">
+              <!-- Y axis labels (HTML, absolut positioniert) -->
+              <span class="axis-label" style="top:20px;">100</span>
+              <span class="axis-label" style="top:75px;">75</span>
+              <span class="axis-label" style="top:130px;">50</span>
+              <span class="axis-label" style="top:185px;">25</span>
+              <span class="axis-label" style="top:240px;">0</span>
+
+              <!-- X axis labels (HTML, absolut positioniert) -->
+              <span class="axis-label-x" style="left:10px;">Dez</span>
+              <span class="axis-label-x" style="left:117px;">Jan</span>
+              <span class="axis-label-x" style="left:223px;">Feb</span>
+              <span class="axis-label-x" style="left:330px;">Mär</span>
+              <span class="axis-label-x" style="left:437px;">Apr</span>
+              <span class="axis-label-x" style="left:543px;">Mai</span>
+              <span class="axis-label-x" style="left:650px;">Jun</span>
+
+              <svg width="660" height="260" viewBox="0 0 660 260" xmlns="http://www.w3.org/2000/svg">
+                <line x1="0" y1="20" x2="660" y2="20" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+                <line x1="0" y1="75" x2="660" y2="75" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+                <line x1="0" y1="130" x2="660" y2="130" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+                <line x1="0" y1="185" x2="660" y2="185" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4 4"/>
+                <line x1="0" y1="240" x2="660" y2="240" stroke="#e2e8f0" stroke-width="1"/>
+
+                <polyline points="10,174 116.67,141 223.33,125.6 330,152 436.67,134.4 543.33,103.6 650,86"
+                  fill="none" stroke="#d97706" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <polyline points="10,147.6 116.67,119 223.33,156.4 330,108 436.67,83.8 543.33,165.2 650,112.4"
+                  fill="none" stroke="#0f766e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+                <circle cx="330" cy="108" r="4" fill="#0f766e"/>
+                <circle cx="436.67" cy="83.8" r="5" fill="#ffffff" stroke="#0f766e" stroke-width="2.5"/>
+                <circle cx="650" cy="112.4" r="4" fill="#0f766e"/>
+              </svg>
+
+              <!-- Tooltip: absolut positioniert -->
+              <div class="chart-tooltip">
+                <div class="chart-tooltip-month">April</div>
+                <div class="chart-tooltip-value">71 tCO₂e</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Energiequellen-Mix</h2>
+          </div>
+
+          <div class="stacked-bar">
+            <div class="stacked-bar-segment" style="width:42%; background:var(--color-primary);"></div>
+            <div class="stacked-bar-segment" style="width:28%; background:var(--color-warning);"></div>
+            <div class="stacked-bar-segment" style="width:18%; background:var(--color-success);"></div>
+            <div class="stacked-bar-segment" style="width:12%; background:var(--color-text-muted);"></div>
+          </div>
+
+          <ul class="bar-legend">
+            <li class="bar-legend-item"><span class="bar-legend-swatch" style="background:var(--color-primary);"></span><span class="bar-legend-name">Netzstrom</span><span class="bar-legend-value">42%</span></li>
+            <li class="bar-legend-item"><span class="bar-legend-swatch" style="background:var(--color-warning);"></span><span class="bar-legend-name">Solar</span><span class="bar-legend-value">28%</span></li>
+            <li class="bar-legend-item"><span class="bar-legend-swatch" style="background:var(--color-success);"></span><span class="bar-legend-name">Wind</span><span class="bar-legend-value">18%</span></li>
+            <li class="bar-legend-item"><span class="bar-legend-swatch" style="background:var(--color-text-muted);"></span><span class="bar-legend-name">Erdölprodukte</span><span class="bar-legend-value">12%</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Row 3: top facilities + donut -->
+      <section class="split-row">
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Top-Standorte nach Ausstoß</h2>
+            <button class="btn btn--secondary">Alle anzeigen</button>
+          </div>
+          <ul class="facility-list">
+            <li class="facility-item">
+              <span class="facility-rank">L</span>
+              <div class="facility-info">
+                <p class="facility-name">Werk Leipzig</p>
+                <p class="facility-place">Leipzig, DE</p>
+              </div>
+              <div>
+                <span class="facility-value">1.219,40</span>
+                <span class="facility-unit">tCO₂e</span>
+              </div>
+            </li>
+            <li class="facility-item">
+              <span class="facility-rank">G</span>
+              <div class="facility-info">
+                <p class="facility-name">Werk Graz</p>
+                <p class="facility-place">Graz, AT</p>
+              </div>
+              <div>
+                <span class="facility-value">918,25</span>
+                <span class="facility-unit">tCO₂e</span>
+              </div>
+            </li>
+            <li class="facility-item">
+              <span class="facility-rank">R</span>
+              <div class="facility-info">
+                <p class="facility-name">Werk Rotterdam</p>
+                <p class="facility-place">Rotterdam, NL</p>
+              </div>
+              <div>
+                <span class="facility-value">742,10</span>
+                <span class="facility-unit">tCO₂e</span>
+              </div>
+            </li>
+            <li class="facility-item">
+              <span class="facility-rank">L</span>
+              <div class="facility-info">
+                <p class="facility-name">Werk Lyon</p>
+                <p class="facility-place">Lyon, FR</p>
+              </div>
+              <div>
+                <span class="facility-value">605,55</span>
+                <span class="facility-unit">tCO₂e</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 class="card-title">Emissionen nach Kategorie</h2>
+          </div>
+
+          <div class="donut-wrap">
+            <svg width="168" height="168" viewBox="0 0 168 168" xmlns="http://www.w3.org/2000/svg">
+              <g transform="rotate(-90 84 84)">
+                <circle cx="84" cy="84" r="64" fill="none" stroke="#0f766e" stroke-width="24"
+                  stroke-dasharray="164.9 402.1" stroke-dashoffset="0"/>
+                <circle cx="84" cy="84" r="64" fill="none" stroke="#d97706" stroke-width="24"
+                  stroke-dasharray="96.6 402.1" stroke-dashoffset="-164.9"/>
+                <circle cx="84" cy="84" r="64" fill="none" stroke="#dc2626" stroke-width="24"
+                  stroke-dasharray="76.5 402.1" stroke-dashoffset="-261.5"/>
+                <circle cx="84" cy="84" r="64" fill="none" stroke="#64748b" stroke-width="24"
+                  stroke-dasharray="64.3 402.1" stroke-dashoffset="-338"/>
+              </g>
+            </svg>
+            <div class="donut-center">
+              <span class="donut-center-value">84%</span>
+              <span class="donut-center-label">Bekannte Quelle</span>
+            </div>
+          </div>
+
+          <ul class="donut-legend">
+            <li class="donut-legend-item"><span class="bar-legend-swatch" style="background:var(--color-primary);"></span><span class="donut-legend-name">Stationäre Verbrennung</span><span class="donut-legend-value">41%</span></li>
+            <li class="donut-legend-item"><span class="bar-legend-swatch" style="background:var(--color-warning);"></span><span class="donut-legend-name">Eingekaufte Energie</span><span class="donut-legend-value">24%</span></li>
+            <li class="donut-legend-item"><span class="bar-legend-swatch" style="background:var(--color-danger);"></span><span class="donut-legend-name">Flüchtige Emissionen</span><span class="donut-legend-value">19%</span></li>
+            <li class="donut-legend-item"><span class="bar-legend-swatch" style="background:var(--color-text-muted);"></span><span class="donut-legend-name">Sonstige</span><span class="donut-legend-value">16%</span></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Data table -->
+      <section class="card table-card">
+        <div class="table-card-head">
+          <h2 class="card-title">Berichte</h2>
+          <select class="select-control">
+            <option>Dieser Monat</option>
+            <option>Letztes Quartal</option>
+          </select>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Standort</th>
+              <th>Prozess</th>
+              <th>Kategorie</th>
+              <th>Emission (tCO₂e)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Werk Leipzig</td>
+              <td>Extrusion</td>
+              <td>Stationäre Verbrennung</td>
+              <td class="numeric">1.219,40</td>
+              <td><span class="badge badge--success">Verifiziert</span></td>
+            </tr>
+            <tr>
+              <td>Werk Leipzig</td>
+              <td>Extrusion</td>
+              <td>Eingekaufte Energie</td>
+              <td class="numeric">2.845,10</td>
+              <td><span class="badge badge--warning">Ausstehend</span></td>
+            </tr>
+            <tr>
+              <td>Werk Graz</td>
+              <td>Montage</td>
+              <td>Stationäre Verbrennung</td>
+              <td class="numeric">918,25</td>
+              <td><span class="badge badge--success">Verifiziert</span></td>
+            </tr>
+            <tr>
+              <td>Werk Rotterdam</td>
+              <td>Logistik</td>
+              <td>Flüchtige Emissionen</td>
+              <td class="numeric">742,10</td>
+              <td><span class="badge badge--warning">Ausstehend</span></td>
+            </tr>
+            <tr>
+              <td>Werk Lyon</td>
+              <td>Montage</td>
+              <td>Eingekaufte Energie</td>
+              <td class="numeric">605,55</td>
+              <td><span class="badge badge--success">Verifiziert</span></td>
+            </tr>
+            <tr>
+              <td>Werk Leipzig</td>
+              <td>Verpackung</td>
+              <td>Sonstige</td>
+              <td class="numeric">388,90</td>
+              <td><span class="badge badge--warning">Ausstehend</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="table-footer">
+          <span class="table-footer-count">Zeige 1–6 von 42 Einträgen</span>
+          <div class="pagination">
+            <span class="page-button">‹</span>
+            <span class="page-button is-current">1</span>
+            <span class="page-button">2</span>
+            <span class="page-button">…</span>
+            <span class="page-button">7</span>
+            <span class="page-button">›</span>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</body>
+</html>
