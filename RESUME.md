@@ -9,9 +9,17 @@ Stand: **17.07.2026 spätabends (Testrunden 6 + 7 + 7.5 komplett, `a791ae8`)** �
 **Offene Entscheidungen von Rob:** (1) „Connect Figma"-Stub im Topbar entfernen? (empfohlen: ja); (2) Refracta-Go (Umbenennung wartet seit 14.07.).
 
 **Nächste Baustellen (priorisiert):**
-1. **Plan-Fidelity-Scheibe** (Spec ausstehend; Befunde in Session 7.5 unten): absolute Positionierung im Plan-Modell, Prozent-Größen im Offscreen-Mount, Tabellen-Spaltenraster, ggf. Tailwind-Runtime im Mount.
-2. Figma-Seiten-Namespacing pro Import (Mehrfach-Importe mischen sich per Namens-Match).
-3. Polish: Scan-Retry bei abgeschnittener KI-Antwort (transient, 1× gesehen); Storybook-Emitter (Stub steht im Export-Tab).
+1. **Plan-Fidelity-Scheibe** (Spec ausstehend; Befunde in Session 7.5 + Testrunde 8 unten): **Prozent-BREITEN im 360px-Offscreen-Mount** (bewiesen, s. Testrunde 8 — Robs „Chart in der Breite gekroppt"), absolute Positionierung im Plan-Modell, Prozent-Höhen, Tabellen-Spaltenraster, ggf. Tailwind-Runtime im Mount.
+2. **Export-Ehrlichkeit** (Testrunde 8): Export-Tab warnt NICHT vor Bausteinen ohne Interpretation (`Export.jsx` kennt den Zustand gar nicht) → Rob exportierte den Donut als Platzhalter ohne Hinweis; Plugin-Meldung „13 Bausteine neu …, 1 Platzhalter" liest sich wie 13+1 (Platzhalter ist in den 13 ENTHALTEN); Token-Zahl-Diskrepanz kommunizieren (App 20 Tokens ↔ Figma 13 Styles, Spacing/Radius/Shadow sind BY DESIGN nicht im Figma-Payload).
+3. Figma-Seiten-Namespacing pro Import (Mehrfach-Importe mischen sich per Namens-Match).
+4. Polish: Scan-Retry bei abgeschnittener KI-Antwort (transient, 1× gesehen); Storybook-Emitter (Stub steht im Export-Tab); Patterns-Begriff mit Rob klären (ganze nachgebaute Seite zählt aktuell als „Pattern" — Rob versteht darunter etwas anderes).
+
+## Session 17.07.2026 nachts — Testrunde 8: Diagnose zu Robs Figma-Test (Screenshots `Testdaten/interpretation 1707- 4`)
+
+Robs Test lief durch (Import ✅, alle 13 Bausteine, Figma-Import ✅ in `test 1707-4`), zwei Befunde read-only diagnostiziert (Fable, keine Fixes — Spec zuerst):
+
+1. **„Emissions-Chart in der Breite gekroppt" — Root Cause BEWIESEN, Bug liegt NICHT im Plugin:** Der Export-Payload (`/api/figma-export/latest`) enthält den Chart bereits mit fester Breite **360px**. Ursache: `htmlToPlan.js` misst die KI-HTML in einem Offscreen-Container mit `OFFSCREEN_WIDTH = 360` (Z. 19, 498); `readSize()` (Z. 249) friert Inline-Prozentbreiten (`width:100%`) als absolute px ein → 100% von 360 = 360. Beweis: exakt 3 Bausteine haben root-width 360 (Sidebar, Emissions Trend, Top Emissions = die mit `width:100%`), KPI-Cards tragen echte px-Breiten (480/520) und stimmen. Die App-Vorschau sieht richtig aus, weil das Thumbnail mit virtueller Breite 1024 rendert — Messung für Figma aber mit 360. Gleiche Familie wie 7.5-Befund (Prozent-Höhen→0). **Fix-Richtung (in Plan-Fidelity-Spec):** Prozentbreiten nicht als px einfrieren, sondern als FILL übersetzen; Offscreen-Breite an Vorschau angleichen (1024).
+2. **Zähl-Diskrepanzen aufgeklärt (keine Zähl-Bugs, aber 2 UX-Lücken):** (a) Der „1 Platzhalter" = **Category Of Emissions Chart (Donut)** — ging mit `placeholder:true, plan:null` raus, d. h. beim Export fehlte eine verwertbare Interpretation; der Export-Tab hat davor nicht gewarnt (Lücke, s. Baustelle 2). (b) App „20 Tokens" ↔ Plugin „9 Farben + 4 Textstile": die übrigen 7 (3 Spacing, 3 Radius, 1 Shadow) sind im Figma-Payload strukturell nicht enthalten — korrekt, aber unkommuniziert.
 
 ## Session 17.07.2026 mittags/nachmittags — Testrunde 6 (Robs Bild-Test + Figma-Rundlauf)
 
