@@ -42,9 +42,15 @@ export function componentsNeedingInterpretation(result) {
 // 1 Baustein pro Request (Live-Befund 17.07., Paid-Tier): 4 komplexe
 // Bausteine in EINEM Gemini-Call dauerten zusammen >60s und liefen reihenweise
 // in den Server-Timeout (502), während Einzel-Calls in 14–54s durchgehen.
-// Einzeln = kein Timeout-Stapeln, feinster Fortschritt in der UI, und auch im
-// Free-Tier unkritisch (sequenziell bei 15–55s/Call bleibt weit unter 10 RPM).
-const CLIENT_CHUNK_SIZE = 1;
+// Einzeln = kein Timeout-Stapeln, feinster Fortschritt in der UI. Jeder
+// Pool-Worker sendet daher weiterhin genau EIN Item pro Request.
+//
+// Testrunde 7 Fix A: 13 Bausteine sequenziell = 5–12 Minuten Batch. Statt
+// dessen ein Worker-Pool mit Konkurrenz 3 (Paid-Tier: 15–55s/Call, 3 parallel
+// bleibt unter 10 RPM) + eine automatische zweite Runde für alles, was in
+// Runde 1 gescheitert ist — nur ein echter Doppel-Fehlschlag verlangt noch
+// den manuellen Retry-Knopf.
+const POOL_CONCURRENCY = 3;
 
 export async function requestInterpretations(importId, components, { signal } = {}) {
   const res = await fetch('/api/interpret/components', {
@@ -85,12 +91,62 @@ export function attachInterpretations(result, data) {
 }
 
 /**
- * Orchestrierung: prüft ob etwas zu tun ist, sendet die offenen Bausteine in
- * 4er-Chunks (sequenziell — schont das Free-Tier-RPM zusammen mit dem
- * Server-Backoff) und merged jede Antwort sofort. `onProgress` bekommt nach
- * jedem Chunk den akkumulierten Zwischenstand (interpretPending bleibt bis
- * zum letzten Chunk true). Ein `signal` bricht vor dem nächsten Chunk ab —
- * z. B. weil ein neuer Import gestartet wurde.
+ * Worker-Pool über eine Item-Queue: höchstens `POOL_CONCURRENCY` Requests
+ * gleichzeitig in Flight. Jeder Worker holt sich synchron das nächste Item
+ * (kein echtes Multithreading in JS — zwischen zwei Dequeues liegt kein
+ * `await`, der Index-Zugriff ist damit atomar), schickt genau EIN Item pro
+ * Request und meldet das Ergebnis über `onSettled`, bevor er sich das
+ * nächste Item holt. `next()` prüft vor jedem Dequeue `signal.aborted` und
+ * `stopFlagRef.stopped` (Quota-Fail-Fast) — sobald eines von beiden gilt,
+ * startet kein Worker mehr etwas Neues; bereits laufende Requests werden
+ * trotzdem noch eingesammelt. Gibt die NIE gestarteten Items zurück.
+ */
+async function runPool(items, { importId, signal, stopFlagRef, onSettled }) {
+  let idx = 0;
+  function next() {
+    if (signal?.aborted || stopFlagRef.stopped) return undefined;
+    if (idx >= items.length) return undefined;
+    return items[idx++];
+  }
+  async function worker() {
+    for (;;) {
+      const item = next();
+      if (!item) return;
+      try {
+        const data = await requestInterpretations(importId, [item], { signal });
+        if (signal?.aborted) return; // zu spät — Result wird ohnehin verworfen
+        onSettled(item, { ok: true, data });
+      } catch (e) {
+        if (signal?.aborted || e?.name === 'AbortError') return;
+        onSettled(item, { ok: false, error: e });
+      }
+    }
+  }
+  const n = Math.min(POOL_CONCURRENCY, items.length);
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return items.slice(idx);
+}
+
+/**
+ * Orchestrierung: prüft ob etwas zu tun ist, schickt die offenen Bausteine
+ * durch einen Worker-Pool (Konkurrenz 3, ein Item pro Request) und merged
+ * jede Antwort SOFORT bei Ankunft. `onProgress` bekommt nach JEDER Antwort
+ * den akkumulierten Zwischenstand (interpretPending bleibt bis zum Ende der
+ * Auto-Retry-Runde true). Ein `signal` bricht vor dem nächsten Dequeue ab —
+ * z. B. weil ein neuer Import gestartet wurde — und verwirft das gesamte
+ * Ergebnis (Rückgabe null).
+ *
+ * Nach Runde 1 bekommen alle gescheiterten Items (außer bei
+ * Tages-Quota-Abbruch) genau EINE automatische zweite Runde über denselben
+ * Pool — erst was danach noch scheitert, landet in interpretFailed und
+ * verlangt den manuellen Retry-Knopf.
+ *
+ * Tages-Quota (daily_quota): Fail-Fast wie bisher — sobald ein Request das
+ * meldet, startet der Pool nichts Neues mehr, bereits laufende Antworten
+ * werden noch eingesammelt, alle danach noch nicht erfolgreichen Namen
+ * gelten als failed, interpretQuotaExhausted wird true, und es gibt KEINE
+ * Auto-Retry-Runde (derselbe Fehler träfe sie sofort wieder).
+ *
  * Gibt das nächste Result zurück — oder null, wenn nichts zu tun war oder
  * abgebrochen wurde. Wirft nie: Fehler landen als interpretError/interpretFailed.
  */
@@ -98,56 +154,86 @@ export async function runInterpretation(result, { onProgress, signal } = {}) {
   const todo = componentsNeedingInterpretation(result);
   const importId = result?.raw?.meta?.import_id;
   if (!['image', 'url', 'repo'].includes(result?.source) || !importId || todo.length === 0) return null;
-
-  const chunks = [];
-  for (let i = 0; i < todo.length; i += CLIENT_CHUNK_SIZE) chunks.push(todo.slice(i, i + CLIENT_CHUNK_SIZE));
+  if (signal?.aborted) return null; // neuer Import übernimmt — gar nicht erst starten
 
   let acc = { ...result, interpretPending: true, interpretError: null };
-  const failed = [];
-  let lastError = null;
+  let failed = [];
   let anySuccess = false;
-  let quotaExhausted = false;
+  let lastError = null;
+  let quotaError = null;
+  const stopFlagRef = { stopped: false };
 
-  // Sequenziell, nicht parallel: Free-Tier-RPM. Der Server-Backoff (Task 1)
-  // fängt Drosselungen ab; hier zusätzlich zu parallelisieren würde sie provozieren.
-  for (let i = 0; i < chunks.length; i++) {
-    const chunk = chunks[i];
-    if (signal?.aborted) return null; // neuer Import übernimmt — Ergebnis verwerfen
-    try {
-      const data = await requestInterpretations(importId, chunk, { signal });
+  // Merged eine einzelne Antwort (Erfolg oder Fehlschlag) in `acc`/`failed`
+  // und meldet den akkumulierten Zwischenstand — egal ob Runde 1 oder die
+  // Auto-Retry-Runde, egal welcher Pool-Worker gerade fertig wurde.
+  function onSettled(item, outcome) {
+    if (outcome.ok) {
       anySuccess = true;
-      acc = attachInterpretations(acc, data);
-      failed.push(...(data.failed ?? []));
-      // Zwischenstand zeigen: pending bleibt true bis zum letzten Chunk.
-      acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
-      onProgress?.(acc);
-    } catch (e) {
-      if (signal?.aborted || e?.name === 'AbortError') return null;
-      lastError = e;
-      if (e.dailyQuota) {
-        // Tages-Quota erschöpft (Quota-Bremse): derselbe Fehler träfe jeden
-        // weiteren Chunk — sofort abbrechen statt sinnlos weiterzusenden.
-        // Alle noch nicht gesendeten Chunk-Namen (inkl. des gerade
-        // gescheiterten) zählen als failed.
-        quotaExhausted = true;
-        for (let j = i; j < chunks.length; j++) failed.push(...chunks[j].map((c) => c.name));
-        acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
-        onProgress?.(acc);
-        break;
+      acc = attachInterpretations(acc, outcome.data);
+      const serverFailed = outcome.data.failed ?? [];
+      failed = failed.filter((n) => n !== item.name);
+      for (const n of serverFailed) if (!failed.includes(n)) failed.push(n);
+    } else {
+      lastError = outcome.error;
+      if (outcome.error?.dailyQuota) {
+        stopFlagRef.stopped = true;
+        quotaError = outcome.error;
       }
-      failed.push(...chunk.map((c) => c.name));
+      if (!failed.includes(item.name)) failed.push(item.name);
+    }
+    acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
+    onProgress?.(acc);
+  }
+
+  const neverStartedR1 = await runPool(todo, { importId, signal, stopFlagRef, onSettled });
+  if (signal?.aborted) return null;
+
+  if (stopFlagRef.stopped) {
+    // Quota-Fail-Fast: Items, die wegen des Stopps nie gestartet wurden,
+    // zählen ebenfalls als failed (sie kamen schlicht nie dran).
+    const extra = neverStartedR1.map((c) => c.name).filter((n) => !failed.includes(n));
+    if (extra.length) {
+      failed = [...failed, ...extra];
       acc = { ...acc, interpretPending: true, interpretFailed: [...failed] };
       onProgress?.(acc);
     }
+    return {
+      ...acc,
+      interpretPending: false,
+      interpretFailed: failed,
+      interpretQuotaExhausted: true,
+      interpretError: quotaError.message || String(quotaError),
+    };
   }
+
+  // Auto-Retry-Runde: genau EIN weiterer Versuch für alles, was in Runde 1
+  // gescheitert ist — über denselben Pool (Konkurrenz 3).
+  if (failed.length > 0) {
+    const byName = new Map(todo.map((c) => [c.name, c]));
+    const retryItems = failed.map((n) => byName.get(n)).filter(Boolean);
+    if (retryItems.length > 0) {
+      await runPool(retryItems, { importId, signal, stopFlagRef, onSettled });
+      if (signal?.aborted) return null;
+      if (stopFlagRef.stopped) {
+        // Quota-Fail-Fast mitten in der Auto-Retry-Runde: alle noch offenen
+        // Namen stecken bereits in `failed` (retryItems kam ja aus `failed`).
+        return {
+          ...acc,
+          interpretPending: false,
+          interpretFailed: failed,
+          interpretQuotaExhausted: true,
+          interpretError: quotaError.message || String(quotaError),
+        };
+      }
+    }
+  }
+
   return {
     ...acc,
     interpretPending: false,
     interpretFailed: failed,
-    interpretQuotaExhausted: quotaExhausted,
-    interpretError: quotaExhausted
-      ? (lastError.message || String(lastError))
-      : (!anySuccess && lastError ? (lastError.message || String(lastError)) : null),
+    interpretQuotaExhausted: false,
+    interpretError: !anySuccess && lastError ? (lastError.message || String(lastError)) : null,
   };
 }
 

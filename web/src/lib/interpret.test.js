@@ -235,7 +235,7 @@ describe('runInterpretation', () => {
   });
 });
 
-describe('runInterpretation — progressive Chunks + Abort', () => {
+describe('runInterpretation — Worker-Pool (Konkurrenz 3) + Auto-Retry + Abort', () => {
   const NINE = {
     source: 'image',
     raw: {
@@ -246,7 +246,13 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     },
   };
 
-  it('9 todo-Komponenten → 9 Einzel-Requests (1 je Body), onProgress je Chunk mit interpretPending:true, Endergebnis vollständig', async () => {
+  // Kleiner Helfer: ein echter Makrotask-Tick, damit alle an einen manuell
+  // aufgelösten Promise gehängten Microtasks (inkl. der Chain aus
+  // requestInterpretations: await fetch → await res.json() → onSettled →
+  // nächstes next()) sicher durchlaufen sind, bevor der Test weiterprüft.
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it('9 todo-Komponenten → 9 Einzel-Requests (1 Item je Body), onProgress je Antwort mit interpretPending:true, Endergebnis vollständig', async () => {
     const calls = [];
     const progressStates = [];
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
@@ -263,13 +269,13 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     const onProgress = vi.fn((state) => progressStates.push(state));
     const next = await runInterpretation(NINE, { onProgress });
 
+    // Pool-Konkurrenz 3: Reihenfolge der Request-Bodies ist nicht mehr
+    // Widget1..Widget9 — nur Menge/Inhalt zählt.
     expect(calls.length).toBe(9);
     calls.forEach((c) => expect(c.length).toBe(1));
-    expect(calls.flat()).toEqual([
-      'Widget1', 'Widget2', 'Widget3', 'Widget4',
-      'Widget5', 'Widget6', 'Widget7', 'Widget8',
-      'Widget9',
-    ]);
+    expect(calls.flat().sort()).toEqual(
+      Array.from({ length: 9 }, (_, i) => `Widget${i + 1}`).sort()
+    );
     expect(onProgress).toHaveBeenCalledTimes(9);
     progressStates.forEach((state) => expect(state.interpretPending).toBe(true));
     expect(next.interpretPending).toBe(false);
@@ -278,83 +284,156 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     expect(next.interpretError).toBeNull();
   });
 
-  it('Request 2 von 9 schlägt fehl → Rest kommt durch, nur dessen Name in interpretFailed, kein interpretError (anySuccess)', async () => {
-    let call = 0;
+  it('Pool-Konkurrenz: nie mehr als 3 Requests gleichzeitig in Flight (über manuell auflösbare Promises geprüft)', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let totalStarted = 0;
+    let pendingResolvers = [];
     vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-      call++;
-      if (call === 2) throw new Error('netz kaputt');
+      totalStarted++;
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
       const body = JSON.parse(opts.body);
-      return {
-        ok: true,
-        json: async () => ({
-          interpretations: body.components.map((c) => ({ name: c.name, html: '<div/>', jsx: '' })),
-          failed: [],
-        }),
-      };
+      return new Promise((resolve) => {
+        pendingResolvers.push(() => {
+          inFlight--;
+          resolve({
+            ok: true,
+            json: async () => ({
+              interpretations: [{ name: body.components[0].name, html: '<div/>', jsx: '' }],
+              failed: [],
+            }),
+          });
+        });
+      });
     }));
-    const next = await runInterpretation(NINE);
-    expect(next.interpretError).toBeNull();
-    expect(next.interpretFailed).toEqual(['Widget2']);
-    expect(Object.keys(next.interpretations).sort()).toEqual(
-      ['Widget1', 'Widget3', 'Widget4', 'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
-    );
+
+    const runPromise = runInterpretation(NINE);
+    await flush();
+    expect(inFlight).toBe(3); // Pool sofort auf Konkurrenz 3 ausgeschöpft, nichts aufgelöst
+
+    while (totalStarted < 9 || pendingResolvers.length > 0) {
+      const resolvers = pendingResolvers;
+      pendingResolvers = [];
+      resolvers.forEach((r) => r());
+      await flush();
+    }
+    const next = await runPromise;
+
+    expect(maxInFlight).toBe(3); // nie mehr als Konkurrenz 3
+    expect(totalStarted).toBe(9);
+    expect(Object.keys(next.interpretations)).toHaveLength(9);
     expect(next.interpretPending).toBe(false);
   });
 
-  it('alle Chunks schlagen fehl → interpretError gesetzt, alle Namen failed', async () => {
+  it('Auto-Retry-Runde: 1×-Versager wird gerettet (nicht in interpretFailed), 2×-Versager bleibt failed, kein unnötiger Retry für Erfolge', async () => {
+    const attempts = {};
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      const body = JSON.parse(opts.body);
+      const name = body.components[0].name;
+      attempts[name] = (attempts[name] ?? 0) + 1;
+      if (name === 'FailsAlways') {
+        return { ok: false, json: async () => ({ error: 'kaputt' }) };
+      }
+      if (name === 'FailsOnce' && attempts[name] === 1) {
+        return { ok: false, json: async () => ({ error: 'transient' }) };
+      }
+      return { ok: true, json: async () => ({ interpretations: [{ name, html: `<div>${name}</div>`, jsx: '' }], failed: [] }) };
+    }));
+    const three = {
+      source: 'image',
+      raw: {
+        meta: { import_id: 'retry1' },
+        atomics: [
+          { name: 'AlwaysOk', variants: [], notes: '' },
+          { name: 'FailsOnce', variants: [], notes: '' },
+          { name: 'FailsAlways', variants: [], notes: '' },
+        ],
+        components: [],
+        patterns: [],
+      },
+    };
+    const next = await runInterpretation(three);
+
+    expect(attempts.AlwaysOk).toBe(1); // kein Retry nötig
+    expect(attempts.FailsOnce).toBe(2); // Runde 1 (fehlgeschlagen) + Auto-Retry (erfolgreich)
+    expect(attempts.FailsAlways).toBe(2); // Runde 1 + Auto-Retry, bleibt trotzdem failed
+
+    expect(next.interpretations.AlwaysOk).toBeTruthy();
+    expect(next.interpretations.FailsOnce).toBeTruthy();
+    expect(next.interpretations.FailsAlways).toBeUndefined();
+    expect(next.interpretFailed).toEqual(['FailsAlways']);
+    expect(next.interpretPending).toBe(false);
+    expect(next.interpretQuotaExhausted).toBe(false);
+    expect(next.interpretError).toBeNull(); // anySuccess true (2 von 3 kamen durch)
+  });
+
+  it('alle Items schlagen in beiden Runden fehl → interpretError gesetzt, alle Namen failed', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('alles kaputt'); }));
     const next = await runInterpretation(NINE);
     expect(next.interpretError).toBe('alles kaputt');
-    expect(next.interpretFailed).toEqual([
-      'Widget1', 'Widget2', 'Widget3', 'Widget4',
-      'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9',
-    ]);
+    expect(next.interpretFailed.sort()).toEqual(
+      Array.from({ length: 9 }, (_, i) => `Widget${i + 1}`).sort()
+    );
     expect(next.interpretPending).toBe(false);
     expect(Object.keys(next.interpretations ?? {})).toHaveLength(0);
   });
 
-  it('Quota-Bremse: Request 2 meldet daily_quota → Schleife stoppt sofort, Request 3+ wird NIE gesendet, alle Namen ab Request 2 failed', async () => {
-    let call = 0;
-    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
-      call++;
-      if (call === 2) {
-        return {
-          ok: false,
-          json: async () => ({
-            error: 'Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.',
-            daily_quota: true,
-          }),
-        };
-      }
+  it('Quota-Bremse: kein neuer Start nach Fail-Fast, laufende Antworten werden noch eingesammelt, alle nicht erfolgreichen Namen failed, KEINE Auto-Retry-Runde', async () => {
+    // Deterministisch über manuell auflösbare Promises statt Call-Counts:
+    // Pool-Konkurrenz 3 → W1-W3 starten "gleichzeitig". W2 meldet daily_quota
+    // während W1/W3 noch offen sind. Kein W4+ darf je gesendet werden — auch
+    // nicht nach der Auto-Retry-Prüfung (die hier komplett entfällt).
+    const six = {
+      source: 'image',
+      raw: {
+        meta: { import_id: 'quota1' },
+        atomics: Array.from({ length: 6 }, (_, i) => ({ name: `W${i + 1}`, variants: [], notes: '' })),
+        components: [],
+        patterns: [],
+      },
+    };
+    const defs = {};
+    const fetchMock = vi.fn(async (url, opts) => {
       const body = JSON.parse(opts.body);
-      return {
-        ok: true,
-        json: async () => ({
-          interpretations: body.components.map((c) => ({ name: c.name, html: '<div/>', jsx: '' })),
-          failed: [],
-        }),
-      };
-    }));
-    const next = await runInterpretation(NINE);
+      const name = body.components[0].name;
+      return new Promise((resolve) => { defs[name] = resolve; });
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
-    expect(call).toBe(2); // Request 3+ wurde nie gesendet — Fail-Fast
+    const runPromise = runInterpretation(six);
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(3); // W1, W2, W3 in Flight
+
+    defs.W2({
+      ok: false,
+      json: async () => ({
+        error: 'Gemini-Tages-Kontingent erschöpft — Reset um Mitternacht kalifornischer Zeit (ca. 09:00 deutscher Zeit). Bitte später erneut versuchen.',
+        daily_quota: true,
+      }),
+    });
+    await flush();
+
+    defs.W1({ ok: true, json: async () => ({ interpretations: [{ name: 'W1', html: '<div/>', jsx: '' }], failed: [] }) });
+    defs.W3({ ok: true, json: async () => ({ interpretations: [{ name: 'W3', html: '<div/>', jsx: '' }], failed: [] }) });
+    await flush();
+
+    const next = await runPromise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3); // W4-W6 wurden NIE gesendet — auch kein Auto-Retry für W2
     expect(next.interpretQuotaExhausted).toBe(true);
     expect(next.interpretError).toMatch(/Tages-Kontingent erschöpft/);
-    // Request 1 (Widget1) kam durch; Widget2 (gescheitert) und Widget3-9
-    // (nie gesendet) landen als failed.
-    expect(next.interpretFailed.sort()).toEqual(
-      ['Widget2', 'Widget3', 'Widget4', 'Widget5', 'Widget6', 'Widget7', 'Widget8', 'Widget9'].sort()
-    );
-    expect(Object.keys(next.interpretations)).toEqual(['Widget1']);
     expect(next.interpretPending).toBe(false);
+    expect(Object.keys(next.interpretations).sort()).toEqual(['W1', 'W3']);
+    expect(next.interpretFailed.sort()).toEqual(['W2', 'W4', 'W5', 'W6']);
   });
 
-  it('signal bereits aborted vor Chunk 2 → gibt null zurück, kein weiterer fetch', async () => {
+  it('signal bereits aborted vor Item 2 → gibt null zurück, kein weiterer fetch', async () => {
     let call = 0;
     const controller = new AbortController();
     const fetchMock = vi.fn(async (url, opts) => {
       call++;
-      if (call === 1) controller.abort(); // Abort passiert während Chunk 1 noch läuft
+      if (call === 1) controller.abort(); // Abort passiert synchron während Item 1 noch läuft
       const body = JSON.parse(opts.body);
       return {
         ok: true,
@@ -367,7 +446,36 @@ describe('runInterpretation — progressive Chunks + Abort', () => {
     vi.stubGlobal('fetch', fetchMock);
     const next = await runInterpretation(NINE, { signal: controller.signal });
     expect(next).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1); // Chunk 2/3 wurden wegen Abort nie gesendet
+    expect(fetchMock).toHaveBeenCalledTimes(1); // Items 2/3 wurden wegen Abort nie gesendet
+  });
+
+  it('Abort während mehrere Requests echt in Flight sind → null, keine neuen Starts danach', async () => {
+    const controller = new AbortController();
+    let totalCalls = 0;
+    let resolvers = [];
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
+      totalCalls++;
+      const body = JSON.parse(opts.body);
+      return new Promise((resolve) => {
+        resolvers.push(() => resolve({
+          ok: true,
+          json: async () => ({ interpretations: [{ name: body.components[0].name, html: '<div/>', jsx: '' }], failed: [] }),
+        }));
+      });
+    }));
+
+    const runPromise = runInterpretation(NINE, { signal: controller.signal });
+    await flush();
+    expect(totalCalls).toBe(3); // Pool-Konkurrenz voll ausgeschöpft, noch nichts aufgelöst
+
+    controller.abort();
+    resolvers.forEach((r) => r()); // laufende Requests dürfen noch auflösen
+    resolvers = [];
+    await flush();
+
+    const next = await runPromise;
+    expect(next).toBeNull();
+    expect(totalCalls).toBe(3); // keine neuen Starts nach Abort
   });
 });
 
