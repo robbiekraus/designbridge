@@ -11,18 +11,52 @@
 // - Vollbild-Modal: Klick auf das Thumbnail oder den „Vollbild"-Button öffnet
 //   ein Overlay mit einem zweiten, groß skalierten iframe (scrollbar, normale
 //   pointer-events).
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 const THUMB_VIRTUAL_WIDTH = 1024;
 const THUMB_VIRTUAL_HEIGHT = 640;
 const THUMB_FALLBACK_WIDTH = 672; // jsdom / erster Render ohne Layout: Fallback statt scale(0)
+const THUMB_MAX_HEIGHT = 800;
+const THUMB_MIN_HEIGHT = 40;
+const HEIGHT_MESSAGE_TYPE = 'designbridge-preview-height';
 
-export function buildSrcdoc(html) {
+// buildSrcdoc(html, instanceId?) — instanceId ist optional. Wird sie
+// mitgegeben (Thumbnail), bekommt das Dokument ein Mini-Script, das die
+// Inhaltshöhe per postMessage an den Parent meldet (nach load + bei
+// Größenänderung über ResizeObserver, mit setTimeout-Fallback ohne RO).
+// Ohne instanceId (Vollbild-Modal) bleibt das Dokument wie bisher —
+// html bleibt der erste Parameter, bestehende Aufrufe/Exporte bleiben kompatibel.
+export function buildSrcdoc(html, instanceId) {
+  const heightScript = instanceId == null ? '' : [
+    '<script>',
+    '(function () {',
+    `  var id = ${JSON.stringify(String(instanceId))};`,
+    '  function reportHeight() {',
+    '    try {',
+    // body.scrollHeight, NICHT documentElement.scrollHeight: letzterer ist in
+    // einem iframe nie kleiner als die iframe-Höhe selbst (Viewport) — er
+    // meldete konstant 640 und der Weißraum blieb (Live-Fund 17.07.).
+    `      parent.postMessage({ type: ${JSON.stringify(HEIGHT_MESSAGE_TYPE)}, id: id, height: document.body.scrollHeight }, '*');`,
+    '    } catch (e) {}',
+    '  }',
+    '  window.addEventListener("load", reportHeight);',
+    '  if (typeof ResizeObserver !== "undefined") {',
+    '    var ro = new ResizeObserver(reportHeight);',
+    '    ro.observe(document.body);',
+    '  } else {',
+    '    setTimeout(reportHeight, 300);',
+    '  }',
+    '  setTimeout(reportHeight, 0);',
+    '})();',
+    '</script>',
+  ].join('\n');
+
   return [
     '<!doctype html><html><head><meta charset="utf-8">',
     '<script src="https://cdn.tailwindcss.com"></script>',
     '</head><body style="margin:0;padding:12px;background:#ffffff">',
     html,
+    heightScript,
     '</body></html>',
   ].join('');
 }
@@ -56,8 +90,31 @@ function useContainerWidth(fallback) {
 export default function InterpretedPreview({ html, title }) {
   const [open, setOpen] = useState(false);
   const [wrapperRef, containerWidth] = useContainerWidth(THUMB_FALLBACK_WIDTH);
+  const [contentHeight, setContentHeight] = useState(null);
+  const instanceId = useId();
+  const thumbFrameRef = useRef(null);
   const scale = containerWidth / THUMB_VIRTUAL_WIDTH;
-  const srcDoc = buildSrcdoc(html);
+  const thumbSrcDoc = buildSrcdoc(html, instanceId);
+  const modalSrcDoc = buildSrcdoc(html);
+
+  // Höre auf die Height-Reports des Thumbnail-iframes (siehe buildSrcdoc).
+  // Gefiltert auf type + passende instanceId; der source-Check ist defensiv
+  // (in jsdom ist contentWindow ggf. nicht simulierbar, dann greift der
+  // id-Filter allein).
+  useEffect(() => {
+    const onMessage = e => {
+      if (e.data?.type !== HEIGHT_MESSAGE_TYPE) return;
+      if (e.data?.id !== instanceId) return;
+      if (e.source && e.source !== thumbFrameRef.current?.contentWindow) return;
+      setContentHeight(e.data.height);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [instanceId]);
+
+  const frameHeight = contentHeight == null
+    ? THUMB_VIRTUAL_HEIGHT
+    : Math.max(THUMB_MIN_HEIGHT, Math.min(contentHeight, THUMB_MAX_HEIGHT));
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +130,7 @@ export default function InterpretedPreview({ html, title }) {
       <div
         ref={wrapperRef}
         data-testid="preview-thumb-wrapper"
+        data-instance-id={instanceId}
         role="button"
         tabIndex={0}
         aria-label="Vorschau in Vollbild öffnen"
@@ -84,16 +142,17 @@ export default function InterpretedPreview({ html, title }) {
           }
         }}
         className="w-full overflow-hidden rounded border border-zinc-200 bg-white cursor-zoom-in hover:border-zinc-300"
-        style={{ height: THUMB_VIRTUAL_HEIGHT * scale }}
+        style={{ height: frameHeight * scale }}
       >
         <iframe
+          ref={thumbFrameRef}
           sandbox="allow-scripts"
-          srcDoc={srcDoc}
+          srcDoc={thumbSrcDoc}
           title={`Vorschau: ${title}`}
           className="border-0"
           style={{
             width: THUMB_VIRTUAL_WIDTH,
-            height: THUMB_VIRTUAL_HEIGHT,
+            height: frameHeight,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
             pointerEvents: 'none',
@@ -137,7 +196,7 @@ export default function InterpretedPreview({ html, title }) {
             </header>
             <iframe
               sandbox="allow-scripts"
-              srcDoc={srcDoc}
+              srcDoc={modalSrcDoc}
               title={`Vorschau: ${title}`}
               className="w-full flex-1 border-0"
             />

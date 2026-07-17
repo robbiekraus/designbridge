@@ -11,6 +11,20 @@ describe('buildSrcdoc', () => {
     expect(doc).toContain('<div class="p-2">Hi</div>');
     expect(doc.startsWith('<!doctype html>')).toBe(true);
   });
+
+  it('ohne instanceId wird kein Height-Report-Script eingebettet', () => {
+    const doc = buildSrcdoc('<div>Hi</div>');
+    expect(doc).not.toContain('designbridge-preview-height');
+  });
+
+  it('mit instanceId wird ein Height-Report-Script mit postMessage eingebettet', () => {
+    const doc = buildSrcdoc('<div>Hi</div>', 'abc123');
+    expect(doc).toContain('designbridge-preview-height');
+    expect(doc).toContain('postMessage');
+    expect(doc).toContain('abc123');
+    expect(doc).toContain('ResizeObserver');
+    expect(doc).toContain('<div>Hi</div>');
+  });
 });
 
 describe('InterpretedPreview — Thumbnail', () => {
@@ -50,6 +64,120 @@ describe('InterpretedPreview — Thumbnail', () => {
   it('zeigt zusätzlich einen "Vollbild"-Textbutton', () => {
     render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
     expect(screen.getByText('Vollbild')).toBeInTheDocument();
+  });
+});
+
+describe('InterpretedPreview — Thumbnail content-adaptive Höhe', () => {
+  function getInstanceId() {
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const id = wrapper.dataset.instanceId;
+    expect(id).toBeTruthy();
+    return id;
+  }
+
+  it('Fallback-Höhe ohne Message bleibt wie bisher', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    expect(wrapper.style.height).not.toBe('');
+    expect(parseFloat(wrapper.style.height)).toBeGreaterThan(0);
+  });
+
+  it('postMessage mit passender id und type ändert die Wrapper-Höhe', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const beforeHeight = parseFloat(wrapper.style.height);
+    const id = getInstanceId();
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'designbridge-preview-height', id, height: 120 },
+      })
+    );
+
+    const afterHeight = parseFloat(wrapper.style.height);
+    expect(afterHeight).not.toBe(beforeHeight);
+    expect(afterHeight).toBeLessThan(beforeHeight);
+  });
+
+  it('sehr kleine gemeldete Höhe wird auf mind. 40px geklemmt (skaliert)', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const id = getInstanceId();
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'designbridge-preview-height', id, height: 0 },
+      })
+    );
+
+    const afterHeight = parseFloat(wrapper.style.height);
+    expect(afterHeight).toBeGreaterThan(0);
+  });
+
+  it('sehr große gemeldete Höhe wird auf 800 gedeckelt (skaliert)', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const id = getInstanceId();
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'designbridge-preview-height', id, height: 5000 },
+      })
+    );
+
+    const cappedHeight = parseFloat(wrapper.style.height);
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'designbridge-preview-height', id, height: 900 },
+      })
+    );
+    const alsoCappedHeight = parseFloat(wrapper.style.height);
+    expect(alsoCappedHeight).toBe(cappedHeight);
+  });
+
+  it('falscher type wird ignoriert', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const beforeHeight = wrapper.style.height;
+    const id = getInstanceId();
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'other-type', id, height: 120 },
+      })
+    );
+
+    expect(wrapper.style.height).toBe(beforeHeight);
+  });
+
+  it('falsche id wird ignoriert', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    const wrapper = screen.getByTestId('preview-thumb-wrapper');
+    const beforeHeight = wrapper.style.height;
+
+    fireEvent(
+      window,
+      new MessageEvent('message', {
+        data: { type: 'designbridge-preview-height', id: 'not-the-real-id', height: 120 },
+      })
+    );
+
+    expect(wrapper.style.height).toBe(beforeHeight);
+  });
+
+  it('Vollbild-Modal-iframe bleibt von Height-Messages unbeeinflusst (nur Thumbnail-id zählt)', () => {
+    render(<InterpretedPreview html='<div>Hi</div>' title="Avatar" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Vorschau in Vollbild öffnen' }));
+    const frames = screen.getAllByTitle('Vorschau: Avatar');
+    const modalFrame = frames[1];
+    // Modal iframe darf kein Height-Report-Script eingebettet haben
+    expect(modalFrame.getAttribute('srcdoc')).not.toContain('designbridge-preview-height');
   });
 });
 
