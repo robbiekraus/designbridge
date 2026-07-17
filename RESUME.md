@@ -18,6 +18,15 @@ Stand: **17.07.2026 nachmittags (Testrunde 6 — alle 6 Befunde gefixt & deployt
 
 **Offen/nächste Kandidaten:** Thumbnail-Höhe bei kleinen Interpretationen großzügig (viel Weißraum — Polish); Tailwind-Runtime im htmlToPlan-Offscreen-Mount (größere Fidelity-Scheibe).
 
+## Session 17.07.2026 abends — Testrunde 7 (Robs UX-Feedback, `a15814e`..`be40030`)
+
+Alle 4 Punkte aus Robs Nachmittags-Test umgesetzt (Sonnet-Subagents, TDD, Browser-Smoke ✅, Suiten Server 208 · Web 412 · Plugin 53):
+1. **Fix A:** Interpretation im Worker-Pool (Konkurrenz 3, weiterhin 1 Item/Request) + **automatische zweite Runde** für Fehlschläge — Batch-Dauer ÷3, Handarbeit erst nach echtem Doppel-Fehlschlag. Quota-Fail-Fast unverändert.
+2. **Fix B:** Thumbnail content-adaptiv — srcdoc meldet Inhaltshöhe per postMessage, Wrapper klemmt [40, 800]. ⚠️ Falle gefunden: `documentElement.scrollHeight` im iframe = min. Viewport-Höhe (meldete konstant 640) → **`body.scrollHeight`** nehmen.
+3. **Fix C:** Export-Tab: neuer ZIELE-Bereich (Primär-Button „An Figma senden", JSON einklappbar, „Nach Storybook (folgt)"-Stub); FORMAT-Liste nur noch CSS/Tailwind/tokens.json.
+4. **Fix E:** Tabellen-Regression von Fix 6 behoben: `table-row`→row, `table`/row-groups→column. Grenze: Spaltenraster fluchtet nicht (eigene Scheibe „Tabellen-Fidelity").
+Offen: Robs Antwort zu „Connect Figma"-Stub entfernen (empfohlen); Storybook-Emitter als echte Scheibe.
+
 ## Session 17.07.2026 später Nachmittag — Gemini Paid + Timeout-Root-Cause
 
 **💳 Gemini Paid AKTIV** (Rob: Google Cloud Billing, 10-€-Budget) — Modell-Frage ERLEDIGT, Key/Railway unverändert, kein 429 mehr. **Danach echter Root Cause der Massen-Fehlschläge gefunden (`b45915f`):** 4 Bausteine pro Gemini-Call > 60s → Server-Timeout → 502 für den ganzen Chunk. Einzeln gehen 14–54s durch. **Fix:** CLIENT_CHUNK_SIZE 4→1 + DEFAULT_TIMEOUT_MS 60s→120s (Env `GEMINI_TIMEOUT_MS` bleibt Übersteuerung). Diagnose lief komplett über die Live-API (curl-Flow siehe Memory).
