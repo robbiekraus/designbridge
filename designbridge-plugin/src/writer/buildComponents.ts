@@ -8,6 +8,10 @@ export interface BuildResult {
   updated: number;
   placeholders: number;
   skipped: string[];
+  // Aufschlüsselung je Baustein-Art (Fix 5 — Zähl-Wording Plugin vs. App):
+  // dieselben Zählpunkte wie created/updated, zusätzlich nach comp.kind sortiert.
+  createdByKind: Record<ImportComponent['kind'], number>;
+  updatedByKind: Record<ImportComponent['kind'], number>;
 }
 
 export interface SectionFrames {
@@ -92,7 +96,14 @@ export async function buildComponents(
   sections: SectionFrames,
   paintByName: Map<string, PaintStyle>
 ): Promise<BuildResult> {
-  const result: BuildResult = { created: 0, updated: 0, placeholders: 0, skipped: [] };
+  const result: BuildResult = {
+    created: 0,
+    updated: 0,
+    placeholders: 0,
+    skipped: [],
+    createdByKind: { atomic: 0, component: 0, pattern: 0 },
+    updatedByKind: { atomic: 0, component: 0, pattern: 0 },
+  };
 
   for (const comp of components) {
     const section = sections[comp.kind];
@@ -113,9 +124,11 @@ export async function buildComponents(
           section.insertChild(section.children.indexOf(existing), fresh);
           existing.remove();
           result.updated += 1;
+          result.updatedByKind[comp.kind] += 1;
         } else {
           section.appendChild(fresh);
           result.created += 1;
+          result.createdByKind[comp.kind] += 1;
         }
         pending = null;
         result.placeholders += 1;
@@ -154,6 +167,7 @@ export async function buildComponents(
         for (const c of variantComponents) existing.appendChild(c);
         for (const o of old) o.remove();
         result.updated += 1;
+        result.updatedByKind[comp.kind] += 1;
       } else {
         let idx = -1;
         if (existing) {
@@ -166,6 +180,7 @@ export async function buildComponents(
         // combineAsVariants hängt ans Ende — zurück an die alte Position schieben
         if (idx >= 0) section.insertChild(idx, set);
         result.created += 1;
+        result.createdByKind[comp.kind] += 1;
       }
     } catch (err) {
       // Waisen-Cleanup: bereits erzeugte, aber noch nicht platzierte Nodes entfernen,

@@ -113,6 +113,8 @@ export interface ImportMessage {
   json: string;
 }
 
+export type ImportComponentKind = 'atomic' | 'component' | 'pattern';
+
 export interface ImportSummary {
   colorsCreated: number;
   colorsUpdated: number;
@@ -120,6 +122,11 @@ export interface ImportSummary {
   textUpdated: number;
   componentsCreated: number;
   componentsUpdated: number;
+  // Aufschlüsselung je Baustein-Art (Fix 5 — Zähl-Wording Plugin vs. App).
+  // Optional/abwärtskompatibel: ältere Erzeuger, die das Feld nicht setzen,
+  // liefern weiterhin ein gültiges ImportSummary.
+  componentsCreatedByKind?: Record<ImportComponentKind, number>;
+  componentsUpdatedByKind?: Record<ImportComponentKind, number>;
   placeholders: number;
   skipped: string[];
 }

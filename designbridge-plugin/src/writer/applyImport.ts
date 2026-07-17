@@ -2,7 +2,7 @@
 // Create-or-update by name so re-running does not duplicate.
 
 import { hexToRgb, ImportPayload } from './parsePayload';
-import type { ImportSummary } from '../types/manifest';
+import type { ImportComponentKind, ImportSummary } from '../types/manifest';
 
 const FAMILY = 'Inter';
 const COLOR_PREFIX = 'DesignBridge/Color/';
@@ -96,4 +96,53 @@ export async function applyImport(payload: ImportPayload): Promise<ImportSummary
   }
 
   return summary;
+}
+
+// ─── Fertig-Meldung: Zähl-Wording Plugin vs. App (Fix 5) ───────────────────────
+// Pure string formatting, kein figma-Zugriff — bewusst hier statt in ui.ts, damit
+// es ohne DOM-Global unter node:test läuft (siehe tests/formatImportSummary.test.ts).
+
+const KIND_ORDER: ImportComponentKind[] = ['atomic', 'component', 'pattern'];
+
+const KIND_LABELS: Record<ImportComponentKind, { singular: string; plural: string }> = {
+  atomic: { singular: 'Atomic', plural: 'Atomics' },
+  component: { singular: 'Component', plural: 'Components' },
+  pattern: { singular: 'Pattern', plural: 'Patterns' },
+};
+
+/** "3 Atomics, 9 Components, 1 Pattern" — feste Reihenfolge, kinds mit 0 werden weggelassen. */
+function formatKindBreakdown(byKind: Partial<Record<ImportComponentKind, number>> | undefined): string {
+  if (!byKind) return '';
+  return KIND_ORDER.map((kind) => ({ kind, count: byKind[kind] ?? 0 }))
+    .filter(({ count }) => count > 0)
+    .map(({ kind, count }) => {
+      const label = KIND_LABELS[kind];
+      return `${count} ${count === 1 ? label.singular : label.plural}`;
+    })
+    .join(', ');
+}
+
+/** Baut die Kernaussage der Fertig-Meldung ("10 Farben neu, …, 13 Bausteine neu (…)").
+ *  Ersetzt den Sammelbegriff „Komponenten" durch „Bausteine" (Kollision mit der
+ *  App-Kategorie „Components" vermeiden) und hängt die Kind-Aufschlüsselung in
+ *  Klammern an, falls vorhanden. Farben/Textstile/Platzhalter unverändert. */
+export function formatImportSummary(s: ImportSummary): string {
+  const createdBreakdown = formatKindBreakdown(s.componentsCreatedByKind);
+  const updatedBreakdown = formatKindBreakdown(s.componentsUpdatedByKind);
+
+  return [
+    `${s.colorsCreated} Farben neu`,
+    s.colorsUpdated ? `${s.colorsUpdated} Farben aktualisiert` : '',
+    `${s.textCreated} Textstile neu`,
+    s.textUpdated ? `${s.textUpdated} Textstile aktualisiert` : '',
+    s.componentsCreated
+      ? `${s.componentsCreated} Bausteine neu${createdBreakdown ? ` (${createdBreakdown})` : ''}`
+      : '',
+    s.componentsUpdated
+      ? `${s.componentsUpdated} Bausteine aktualisiert${updatedBreakdown ? ` (${updatedBreakdown})` : ''}`
+      : '',
+    s.placeholders ? `${s.placeholders} Platzhalter` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
 }

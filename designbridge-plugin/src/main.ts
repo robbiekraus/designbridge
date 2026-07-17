@@ -85,6 +85,8 @@ figma.ui.onmessage = async (msg: UIMessage) => {
         layoutSections(sections);
         summary.componentsCreated = res.created;
         summary.componentsUpdated = res.updated;
+        summary.componentsCreatedByKind = res.createdByKind;
+        summary.componentsUpdatedByKind = res.updatedByKind;
         summary.placeholders = res.placeholders;
         summary.skipped.push(...res.skipped);
       }

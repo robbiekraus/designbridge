@@ -1,5 +1,6 @@
 import type { SandboxMessage, ExportReadyPayload } from './types/manifest';
 import { fetchLatestExport } from './network/fetchLatestExport';
+import { formatImportSummary } from './writer/applyImport';
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -191,25 +192,17 @@ window.onmessage = (event: MessageEvent) => {
 
   if (msg.type === 'IMPORT_DONE') {
     const s = msg.summary;
-    const parts = [
-      `${s.colorsCreated} Farben neu`,
-      s.colorsUpdated ? `${s.colorsUpdated} Farben aktualisiert` : '',
-      `${s.textCreated} Textstile neu`,
-      s.textUpdated ? `${s.textUpdated} Textstile aktualisiert` : '',
-      s.componentsCreated ? `${s.componentsCreated} Komponenten neu` : '',
-      s.componentsUpdated ? `${s.componentsUpdated} Komponenten aktualisiert` : '',
-      s.placeholders ? `${s.placeholders} Platzhalter` : '',
-    ].filter(Boolean);
+    const summaryLine = formatImportSummary(s);
     // Übersprungene Einträge MIT Grund anzeigen — vorher wurde nur gezählt und die
     // Fehlermeldungen aus buildComponents (result.skipped) verschluckt (Debug 14.07.).
     if (s.skipped.length) {
       const details = s.skipped.map((line) => `• ${line}`).join('\n');
       setImportStatus(
-        `Fertig — ${parts.join(', ')} · ${s.skipped.length} übersprungen:\n${details}`,
+        `Fertig — ${summaryLine} · ${s.skipped.length} übersprungen:\n${details}`,
         'error'
       );
     } else {
-      setImportStatus(`Fertig — ${parts.join(', ')}.`, 'success');
+      setImportStatus(`Fertig — ${summaryLine}.`, 'success');
     }
     importBtn.disabled = false;
     importFetchBtn.disabled = false;
