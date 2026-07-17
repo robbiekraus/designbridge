@@ -23,6 +23,11 @@ Robs „ja" zur Fidelity-Spec. Umgesetzt & getestet:
 2. **Scheibe B — Höhen-Kontext:** Mount-Container zusätzlich `height: PREVIEW_VIRTUAL_HEIGHT=768` — Prozent-Höhen (Bar-Segmente) sollen wie in der Vorschau-iframe-Kette auflösen.
 Suiten: Server 208/208 · Web **425/425** (+7) · Plugin **74/74** (+20) · Typecheck · Build; Plugin-dist neu → **Rob: Dev-Plugin neu laden.** Echter Beweis = nächster Figma-Import (Donut-Mitte, Achsen-Labels, Sidebar prüfen). Bekannte offene Kante (Review-Notiz): absolute HUG-Boxen könnten trotz resize huggen (Figma-AUTO-Sizing) — erst bei Befund anfassen.
 **Nachfix 18.07. früh (Robs Figma-Test `test6`, per MCP verifiziert):** Donut-Mitte ✅ + Sidebar ohne Überlappung ✅, ABER Trend-Chart kollabierte — Root Cause: Figma-Auto-Layout huggt nur In-Flow-Kinder; Chart-Body hatte NUR absolute Kinder → Frame ~0 breit + clipsContent. Fix in `buildBoxNode`: Parent mit ≥1 absolutem Kind friert fehlende Maße aus dem eigenen Rect ein (Web 428/428). Kein Plugin-Rebuild nötig — Rob muss nur die App neu laden + erneut „An Figma senden".
+**Re-Test 18.07. ~00:10 (`test6` Seite 2, per MCP verifiziert): KOMPONENTEN-EBENE KOMPLETT ✅** — Trend-Chart volle Breite mit Y-Werten links, Monats-Labels korrekt verteilt, Tooltip richtig positioniert; Donut-Mitte ✅; Sidebar ✅. **Rest-Befunde NUR im Pattern „Dashboard Layout"** (= nächste Fidelity-Scheibe „verschachtelte Layouts", NICHT blockierend):
+1. Sidebar im Pattern vertikal versetzt (beginnt ~1/4 unterhalb der Oberkante, schwebt)
+2. Monats-Labels im Pattern-Chart zusammengestaucht („DecJanFeb…" mittig statt verteilt) — im Einzel-Baustein korrekt; vermutlich Direkter-Parent-Vereinfachung + tiefe Verschachtelung
+3. Top-Emissions-Zeilen: Wert überlappt Titel („Bangalore Plant 11019.27")
+4. Tabellen-Spaltenraster wackelt (bekannte eigene Scheibe)
 
 **Danach begonnen: Report-Testseite für den Eingabetypen-Breiten-Test** (`demo-site/report.html`, orientiert an EcoMetrics-Elementklassen) — Ziel: dieselbe Quelle als URL- UND Bild-Import (Ground Truth bekannt), s. 📋-Absatz oben.
 
