@@ -1,6 +1,8 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **18.07.2026 abends (ATOMIC-DESIGN-TAXONOMIE FERTIG & LIVE, s. unten)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **217/217** · Web **448/448** · Plugin **92/92**.
+Stand: **18.07.2026 abends (ATOMIC-DESIGN-TAXONOMIE FERTIG & LIVE — Ansatz A `a220ac4` + Enthaltungs-Guard Ansatz B `77655b1`, s. unten)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **225/225** · Web **448/448** · Plugin **92/92**.
+
+**Guard (Ansatz B, `77655b1`):** deterministisches Sicherheitsnetz `server/lib/taxonomy.js` oben auf der KI-Klassifikation (Bild-Pfad): über bbox-Komposition wird erzwungen, dass die flächengrößte Einheit (≥80% Canvas, ≥2 enthaltene) = **1 Template** und alles, was ≥2 andere enthält (≥5% Fläche), **mind. Organism** ist. Fängt Robs test-7-Fehler strukturell ab, auch wenn die KI mal daneben liegt. Folge-Schritt offen: URL/Repo-DOM-Guard (dort kein bbox; Regel-Remap greift schon).
 
 ## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Robs Figma-Test: Stretch&Grow + neue Taxonomie in einem Durchlauf)
 
