@@ -252,7 +252,12 @@ function readBorder(computed, ctx) {
  *  (HUG), das eigentliche „Füllen" übernimmt `stretch`/`grow` (readStretchGrow). Andere Prozentwerte
  *  (z. B. `width:50%`) bleiben unverändert beim bisherigen px-Freeze. Wurzeln sind ausgenommen
  *  (`isRoot`): deren `100%` friert weiterhin px ein (Testrunde-8-Vertrag, WYSIWYG mit der
- *  1024px-Mess-Breite). */
+ *  1024px-Mess-Breite) — MIT EINER AUSNAHME (Fix A, Rob 18.07. abends): überragt der Inhalt diese
+ *  geclampte Breite (`el.scrollWidth` > gemessene `computed.width`, z. B. eine Kartenreihe breiter
+ *  als die 1024px-Mess-Breite), zählt für die WURZEL die tatsächliche Inhaltsbreite — sonst würde
+ *  das Plugin (`clipsContent = width !== null`) den überragenden Teil abschneiden (Energy-/
+ *  Category-Karte, Reports-Spalten verschwinden). Kein Überlauf (`scrollWidth <= computed.width`)
+ *  → Wert bleibt wie bisher unverändert. */
 function readSize(el, computed, layout, isRoot) {
   const inlineWidth = el.style?.width || '';
   const inlineHeight = el.style?.height || '';
@@ -270,6 +275,10 @@ function readSize(el, computed, layout, isRoot) {
     width = null;
   } else if (hasInlineWidth || (hasFlexBasis && layout !== 'column')) {
     width = pxOrNull(computed.width);
+    if (isRoot && width != null) {
+      const scrollWidth = Math.round(el.scrollWidth || 0);
+      if (scrollWidth > width) width = scrollWidth;
+    }
   }
   if (hasInlineHeight && heightIs100 && !isRoot) {
     height = null;

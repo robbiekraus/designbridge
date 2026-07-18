@@ -1372,6 +1372,61 @@ describe('htmlToPlan — stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Gro
   });
 });
 
+// Fix A (Rob 18.07. abends, Hauptbeschwerde): Eltern-Root eines komponierten Dashboards wird beim
+// Mount auf PREVIEW_VIRTUAL_WIDTH (1024px, inline width:100% → readSize-isRoot-Branch) eingefroren.
+// Inhalt, der über diese 1024px hinausragt (z. B. eine Kartenreihe 520+480+480 = 1480px breit), wird
+// vom Plugin über clipsContent abgeschnitten — Rob verliert die rechte Seite (Energy-/Category-Karte,
+// Reports-Spalten). Fix: für die WURZEL zusätzlich `el.scrollWidth` gegen die gemessene
+// `computed.width` prüfen — überragt der Inhalt sie (`scrollWidth > width`), zählt die tatsächliche
+// Inhaltsbreite statt der geclampten 1024px (readSize, isRoot-Branch).
+// jsdom löst `width:100%` nicht real auf (s. Kopf-Kommentar dieser Datei, mechanisch nachgewiesen im
+// „gemeinsame Mess-Breite"-Block oben) — hier daher explizite Inline-Breite (`width:1024px`, wie
+// auch der Bestandstest „Wurzel mit expliziter Inline-Breite bleibt unangetastet" es tut) als
+// Stellvertreter für die real im Mount gemessenen 1024px. `scrollWidth` wird per
+// Element.prototype-Override gemockt (gleiche Idee wie der data-mock-rect-Mock oben, weil
+// htmlToPlan() den Mess-Container intern selbst baut und wir keinen Zugriff auf die Elementinstanz
+// von außen haben) — liest `data-mock-scrollwidth`, Default 0 (= jsdoms echtes Verhalten ohne Mock,
+// darum bleibt der gesamte Bestandstestkorpus unberührt: Math.max(width, 0) === width).
+describe('htmlToPlan — Wurzel-Crop-Fix (scrollWidth vs. geclampte Breite, Fix A)', () => {
+  let restoreScrollWidth;
+
+  beforeEach(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollWidth');
+    restoreScrollWidth = () => {
+      Object.defineProperty(Element.prototype, 'scrollWidth', descriptor);
+    };
+    Object.defineProperty(Element.prototype, 'scrollWidth', {
+      configurable: true,
+      get() {
+        const raw = this.getAttribute?.('data-mock-scrollwidth');
+        return raw != null ? Number(raw) : 0;
+      },
+    });
+  });
+
+  afterEach(() => {
+    restoreScrollWidth();
+  });
+
+  it('Root mit überlaufendem Inhalt (scrollWidth 1480 > Breite 1024) → Plan-Breite = scrollWidth, kein Crop', () => {
+    const html = '<div style="width:1024px" data-mock-scrollwidth="1480"><div style="width:520px">A</div></div>';
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBe(1480);
+  });
+
+  it('Gegenprobe: kein Überlauf (scrollWidth 1024 === Breite 1024) → Plan-Breite bleibt unverändert', () => {
+    const html = '<div style="width:1024px" data-mock-scrollwidth="1024"><div style="width:520px">A</div></div>';
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBe(1024);
+  });
+
+  it('Regression: normale Blatt-Interpretation ohne Überlauf/scrollWidth-Mock bleibt unverändert', () => {
+    const html = '<div style="width:300px;padding:4px">Normal</div>';
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBe(300);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Composition-Splice (Spec: docs/superpowers/specs/2026-07-18-composition-splice-parent-fidelity-
 // design.md, Plan: docs/superpowers/plans/2026-07-18-composition-splice.md, Task 1). `iou`/
