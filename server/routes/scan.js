@@ -248,6 +248,10 @@ router.post('/repo/ai', async (req, res) => {
     // Baseline zurückmappen, sonst ist der Lift ein No-op (FF1).
     const mergedInv = [...result.atoms, ...result.molecules, ...result.organisms];
     applyBaselinePaths(mergedInv, [...baseline.atoms, ...baseline.molecules, ...baseline.organisms]);
+    // deepenRepoWithAi droppt path auch bei templates (gleiches Schema-Problem
+    // wie bei atoms/molecules/organisms) — sonst bleiben Layout/Seiten-Kanten
+    // nach "Mit KI vertiefen" wieder unauffindbar (Spec 2026-07-18-repo-composition-extraction).
+    applyBaselinePaths(result.templates, baseline.templates);
     await liftRepoInventory(files, mergedInv);
     // Komposition neu ableiten: die KI kann Bausteine umbenennen/ergänzen —
     // die von ingestRepoFiles gelieferte composition spiegelt noch die

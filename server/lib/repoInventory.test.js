@@ -71,7 +71,7 @@ test('dedupes by name per level and returns empty arrays when nothing matches', 
   assert.deepEqual(none, { atoms: [], organisms: [], templates: [] });
 });
 
-test('atoms/organisms tragen path, templates nicht', () => {
+test('atoms/organisms/templates tragen alle path (Composition-Lookup braucht ihn — Spec 2026-07-18-repo-composition-extraction)', () => {
   const inv = recognizeRepoInventory([
     { path: 'src/components/ui/button.tsx', content: '' },
     { path: 'src/components/PricingCard.tsx', content: '' },
@@ -79,5 +79,5 @@ test('atoms/organisms tragen path, templates nicht', () => {
   ]);
   assert.equal(inv.atoms[0].path, 'src/components/ui/button.tsx');
   assert.equal(inv.organisms[0].path, 'src/components/PricingCard.tsx');
-  assert.equal(inv.templates[0].path, undefined);
+  assert.equal(inv.templates[0].path, 'src/app/dashboard/page.tsx');
 });

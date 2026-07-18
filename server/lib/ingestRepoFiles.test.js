@@ -58,6 +58,19 @@ test('carries computed-config warnings from the tailwind parser', async () => {
   assert.ok(result.warnings.some((w) => /statisch nicht gelesen/.test(w)));
 });
 
+test('result.composition trägt Layout→Organism-Kanten (Templates brauchen path fürs Composition-Lookup)', () => {
+  const files = [
+    { path: 'src/app/layout.tsx',
+      content: "import SidebarNav from '../components/SidebarNav';\nexport default function Layout({children}){return(<div><SidebarNav/>{children}</div>);}" },
+    { path: 'src/components/SidebarNav.tsx',
+      content: "export default function SidebarNav(){return <nav/>;}" },
+  ];
+  const result = ingestRepoFiles(files);
+  assert.ok(result.templates.some((t) => t.name === 'Layout'));
+  assert.ok(result.composition.children['Layout']?.includes('SidebarNav'),
+    'Layout→SidebarNav-Kante fehlt — Templates ohne path liefern buildRepoComposition keinen Quellcode');
+});
+
 test('result.composition trägt die JSX-Verschachtelung aus dem Repo-Code', () => {
   const files = [
     { path: 'src/components/Layout.tsx',

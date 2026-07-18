@@ -22,7 +22,12 @@ export function recognizeRepoInventory(files) {
     } else if (isComponentFile(path)) {
       put(organisms, { name: pascal(base), confidence: 'low', source: 'rules', notes: `aus ${path}`, path });
     } else if (isLayoutFile(path)) {
-      put(templates, { name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}` });
+      // path mitführen: buildRepoComposition liest den Quellcode über
+      // files[it.path] — ohne path bleiben Layout→Organism-Kanten unauffindbar
+      // (Spec 2026-07-18-repo-composition-extraction).
+      put(templates, {
+        name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}`, path,
+      });
     } else if (isPageFile(path)) {
       // Next.js route groups `(marketing)` and dynamic segments `[slug]`,
       // `[...slug]`, `[[...slug]]` → strip parens/brackets and leading dots.
@@ -39,8 +44,9 @@ export function recognizeRepoInventory(files) {
         i -= 1;
       }
       if (!label || label === 'app' || label === 'pages' || label === 'src') label = 'Start';
+      // path mitführen (siehe Layout-Zweig oben) — gleiche Composition-Notwendigkeit.
       put(templates, {
-        name: `Seite: ${pascal(label)}`, confidence: 'low', source: 'rules', notes: `aus ${path}`,
+        name: `Seite: ${pascal(label)}`, confidence: 'low', source: 'rules', notes: `aus ${path}`, path,
       });
     }
   }
