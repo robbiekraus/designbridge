@@ -1534,12 +1534,18 @@ describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)'
     </div>
   `;
 
-  it('Kind-Rect ≈ Ziel-bbox (IoU ≥ 0.35) → component-ref mit fallback, kein Abstieg in den Hauptbaum', () => {
+  it('Kind-Rect ≈ Ziel-bbox (IoU ≥ 0.35) → Flow-Box-Wrapper mit component-ref-Kind (fallback intakt), kein Abstieg in den Hauptbaum', () => {
     const spliceTargets = [
       { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
     ];
     const { plan } = htmlToPlan(html, { spliceTargets });
-    const alphaNode = plan.children[0];
+    // Alpha ist ein FLOW-Element (kein CSS position:absolute) → Composition-Fidelity-v3-Wrapper
+    // (Spec 2026-07-19-composition-fidelity-v3-flow-box-wrap-design.md): Flow-Box in Slot-Größe,
+    // deren einziges Kind die component-ref-Instanz ist.
+    const wrapperNode = plan.children[0];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.children).toHaveLength(1);
+    const alphaNode = wrapperNode.children[0];
     expect(alphaNode.type).toBe('component-ref');
     expect(alphaNode.name).toBe('Alpha Widget');
     expect(alphaNode.variant).toBeNull();
@@ -1549,14 +1555,16 @@ describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)'
     expect(plan.children[1]).toMatchObject({ type: 'text', content: 'Beta' });
   });
 
-  it('zwei Ziele, zwei Elemente → beide korrekt zugeordnet, je einmal', () => {
+  it('zwei Ziele, zwei Elemente → beide korrekt zugeordnet, je einmal (je in einem Flow-Box-Wrapper)', () => {
     const spliceTargets = [
       { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
       { name: 'Beta Widget', bbox: { x: 500 / 1000, y: 300 / 500, w: 200 / 1000, h: 150 / 500 } },
     ];
     const { plan, warnings } = htmlToPlan(html, { spliceTargets });
-    expect(plan.children[0]).toMatchObject({ type: 'component-ref', name: 'Alpha Widget' });
-    expect(plan.children[1]).toMatchObject({ type: 'component-ref', name: 'Beta Widget' });
+    expect(plan.children[0].type).toBe('box');
+    expect(plan.children[0].children[0]).toMatchObject({ type: 'component-ref', name: 'Alpha Widget' });
+    expect(plan.children[1].type).toBe('box');
+    expect(plan.children[1].children[0]).toMatchObject({ type: 'component-ref', name: 'Beta Widget' });
     expect(warnings).toEqual([]);
   });
 
@@ -1584,7 +1592,9 @@ describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)'
     `;
     const { plan } = htmlToPlan(html2, { spliceTargets });
     expect(plan.children[0].type).not.toBe('component-ref'); // Alpha verliert
-    expect(plan.children[1]).toMatchObject({ type: 'component-ref', name: 'Contested Widget' }); // Beta gewinnt
+    // Beta gewinnt und ist ein FLOW-Element → Flow-Box-Wrapper mit component-ref-Kind.
+    expect(plan.children[1].type).toBe('box');
+    expect(plan.children[1].children[0]).toMatchObject({ type: 'component-ref', name: 'Contested Widget' });
   });
 
   it('spliceTargets leer/undefiniert → Plan identisch zum Nicht-Splice-Pfad (Regression)', () => {
@@ -1628,7 +1638,7 @@ describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-inst
     restoreGetBoundingClientRect();
   });
 
-  it('1) gesplictes FLOW-Element (nicht CSS-positioniert) → ref-Node trägt absolute mit gemessenem Rect relativ zum Parent', () => {
+  it('1) gesplictes FLOW-Element (nicht CSS-positioniert) → Flow-Box-Wrapper in Slot-Größe, deren einziges Kind die Instanz mit absolute {0,0,rect} ist', () => {
     const html = `
       <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
         <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Alpha</div>
@@ -1638,10 +1648,40 @@ describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-inst
       { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
     ];
     const { plan } = htmlToPlan(html, { spliceTargets });
-    const alphaNode = plan.children[0];
+    const wrapperNode = plan.children[0];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.width).toBe(300);
+    expect(wrapperNode.height).toBe(100);
+    expect(wrapperNode.children).toHaveLength(1);
+    const alphaNode = wrapperNode.children[0];
     expect(alphaNode.type).toBe('component-ref');
     expect(alphaNode.name).toBe('Alpha Widget');
-    expect(alphaNode.absolute).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+    expect(alphaNode.absolute).toEqual({ x: 0, y: 0, width: 300, height: 100 });
+  });
+
+  it('4) Wrap-Box trägt keine visuellen Props — nur Geometrie (fill/stroke null, Standard-Layout-Felder)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Alpha</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const wrapperNode = plan.children[0];
+    expect(wrapperNode).toMatchObject({
+      type: 'box',
+      layout: 'column',
+      padding: [0, 0, 0, 0],
+      radius: 0,
+      fill: null,
+      stroke: null,
+      strokeWeight: 1,
+      gap: 0,
+      primaryAlign: 'MIN',
+      counterAlign: 'MIN',
+    });
   });
 
   it('2) gesplictes CSS-absolute-Element → trägt weiterhin absolute (readAbsolute-Pfad)', () => {
@@ -1702,10 +1742,15 @@ describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-inst
     expect(gammaNode.absolute).toBeUndefined();
   });
 
-  it('4) direkter Box-Parent eines gesplicten absoluten Kindes friert seine Maße aus dem eigenen Rect ein', () => {
-    // display:inline-block statt block, damit der Parent selbst kein eigenes stretch/grow erhält
-    // (BLOCK_LEVEL_DISPLAYS greift nicht) — sonst würde die betroffene Achse per Vertrag NICHT
-    // zusätzlich eingefroren, sondern dem Stretch überlassen (s. buildBoxNode:428-Kommentar).
+  it('4) gesplictes FLOW-Kind eines normalen Box-Parents → Parent unverändert (kein Freeze mehr nötig), Kind ist jetzt der Flow-Box-Wrapper in Slot-Größe', () => {
+    // Composition-Fidelity v3 (Spec 2026-07-19-composition-fidelity-v3-flow-box-wrap-design.md):
+    // der Absolute-Kinder-Freeze in buildBoxNode (Zeile ~428) greift nur, wenn ein DIREKTES Kind
+    // selbst `.absolute` trägt. Die gesplicte Instanz ist jetzt in eine Flow-Box gewrappt (Epsilon
+    // Widget selbst ist ein FLOW-Element, kein CSS position:absolute) — der Wrapper ist ein
+    // normaler, nicht-absoluter Flow-Child mit eigener expliziter Größe (150×90) und braucht daher
+    // keinen Freeze am Parent mehr: er nimmt seinen Platz im Fluss regulär ein (das war der ganze
+    // Sinn des Wrappers, s. Spec §Fix). middleNode bleibt daher unverändert (width/height wie ohne
+    // Splice-Beteiligung, hier: kein expliziter CSS-Wert → null).
     const html = `
       <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
         <div style="display:inline-block" data-mock-rect='{"x":0,"y":0,"width":400,"height":250}'>
@@ -1719,11 +1764,15 @@ describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-inst
     const { plan } = htmlToPlan(html, { spliceTargets });
     const middleNode = plan.children[0];
     expect(middleNode.type).toBe('box');
-    expect(middleNode.width).toBe(400);
-    expect(middleNode.height).toBe(250);
-    const epsilonNode = middleNode.children[0];
+    expect(middleNode.width).toBeNull();
+    expect(middleNode.height).toBeNull();
+    const wrapperNode = middleNode.children[0];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.width).toBe(150);
+    expect(wrapperNode.height).toBe(90);
+    const epsilonNode = wrapperNode.children[0];
     expect(epsilonNode.type).toBe('component-ref');
     expect(epsilonNode.name).toBe('Epsilon Widget');
-    expect(epsilonNode.absolute).toEqual({ x: 20, y: 20, width: 150, height: 90 });
+    expect(epsilonNode.absolute).toEqual({ x: 0, y: 0, width: 150, height: 90 });
   });
 });

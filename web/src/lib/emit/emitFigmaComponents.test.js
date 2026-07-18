@@ -378,9 +378,13 @@ describe('emitFigmaComponents — composed-spliced (Composition-Splice, Task 2)'
     const plan = dashboard.variants[0].plan;
     // Eltern-Struktur bleibt erhalten: Titel-Text als eigenes Kind vorhanden.
     expect(JSON.stringify(plan)).toContain('Dashboard-Titel');
-    // Kind-Region wurde durch eine echte component-ref-Instanz ersetzt.
-    const refNode = plan.children.find((c) => c.type === 'component-ref');
-    expect(refNode).toBeDefined();
+    // Kind-Region ist ein FLOW-Element (kein CSS position:absolute) → Composition-Fidelity-v3-
+    // Wrapper (Spec 2026-07-19-composition-fidelity-v3-flow-box-wrap-design.md): die echte
+    // component-ref-Instanz steckt jetzt im einzigen Kind einer Flow-Box in Slot-Größe, statt
+    // direkt als Eltern-Kind zu erscheinen (Overlap-Fix — die Box behält den Flow-Platz).
+    const wrapperNode = plan.children.find((c) => c.type === 'box' && c.children?.[0]?.type === 'component-ref');
+    expect(wrapperNode).toBeDefined();
+    const refNode = wrapperNode.children[0];
     expect(refNode.name).toBe('KPI Chart');
     expect(refNode.fallback.children[0]).toMatchObject({ type: 'text', content: 'Chart-Platzhalter' });
   });

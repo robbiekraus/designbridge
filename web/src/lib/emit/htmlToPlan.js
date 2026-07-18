@@ -856,12 +856,27 @@ function convertElement(el, ctx, parent = null) {
     const computed = getComputedStyle(el);
     const ctxNoSplice = { ...ctx, spliceAssignment: null };
     const refNode = { type: 'component-ref', name: spliceName, variant: null, fallback: ensureBox(buildNormalNode(el, ctxNoSplice, parent)) };
-    // Gesplicte Instanz IMMER auf ihr gemessenes Slot-Rect dimensionieren (readAbsolute für echte
-    // CSS-Positionierung, sonst gemessenes Flow-Rect relativ zum direkten Parent) — sonst huggt sie
-    // im Plugin ihre Eigengröße (Spec 2026-07-18-splice-instance-slot-sizing-design.md). Nur wenn
-    // beides null liefert (kein Parent / degeneriertes 0×0-Rect), Fallback auf stretch/grow.
-    const absolute = readAbsolute(el, computed) || measureRectRelParent(el);
-    if (absolute) return { ...refNode, absolute };
+    // Composition-Fidelity v3 (Spec 2026-07-19-composition-fidelity-v3-flow-box-wrap-design.md
+    // §Fix): eine gesplicte Instanz, die im FLUSS steht (kein CSS `position:absolute|fixed`), darf
+    // nicht mehr bare `absolute` werden — das nimmt sie aus dem Fluss und ihre Geschwister rutschen
+    // in ihren Platz (Overlap-Bug). Stattdessen: Flow-Box in Slot-Größe, die die Instanz als
+    // absolut positioniertes Kind (0,0) enthält — die Box behält den Flow-Platz für Geschwister,
+    // die Instanz wird vom Plugin (v2 applyAbsolute, shrink-only) auf min(natürlich, Slot) resized.
+    const cssAbsolute = readAbsolute(el, computed);
+    if (cssAbsolute) {
+      // Element war schon CSS-absolut → bare absolute Instanz wie bisher (kein Flow-Platz nötig).
+      return { ...refNode, absolute: cssAbsolute };
+    }
+    const rect = measureRectRelParent(el);
+    if (rect) {
+      const instance = { ...refNode, absolute: { x: 0, y: 0, width: rect.width, height: rect.height } };
+      return {
+        type: 'box', layout: 'column', padding: [0, 0, 0, 0], radius: 0, fill: null, stroke: null,
+        strokeWeight: 1, gap: 0, width: rect.width, height: rect.height,
+        primaryAlign: 'MIN', counterAlign: 'MIN', children: [instance],
+      };
+    }
+    // Nur wenn beides null liefert (kein Parent / degeneriertes 0×0-Rect), Fallback auf stretch/grow.
     return attachStretchGrow(refNode, readStretchGrow(el, computed, parent));
   }
 
