@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { analyzeScreenshot, mergeByName } from './claude.js';
+import { analyzeScreenshot, mergeByName, applyContainmentGuard } from './claude.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-scan-${Math.random().toString(36).slice(2)}.png`);
@@ -194,4 +194,15 @@ test('analyzeScreenshot: Enthaltungs-Guard hebt Card→organism und korrigiert S
   assert.ok(screen, 'Screen sollte in templates gelandet sein');
 
   assert.equal(result.templates.length, 1);
+});
+
+test('applyContainmentGuard returns composition with direct edges', () => {
+  const template = { name: 'Dashboard', bbox: { x: 0, y: 0, w: 1, h: 1 } };
+  const organism = { name: 'Sidebar', bbox: { x: 0, y: 0, w: 0.25, h: 1 } };
+  const atom = { name: 'Logo', bbox: { x: 0.02, y: 0.02, w: 0.05, h: 0.05 } };
+  const out = applyContainmentGuard([atom], [], [organism], [template]);
+  assert.ok(out.composition, 'composition present');
+  assert.deepEqual(out.composition.children['Dashboard'], ['Sidebar']);
+  assert.deepEqual(out.composition.children['Sidebar'], ['Logo']);
+  assert.deepEqual(out.composition.roots, ['Dashboard']);
 });

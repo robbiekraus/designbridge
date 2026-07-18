@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
-import { classifyByContainment, CONTAIN_RATIO } from './taxonomy.js';
+import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO } from './taxonomy.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -83,7 +83,7 @@ function bboxOverlapArea(a, b) {
 // Enthaltungs-Guard (Ansatz B, docs/superpowers/specs/2026-07-18-atomic-design-taxonomy-design.md):
 // Bild-Pfad v1 — bbox-basierte areaOf/contains, danach zurück in die 4 Buckets.
 // „A enthält B": B liegt zu >= CONTAIN_RATIO seiner Fläche in A UND A ist flächengrößer.
-function applyContainmentGuard(atoms, molecules, organisms, templates) {
+export function applyContainmentGuard(atoms, molecules, organisms, templates) {
   const asRefItems = (items, kind) => (items ?? []).map((item) => ({ name: item.name, kind, ref: item }));
   const flat = [
     ...asRefItems(atoms, 'atom'),
@@ -107,11 +107,13 @@ function applyContainmentGuard(atoms, molecules, organisms, templates) {
     const kind = buckets[entry.kind] ? entry.kind : 'organism'; // Fallback nach PINNED CONTRACT #5
     buckets[kind].push(entry.ref);
   }
+  const composition = buildCompositionTree(classified, { areaOf, contains });
   return {
     atoms: buckets.atom,
     molecules: buckets.molecule,
     organisms: buckets.organism,
     templates: buckets.template,
+    composition,
   };
 }
 
