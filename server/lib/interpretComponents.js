@@ -15,7 +15,15 @@ const MODEL = 'claude-sonnet-5';
 // WICHTIG: quote-frei (%27 statt '): der Platzhalter wird in "..."-, '...'-
 // und unquoted-src-Attribute eingesetzt — ein rohes ' oder " würde das
 // Attribut vorzeitig abbrechen und kaputtes HTML erzeugen (Review 16.07.).
-const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2748%27 height=%2748%27><rect width=%2748%27 height=%2748%27 rx=%276%27 fill=%27%23e4e4e7%27/></svg>";
+//
+// Fix C (Rob: externe Bilder wurden zu winzigen leeren grauen Kästen — "leere Pages",
+// Sidebar-Logo/Avatar): der bisherige Platzhalter trug feste width=48/height=48-Attribute auf dem
+// <svg>-Root und skalierte damit NICHT auf die tatsächliche CSS-Box des <img>-Elements — dazu kein
+// erkennbares "das ist ein Bild"-Signal, nur eine leere Fläche. Jetzt: viewBox-basiert (kein festes
+// width/height mehr auf dem Root → SVG-Spec-Default "100%/100%" füllt die Img-Box aus, gleiche
+// Fläche im viewBox-Koordinatensystem 0..48) PLUS ein dezentes Bild-Icon (Sonne+Berg-Silhouette,
+// klassisches "Platzhalterbild"-Glyph) in einem etwas dunkleren Grauton auf dem Hintergrund.
+const IMG_PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 48 48%27><rect width=%2748%27 height=%2748%27 rx=%276%27 fill=%27%23e4e4e7%27/><circle cx=%2716%27 cy=%2716%27 r=%273%27 fill=%27%23a1a1aa%27/><path d=%27M6 36L17 22L23 29L30 18L42 36Z%27 fill=%27%23a1a1aa%27/></svg>";
 
 export function sanitizeHtml(html) {
   return String(html ?? '')

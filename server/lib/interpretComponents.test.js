@@ -148,6 +148,41 @@ test('sanitizeHtml lässt data-URI-Bilder unangetastet', () => {
   assert.equal(sanitizeHtml(html), html);
 });
 
+// Fix C (Rob: externe Bilder wurden zu winzigen leeren grauen Kästen — "leere Pages",
+// Sidebar-Logo/Avatar): der alte Platzhalter hatte feste width=48/height=48-Attribute auf dem
+// <svg>-Root, skalierte also NICHT auf die tatsächliche CSS-Box des <img> und trug kein
+// erkennbares "das ist ein Bild"-Signal. Fix: viewBox-basiertes SVG (kein festes width/height auf
+// dem Root mehr → SVG-Spec-Default "100%/100%" füllt die Img-Box) PLUS ein dezentes Bild-Icon
+// (Sonne+Berg-Silhouette) auf dem grauen Hintergrund.
+test('sanitizeHtml: Platzhalter ist viewBox-basiert (skaliert auf die Img-Box) statt fester 48×48-Größe', () => {
+  const out = sanitizeHtml('<img src="https://cdn.example.com/logo.png">');
+  const svgTag = out.match(/<svg[^>]*>/);
+  assert.ok(svgTag, 'Platzhalter enthält kein <svg>-Root-Tag');
+  assert.match(svgTag[0], /viewBox/);
+  // Root-Tag selbst trägt kein festes width/height mehr (das innere <rect> darf/soll das behalten,
+  // um den vollen viewBox auszufüllen — nur das <svg>-Root wird geprüft).
+  assert.doesNotMatch(svgTag[0], /\swidth=/);
+  assert.doesNotMatch(svgTag[0], /\sheight=/);
+});
+
+test('sanitizeHtml: Platzhalter zeigt ein Bild-Icon (Glyph), nicht nur eine leere graue Fläche', () => {
+  const out = sanitizeHtml('<img src="https://cdn.example.com/avatar.png">');
+  // mindestens ein zusätzliches Vektor-Element (Icon-Glyph) neben dem grauen Hintergrund-<rect>
+  assert.match(out, /<(circle|path)\b/);
+});
+
+test('sanitizeHtml: neuer Platzhalter bleibt quote-sicher (kein rohes \' oder " im Data-URI-Wert)', () => {
+  const outDouble = sanitizeHtml('<img src="https://cdn.example.com/x.png">');
+  const doubleMatch = outDouble.match(/src="([^"]*)"/);
+  assert.ok(doubleMatch, 'src-Attribut wurde nicht sauber terminiert (rohes Zeichen im Platzhalter?)');
+  assert.doesNotMatch(doubleMatch[1], /'/);
+
+  const outSingle = sanitizeHtml("<img src='https://cdn.example.com/x.png'>");
+  const singleMatch = outSingle.match(/src='([^']*)'/);
+  assert.ok(singleMatch, 'src-Attribut (single-quoted) wurde nicht sauber terminiert');
+  assert.doesNotMatch(singleMatch[1], /"/);
+});
+
 test('Namens-Matching toleriert umgebende Leerzeichen', async () => {
   const client = { messages: { create: async () => ({ content: [{ text: JSON.stringify({ interpretations: [{ name: '  Stat Card  ', html: '<div class="p-2">ok</div>', jsx: '' }] }) }] }) } };
   const res = await interpretComponents(
