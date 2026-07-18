@@ -2,6 +2,7 @@ import { ingestCss, normalizeColor, pxNumber, remToPx } from './cssIngest.js';
 import { parseTailwindTheme } from './tailwindTheme.js';
 import { recognizeRepoInventory } from './repoInventory.js';
 import { isTailwindConfig, isCssFile } from './repoFilePatterns.js';
+import { buildRepoComposition } from './repoComposition.js';
 
 const dedupeBy = (arr, keyFn) => {
   const seen = new Set();
@@ -85,6 +86,12 @@ export function ingestRepoFiles(files, { sourceUrl = null, branch = null } = {})
     warnings.add('Keine Design-Tokens gefunden — weder tailwind.config noch CSS-Variablen.');
   }
 
+  // Verschachtelung aus dem echten Code-Graph — dieselbe Pipeline für beide
+  // Repo-Routen (/repo und /repo/ai rufen beide ingestRepoFiles zuerst auf).
+  const allItems = [...inventory.atoms, ...inventory.organisms, ...inventory.templates];
+  const filesByPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
+  const composition = buildRepoComposition(allItems, filesByPath);
+
   return {
     summary: {
       source_description: 'Tokens und Inventar aus Repository extrahiert',
@@ -99,5 +106,6 @@ export function ingestRepoFiles(files, { sourceUrl = null, branch = null } = {})
     templates: inventory.templates,
     warnings: [...warnings],
     meta: { model: 'repo-ingest', source_url: sourceUrl, branch, ai_deepened: false, elapsed_ms: 0 },
+    composition,
   };
 }

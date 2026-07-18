@@ -18,6 +18,7 @@ import { putImage } from '../lib/imageStore.js';
 import { putPage } from '../lib/pageStore.js';
 import { putRepo } from '../lib/repoStore.js';
 import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
+import { buildRepoComposition } from '../lib/repoComposition.js';
 import { aiKeyConfigured } from '../lib/aiClient.js';
 
 const router = express.Router();
@@ -248,6 +249,14 @@ router.post('/repo/ai', async (req, res) => {
     const mergedInv = [...result.atoms, ...result.molecules, ...result.organisms];
     applyBaselinePaths(mergedInv, [...baseline.atoms, ...baseline.molecules, ...baseline.organisms]);
     await liftRepoInventory(files, mergedInv);
+    // Komposition neu ableiten: die KI kann Bausteine umbenennen/ergänzen —
+    // die von ingestRepoFiles gelieferte composition spiegelt noch die
+    // Baseline-Namen, nicht den gemergten Bestand.
+    const filesByPath = Object.fromEntries(files.map((f) => [f.path, f.content]));
+    result.composition = buildRepoComposition(
+      [...mergedInv, ...result.templates],
+      filesByPath,
+    );
     result.meta = {
       ...result.meta, model: 'repo-ingest+ai', ai_deepened: true,
       import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }),

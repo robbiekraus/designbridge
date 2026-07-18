@@ -57,3 +57,19 @@ test('carries computed-config warnings from the tailwind parser', async () => {
   const result = ingestRepoFiles(files);
   assert.ok(result.warnings.some((w) => /statisch nicht gelesen/.test(w)));
 });
+
+test('result.composition trägt die JSX-Verschachtelung aus dem Repo-Code', () => {
+  const files = [
+    { path: 'src/components/Layout.tsx',
+      content: "import SidebarNav from './SidebarNav';\nimport Header from './Header';\nexport default function Layout(){return(<div><SidebarNav/><Header/></div>);}" },
+    { path: 'src/components/SidebarNav.tsx',
+      content: "import Button from './ui/Button';\nexport default function SidebarNav(){return(<nav><Button/></nav>);}" },
+    { path: 'src/components/Header.tsx', content: 'export default function Header(){return <header/>;}' },
+    { path: 'src/components/ui/Button.tsx', content: 'export default function Button(){return <button/>;}' },
+  ];
+  const result = ingestRepoFiles(files);
+  assert.ok(result.composition, 'composition present');
+  assert.ok(result.composition.children['SidebarNav'].includes('Button'));
+  assert.ok(result.composition.roots.length > 0);
+  assert.ok(Object.keys(result.composition.children).length > 0);
+});
