@@ -249,4 +249,22 @@ describe('emitFigmaComponents — composition', () => {
     expect(logo.source).not.toBe('composed');
     expect(logo.placeholder).toBe(true); // no interpretation, no template
   });
+
+  it('repo composition (no bbox) → composed parent in flow mode', () => {
+    const result = { raw: {
+      tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+      atoms: [{ name: 'Button', path: 'ui/Button.tsx' }],
+      molecules: [],
+      organisms: [{ name: 'SidebarNav', path: 'SidebarNav.tsx' }],
+      templates: [{ name: 'Layout', path: 'Layout.tsx' }],
+      warnings: [], meta: {},
+      composition: { children: { Layout: ['SidebarNav'], SidebarNav: ['Button'] }, roots: ['Layout'] },
+    }, interpretations: {} };
+    const out = emitFigmaComponents(result);
+    const layout = out.find((c) => c.name === 'Layout');
+    expect(layout.source).toBe('composed');
+    expect(layout.variants[0].plan.layout).toBe('column');
+    expect(layout.variants[0].plan.children[0]).toMatchObject({ type: 'component-ref', name: 'SidebarNav' });
+    expect(layout.variants[0].plan.children[0].absolute).toBeUndefined();
+  });
 });
