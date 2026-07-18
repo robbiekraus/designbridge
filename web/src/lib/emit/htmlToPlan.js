@@ -686,6 +686,38 @@ function convertElement(el, ctx, parent = null) {
   return buildNormalNode(el, ctx, parent);
 }
 
+/** true, wenn irgendein NACHFAHRE (nicht der Node selbst — Wurzeln tragen nie stretch/grow) ein
+ *  stretch- oder grow-Feld trägt. Steigt auch in component-ref-Fallbacks ab (das Plugin rendert
+ *  bei fehlender Komponente den Fallback-Baum, dessen stretch-Kinder denselben bestimmten Parent
+ *  brauchen). Grundlage für den Wurzel-Breiten-Freeze (s. freezeRootWidth). */
+function subtreeHasStretchOrGrow(node) {
+  if (!node || typeof node !== 'object') return false;
+  const children = [];
+  if (Array.isArray(node.children)) children.push(...node.children);
+  if (node.fallback) children.push(node.fallback);
+  return children.some((c) => c && (c.stretch === true || c.grow === true || subtreeHasStretchOrGrow(c)));
+}
+
+/** Wurzel-Breiten-Freeze (Spec-Nachtrag 18.07., Befund Figma-Test `test 7`): Der Plugin-Guard
+ *  wendet STRETCH/GROW nur unter Parents mit bestimmter Achse an — eine Box-WURZEL ohne explizite
+ *  Breite (real: Pattern „Dashboard Layout", „Reports Table") schaltet damit die gesamte
+ *  Stretch-Kette ihres Unterbaums ab (Monats-Labels gestaucht, Titel/Wert verklebt). Fix: die im
+ *  Mount GEMESSENE Wurzel-Breite einfrieren, aber nur wenn
+ *  (a) die Wurzel eine Box ohne width ist,
+ *  (b) der Unterbaum die Bestimmtheit überhaupt braucht (mind. ein stretch/grow), und
+ *  (c) das Rect echt misst (> 0 — jsdom hat keine Layout-Engine und liefert 0; dort passiert
+ *      nichts, der bestehende Testkorpus bleibt unberührt).
+ *  Bewusst NUR die Breite: ein Höhen-Freeze würde jede Wurzel via clipsContent auf die Browser-
+ *  Inhaltshöhe festnageln und bei Figmas abweichenden Font-Metriken Inhalte abschneiden — die
+ *  Höhe bleibt HUG und wächst mit Figmas eigenem Textumbruch. */
+function freezeRootWidth(node, el) {
+  if (!node || node.type !== 'box' || node.width != null) return node;
+  if (!subtreeHasStretchOrGrow(node)) return node;
+  const width = Math.round(el.getBoundingClientRect().width);
+  if (width <= 0) return node;
+  return { ...node, width };
+}
+
 /**
  * @param {string} html Sanitisiertes KI-HTML.
  * @param {{ tokens?: object, knownComponents?: Array<{name: string, kind: string}> }} [options]
@@ -731,11 +763,13 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [] } = {}) {
     }
 
     const ctx = { tokens, knownComponents, warnings };
+    // Wurzel-Breiten-Freeze je Wurzel-ELEMENT (nicht auf dem synthetischen Mehrfach-Root-Wrapper,
+    // der kein Element zum Messen hat) — Begründung s. freezeRootWidth.
     let plan;
     if (roots.length === 1) {
-      plan = convertElement(roots[0], ctx);
+      plan = freezeRootWidth(convertElement(roots[0], ctx), roots[0]);
     } else {
-      plan = { ...emptyBoxNode(), children: roots.map((el) => convertElement(el, ctx)) };
+      plan = { ...emptyBoxNode(), children: roots.map((el) => freezeRootWidth(convertElement(el, ctx), el)) };
     }
 
     // Der Vertrag verlangt PlanBox|null am Wurzelknoten — ein rein-textuelles Root-Element

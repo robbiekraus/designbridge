@@ -1086,14 +1086,17 @@ describe('htmlToPlan — absolute Positionierung (Scheibe A, Spec §Scheibe A)',
     expect(plan.width).toBe(870);
   });
 
-  it('Parent OHNE absolute Kinder bleibt HUG (width/height null)', () => {
+  it('Parent OHNE absolute Kinder: kein Absolute-Freeze — aber Wurzel-Breiten-Freeze greift (stretch-Kind)', () => {
     const html = `
       <div style="display:flex" data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
         <div style="padding:2px" data-mock-rect='{"x":0,"y":0,"width":100,"height":100}'>A</div>
       </div>
     `;
     const { plan } = htmlToPlan(html);
-    expect(plan.width).toBeNull();
+    // Der ABSOLUTE-Freeze (beide Achsen) greift hier nicht (kein absolutes Kind). Seit dem
+    // Wurzel-Breiten-Freeze (18.07., s. eigene Suite unten) wird aber die BREITE eingefroren,
+    // weil das Kind über den row/'normal'-Default stretch trägt — die Höhe bleibt HUG.
+    expect(plan.width).toBe(870);
     expect(plan.height).toBeNull();
   });
 });
@@ -1269,5 +1272,102 @@ describe('htmlToPlan — stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Gro
     const child = plan.children[0];
     expect(child.height).toBeNull();
     expect(child.grow).toBe(true);
+  });
+
+  // Wurzel-Breiten-Freeze (Spec-Nachtrag 18.07., Befund Figma-Test `test 7`): eine Box-Wurzel OHNE
+  // explizite Breite, deren Unterbaum stretch/grow trägt, würde im Plugin die gesamte Kette über
+  // den HUG-Guard abschalten (Pattern „Dashboard Layout" + „Reports Table" im echten Payload).
+  // Fix: gemessene Wurzel-Breite einfrieren — NUR die Breite (Höhen-Freeze würde bei Figmas
+  // abweichenden Font-Metriken Inhalte abschneiden), NUR wenn der Unterbaum das braucht, NUR wenn
+  // das Rect echt misst (>0; jsdom-Default 0 → kein Freeze, Bestandstests unberührt).
+  describe('Wurzel-Breiten-Freeze (mit gemocktem getBoundingClientRect)', () => {
+    let restoreGetBoundingClientRect;
+
+    beforeEach(() => {
+      const original = Element.prototype.getBoundingClientRect;
+      restoreGetBoundingClientRect = () => {
+        Element.prototype.getBoundingClientRect = original;
+      };
+      Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+        const raw = this.getAttribute?.('data-mock-rect');
+        const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+        return {
+          x: r.x,
+          y: r.y,
+          left: r.x,
+          top: r.y,
+          width: r.width,
+          height: r.height,
+          right: r.x + r.width,
+          bottom: r.y + r.height,
+          toJSON() {
+            return this;
+          },
+        };
+      };
+    });
+
+    afterEach(() => {
+      restoreGetBoundingClientRect();
+    });
+
+    it('Wurzel ohne Breite mit stretch-Kind → gemessene Breite eingefroren', () => {
+      const html = `
+        <div style="display:flex;flex-direction:column" data-mock-rect='{"x":0,"y":0,"width":1024,"height":600}'>
+          <div>Zeile</div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.children[0].stretch).toBe(true);
+      expect(plan.width).toBe(1024);
+      expect(plan.height).toBeNull(); // NUR Breite — Höhe bleibt HUG (Font-Metrik-Toleranz)
+    });
+
+    it('stretch tief im Unterbaum (Enkel) reicht für den Freeze', () => {
+      const html = `
+        <div data-mock-rect='{"x":0,"y":0,"width":900,"height":300}'>
+          <div style="width:400px"><div>Enkel</div></div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.width).toBe(900);
+    });
+
+    it('Unterbaum ohne stretch/grow → Wurzel bleibt HUG trotz messbarem Rect', () => {
+      const html = `
+        <div style="display:flex;align-items:center" data-mock-rect='{"x":0,"y":0,"width":1024,"height":40}'>
+          <div style="width:36px;height:36px;background:#ccc"></div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.width).toBeNull();
+    });
+
+    it('Wurzel mit expliziter Inline-Breite bleibt unangetastet', () => {
+      const html = `
+        <div style="width:320px;display:flex;flex-direction:column" data-mock-rect='{"x":0,"y":0,"width":1024,"height":100}'>
+          <div>Zeile</div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.width).toBe(320);
+    });
+
+    it('Mehrfach-Wurzeln werden einzeln eingefroren, der synthetische Wrapper nicht', () => {
+      const html = `
+        <div data-mock-rect='{"x":0,"y":0,"width":700,"height":100}'><div>A</div></div>
+        <div data-mock-rect='{"x":0,"y":0,"width":650,"height":100}'><div>B</div></div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.width).toBeNull();
+      expect(plan.children[0].width).toBe(700);
+      expect(plan.children[1].width).toBe(650);
+    });
+  });
+
+  it('Wurzel-Breiten-Freeze passiert NICHT ohne echtes Rect (jsdom-Default 0)', () => {
+    const { plan } = htmlToPlan('<div><div>Kind</div></div>');
+    expect(plan.children[0].stretch).toBe(true);
+    expect(plan.width).toBeNull();
   });
 });

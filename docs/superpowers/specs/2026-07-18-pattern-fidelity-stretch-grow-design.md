@@ -122,10 +122,22 @@ also nur die Höhe eingefroren, die Breite kommt zur Laufzeit vom Parent.
 - Volle Suiten (Server unberührt: 208 · Web · Plugin) + Plugin-Typecheck + Build (dist neu → Rob
   muss das Dev-Plugin neu laden).
 
+## Nachtrag 18.07. nachmittags — Wurzel-Breiten-Freeze (Befund aus Robs Figma-Test `test 7`)
+
+Die Annahme „Pattern-Wurzeln tragen praktisch immer Inline-Breite" war **falsch**: Im echten
+Payload hatten „Dashboard Layout" (Pattern) und „Reports Table" `width:null` an der Wurzel →
+der Plugin-Guard schaltete die gesamte Stretch-Kette ab (Monats-Labels gestaucht, Titel/Wert
+verklebt — Sidebar war nur wegen counterAlign MIN gefixt). **Fix:** `freezeRootWidth` in
+htmlToPlan — eine Box-Wurzel ohne width, deren Unterbaum mind. ein stretch/grow trägt, bekommt
+die im Mount gemessene Breite eingefroren (nur bei Rect > 0; jsdom liefert 0 → Bestandstests
+unberührt). **Bewusst NUR die Breite:** ein Höhen-Freeze würde via clipsContent jede Wurzel auf
+die Browser-Inhaltshöhe festnageln und bei Figmas abweichenden Font-Metriken Inhalte abschneiden.
+Atomics ohne Stretch-Bedarf (z. B. zentrierter Avatar) bleiben HUG (Bedingung b).
+
 ## Bewusste Grenzen (dokumentiert, nicht gefixt)
 
-- **Wurzeln ohne Breite bleiben HUG** — der Guard im Plugin lässt Stretch-Kinder darunter einfach
-  huggen (heutiges Verhalten). Pattern-Wurzeln tragen praktisch immer Inline-Breite (KI-Prompt).
+- ~~Wurzeln ohne Breite bleiben HUG~~ → **gefixt per Wurzel-Breiten-Freeze (Nachtrag oben)**;
+  HUG bleibt nur, wenn der Unterbaum kein stretch/grow trägt (dann ist er auch nicht nötig).
 - **svg skaliert nicht mit** (bewusst ausgenommen) — zu schmale/breite Charts in stark abweichenden
   Kontexten bleiben möglich.
 - Tabellen-Spaltenraster, Direkter-Parent-Vereinfachung bei `absolute`, Prozentwerte ≠ 100 % —
