@@ -6,6 +6,8 @@ import { matchTemplate } from '../components/templates/registry.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokenRefs } from './pickTokenRefs.js';
 import { htmlToPlan } from './htmlToPlan.js';
+import { composePlan } from './composePlan.js';
+import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
 // bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
@@ -47,6 +49,23 @@ export function emitFigmaComponents(result) {
   // einem neuen, ungenutzten Feld zu verschwinden.
   const converterWarnings = [];
 
+  // Kompositions-Baum (Fundament + Figma-Port, Spec 2026-07-18-composition-nesting-figma-design.md
+  // §PINNED CONTRACT 4): Bausteine MIT direkten Kindern werden aus component-ref-Instanzen ihrer
+  // Kinder komponiert statt aus der (bei verschachtelten Bausteinen unzuverlässigen) monolithischen
+  // Ganz-Baustein-Interpretation. Namens-Index über alle 4 Buckets, damit Kind-Items (mit bbox)
+  // per Namen aufgelöst werden können.
+  const composition = raw.composition || { children: {}, roots: [] };
+  const itemByName = new Map();
+  for (const [rawKey] of KINDS) {
+    for (const item of (Array.isArray(raw[rawKey]) ? raw[rawKey] : [])) itemByName.set(item.name, item);
+  }
+  const iw = raw.meta?.image_width;
+  const ih = raw.meta?.image_height;
+  const canvas = {
+    w: PREVIEW_VIRTUAL_WIDTH,
+    h: iw && ih ? Math.round(PREVIEW_VIRTUAL_WIDTH * ih / iw) : PREVIEW_VIRTUAL_WIDTH,
+  };
+
   const out = [];
   for (const [rawKey, kind] of KINDS) {
     const items = Array.isArray(raw[rawKey]) ? raw[rawKey] : [];
@@ -59,6 +78,18 @@ export function emitFigmaComponents(result) {
         source: item.source ?? null,
         notes: item.notes ?? null,
       };
+
+      const childNames = composition.children?.[item.name];
+      if (Array.isArray(childNames) && childNames.length) {
+        const childItems = childNames.map((n) => itemByName.get(n)).filter(Boolean);
+        out.push({
+          ...meta,
+          placeholder: false,
+          source: 'composed',
+          variants: [{ name: 'default', plan: composePlan(item, childItems, canvas) }],
+        });
+        continue;
+      }
 
       if (tpl?.planFor) {
         out.push({

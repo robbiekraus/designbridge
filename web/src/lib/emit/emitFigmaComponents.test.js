@@ -212,3 +212,41 @@ describe('emitFigmaComponents — Token-Bindung gegen disambiguierte Namen (Revi
     expect(card.variants[0].plan.fill).toEqual({ hex: '#222222', token: 'primary-2' });
   });
 });
+
+const baseCompositionResult = () => ({
+  raw: {
+    tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+    atoms: [{ name: 'Logo', bbox: { x: 0.02, y: 0.02, w: 0.05, h: 0.05 } }],
+    molecules: [],
+    organisms: [{ name: 'Sidebar', bbox: { x: 0, y: 0, w: 0.25, h: 1 } }],
+    templates: [{ name: 'Dashboard', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+    warnings: [],
+    meta: { image_width: 1024, image_height: 768 },
+    composition: {
+      children: { Dashboard: ['Sidebar'], Sidebar: ['Logo'] },
+      roots: ['Dashboard'],
+    },
+  },
+  interpretations: {},
+});
+
+describe('emitFigmaComponents — composition', () => {
+  it('parents with children are composed of component-refs, not htmlToPlan', () => {
+    const out = emitFigmaComponents(baseCompositionResult());
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed');
+    expect(dashboard.placeholder).toBe(false);
+    const plan = dashboard.variants[0].plan;
+    expect(plan.children.map((c) => c.type)).toEqual(['component-ref']);
+    expect(plan.children[0].name).toBe('Sidebar');
+    const sidebar = out.find((c) => c.name === 'Sidebar');
+    expect(sidebar.source).toBe('composed');
+    expect(sidebar.variants[0].plan.children[0].name).toBe('Logo');
+  });
+  it('leaf baustein without children keeps existing placeholder path', () => {
+    const out = emitFigmaComponents(baseCompositionResult());
+    const logo = out.find((c) => c.name === 'Logo');
+    expect(logo.source).not.toBe('composed');
+    expect(logo.placeholder).toBe(true); // no interpretation, no template
+  });
+});
