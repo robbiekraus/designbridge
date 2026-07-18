@@ -50,9 +50,10 @@ describe('ImportModal', () => {
             border_radius: [],
             shadows: [],
           },
-          atomics: [],
-          components: [],
-          patterns: [],
+          atoms: [],
+          molecules: [],
+          organisms: [],
+          templates: [],
         }),
       };
     });
@@ -72,7 +73,7 @@ describe('ImportModal', () => {
       ok: true,
       json: async () => ({
         tokens: { colors: [{ hex: '#fff', confidence: 'high' }], typography: [], spacing: [], border_radius: [], shadows: [] },
-        atomics: [], components: [], patterns: [],
+        atoms: [], molecules: [], organisms: [], templates: [],
       }),
     }));
 

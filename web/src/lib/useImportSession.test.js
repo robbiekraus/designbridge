@@ -19,7 +19,7 @@ describe('useImportSession', () => {
       ok: true,
       json: async () => ({
         tokens: { colors: [{ hex: '#fff', confidence: 'high' }] },
-        atomics: [], components: [], patterns: [],
+        atoms: [], molecules: [], organisms: [], templates: [],
       }),
     });
 
@@ -50,7 +50,7 @@ describe('useImportSession', () => {
       ok: true,
       json: async () => ({
         tokens: { colors: [{ hex: '#fff', confidence: 'high' }] },
-        atomics: [], components: [], patterns: [],
+        atoms: [], molecules: [], organisms: [], templates: [],
       }),
     });
 
@@ -69,8 +69,8 @@ describe('useImportSession', () => {
       ok: true,
       json: async () => ({
         tokens: { colors: [{ hex: '#022d2c', confidence: 'high' }] },
-        atomics: [{ name: 'Button', confidence: 'high', source: 'rules' }],
-        components: [], patterns: [],
+        atoms: [{ name: 'Button', confidence: 'high', source: 'rules' }],
+        molecules: [], organisms: [], templates: [],
         meta: { model: 'repo-ingest', source_url: 'https://github.com/a/b', branch: 'main', ai_deepened: false },
       }),
     });
@@ -121,7 +121,7 @@ describe('useImportSession', () => {
   it('reset returns to idle', async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ tokens: {}, atomics: [], components: [], patterns: [] }),
+      json: async () => ({ tokens: {}, atoms: [], molecules: [], organisms: [], templates: [] }),
     });
     const { result } = renderHook(() => useImportSession());
     await act(async () => {

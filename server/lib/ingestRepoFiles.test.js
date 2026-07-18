@@ -21,8 +21,8 @@ test('produces the canonical server shape from the fixture repo', async () => {
   assert.ok(result.tokens.shadows.some((s) => /rgba/.test(s.css)));
   assert.ok(result.tokens.typography.some((t) => t.size === 16));        // fontSize.base 1rem
 
-  assert.ok(result.atomics.some((a) => a.name === 'Button'));
-  assert.ok(result.patterns.some((p) => p.name === 'Layout'));
+  assert.ok(result.atoms.some((a) => a.name === 'Button'));
+  assert.ok(result.templates.some((p) => p.name === 'Layout'));
 
   assert.equal(result.meta.model, 'repo-ingest');
   assert.equal(result.meta.source_url, 'https://github.com/a/b');
@@ -49,7 +49,7 @@ test('dedupes tokens across tailwind and css (tailwind wins)', () => {
 test('warns when no tokens are found at all (but still returns 200-shape)', () => {
   const result = ingestRepoFiles([{ path: 'components/ui/button.tsx', content: 'x' }]);
   assert.ok(result.warnings.some((w) => /Keine Design-Tokens/.test(w)));
-  assert.ok(result.atomics.length > 0);
+  assert.ok(result.atoms.length > 0);
 });
 
 test('carries computed-config warnings from the tailwind parser', async () => {

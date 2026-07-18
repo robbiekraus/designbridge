@@ -7,10 +7,10 @@ const picks = { primary: '#022d2c', onPrimary: '#ffffff', text: '#18181b',
   fontSize: '16px', fontWeight: '600' };
 
 const items = [
-  { name: 'Button', slug: 'button', filename: 'Button.jsx', kind: 'atomic',
+  { name: 'Button', slug: 'button', filename: 'Button.jsx', kind: 'atom',
     templateKey: 'button', variants: ['primary', 'secondary', 'ghost'],
     code: 'export function Button() {}', confidence: 'high', hasPreview: true },
-  { name: 'Hero section', slug: 'hero-section', filename: 'HeroSection.jsx', kind: 'component',
+  { name: 'Hero section', slug: 'hero-section', filename: 'HeroSection.jsx', kind: 'organism',
     templateKey: null, variants: [], code: 'export function HeroSection() {}',
     confidence: 'low', hasPreview: false },
 ];
@@ -62,7 +62,7 @@ describe('LibraryObjectList', () => {
 
 function item(overrides = {}) {
   return {
-    name: 'Avatar', slug: 'avatar', filename: 'Avatar.jsx', kind: 'atomic',
+    name: 'Avatar', slug: 'avatar', filename: 'Avatar.jsx', kind: 'atom',
     templateKey: null, variants: [], code: '// code', confidence: 'med',
     source: null, notes: null, hasPreview: false,
     interpretedHtml: null, interpretFailed: false, interpretPending: false,
@@ -122,7 +122,7 @@ describe('LibraryObjectList — Interpretations-Zustände', () => {
   it('gehobener Baustein ohne Vorschau zeigt Pille + Interpret-Knopf', () => {
     const onRetryInterpret = vi.fn();
     const items = [{
-      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
       code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
       lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
       interpretFailed: false, interpretPending: false,
@@ -219,7 +219,7 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
   it('gehobener Baustein: batchPending sperrt auch den "Mit KI interpretieren"-Knopf', () => {
     const onRetryInterpret = vi.fn();
     const items = [{
-      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
       code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
       lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
       interpretFailed: false, interpretPending: false,
@@ -232,7 +232,7 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
   it('gehobener Baustein: retryingNames sperrt den Knopf und zeigt "Läuft …" (Fix 2 — Label wechselt während des Retries)', () => {
     const onRetryInterpret = vi.fn();
     const items = [{
-      name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
       code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
       lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
       interpretFailed: false, interpretPending: false,
@@ -252,7 +252,7 @@ describe('LibraryObjectList — Retry-Ladezustand pro Zeile', () => {
 });
 
 const liftedItem = (overrides = {}) => ({
-  name: 'PricingWidget', slug: 'pricing-widget', kind: 'component', filename: 'PricingWidget.tsx',
+  name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
   code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
   lifted: true, variants: [], hasPreview: false, interpretedHtml: null,
   interpretFailed: false, interpretPending: false,

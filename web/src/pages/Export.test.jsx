@@ -20,8 +20,8 @@ const placeholderResult = {
       colors: [{ hex: '#022d2c', role: 'primary button', confidence: 'high' }],
       typography: [], spacing: [], border_radius: [], shadows: [],
     },
-    atomics: [{ name: 'Category Of Emissions Chart', variants: [], confidence: 'low', source: 'ai', notes: null }],
-    components: [], patterns: [],
+    atoms: [{ name: 'Category Of Emissions Chart', variants: [], confidence: 'low', source: 'ai', notes: null }],
+    molecules: [], organisms: [], templates: [],
   },
 };
 

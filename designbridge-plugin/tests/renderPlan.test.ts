@@ -14,7 +14,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPlan } from '../src/writer/renderPlan';
-import type { PlanBox, PlanText, SectionFrames } from '../src/writer/parsePayload';
+import type { PlanBox, PlanText } from '../src/writer/parsePayload';
+import type { SectionFrames } from '../src/writer/buildComponents';
 
 type FrameStub = {
   type: 'FRAME';
@@ -210,9 +211,10 @@ function installFigmaStub(options: { withSvg?: boolean } = {}): {
 
 function emptySections(): SectionFrames {
   return {
-    atomic: { children: [] } as unknown as SectionFrames['atomic'],
-    component: { children: [] } as unknown as SectionFrames['component'],
-    pattern: { children: [] } as unknown as SectionFrames['pattern'],
+    atom: { children: [] } as unknown as SectionFrames['atom'],
+    molecule: { children: [] } as unknown as SectionFrames['molecule'],
+    organism: { children: [] } as unknown as SectionFrames['organism'],
+    template: { children: [] } as unknown as SectionFrames['template'],
   };
 }
 

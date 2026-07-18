@@ -17,15 +17,17 @@ const RESULT = {
   raw: {
     meta: { import_id: 'abc123' },
     tokens: {},
-    atomics: [
+    atoms: [
       { name: 'Button', variants: ['primary'], confidence: 'high' }, // Template → raus
       { name: 'Avatar', variants: [], confidence: 'med', notes: 'rund' }, // kein Template → rein
     ],
-    components: [
+    molecules: [],
+    organisms: [
       { name: 'Stat Card', confidence: 'high' }, // inhaltstragende Card → rein (Leck 1 Fix)
       { name: 'Data Table', confidence: 'med' }, // rein
+      { name: 'Metrics Overview', confidence: 'low' }, // rein
     ],
-    patterns: [{ name: 'Metrics Overview', confidence: 'low' }], // rein
+    templates: [],
   },
 };
 
@@ -35,11 +37,11 @@ describe('componentsNeedingInterpretation', () => {
   it('filtert Template-Treffer raus und behält kind/variants/notes', () => {
     const todo = componentsNeedingInterpretation(RESULT);
     expect(todo.map((t) => t.name)).toEqual(['Avatar', 'Stat Card', 'Data Table', 'Metrics Overview']);
-    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null, path: null });
+    expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atom', variants: [], notes: 'rund', bbox: null, selector: null, path: null });
   });
 
   it('passes bbox through and routes content-bearing cards to interpretation', () => {
-    const result = { raw: { components: [
+    const result = { raw: { organisms: [
       { name: 'Card', confidence: 'high', notes: '', bbox: { x:0,y:0,w:0.1,h:0.1 } },        // Template → raus
       { name: 'Stat Card', confidence: 'high', notes: 'Sales', bbox: { x:0.1,y:0,w:0.2,h:0.2 } }, // interpretieren
     ] } };
@@ -66,10 +68,10 @@ describe('componentsNeedingInterpretation', () => {
       source: 'repo',
       raw: {
         meta: { import_id: 'r1' },
-        components: [
+        organisms: [
           { name: 'Callout', path: 'components/callout.tsx', sourceCode: 'export const Callout=()=>null;' },
         ],
-        patterns: [{ name: 'Dashboard Layout', confidence: 'low' }], // kein path/sourceCode → kein Material
+        templates: [{ name: 'Dashboard Layout', confidence: 'low' }], // kein path/sourceCode → kein Material
       },
     };
     expect(componentsNeedingInterpretation(result).map((t) => t.name)).toEqual(['Callout']);
@@ -80,7 +82,7 @@ describe('componentsNeedingInterpretation', () => {
       source: 'repo',
       raw: {
         meta: { import_id: 'r1' },
-        components: [
+        organisms: [
           // "CardSkeleton" matcht das card-Template — gehoben zählt der echte Code, nicht das Template.
           { name: 'CardSkeleton', path: 'ui/card-skeleton.tsx', sourceCode: 'export const CardSkeleton=()=>null;' },
         ],
@@ -207,7 +209,7 @@ describe('runInterpretation', () => {
       source: 'url',
       raw: {
         ...RESULT.raw,
-        atomics: [{ name: 'Avatar', selector: 'html > body > div' }],
+        atoms: [{ name: 'Avatar', selector: 'html > body > div' }],
       },
     };
     const next = await runInterpretation(urlResult);
@@ -240,9 +242,10 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 6) + Auto-Retry + Abort'
     source: 'image',
     raw: {
       meta: { import_id: 'nine1' },
-      atomics: Array.from({ length: 9 }, (_, i) => ({ name: `Widget${i + 1}`, variants: [], notes: '' })),
-      components: [],
-      patterns: [],
+      atoms: Array.from({ length: 9 }, (_, i) => ({ name: `Widget${i + 1}`, variants: [], notes: '' })),
+      molecules: [],
+      organisms: [],
+      templates: [],
     },
   };
 
@@ -344,13 +347,14 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 6) + Auto-Retry + Abort'
       source: 'image',
       raw: {
         meta: { import_id: 'retry1' },
-        atomics: [
+        atoms: [
           { name: 'AlwaysOk', variants: [], notes: '' },
           { name: 'FailsOnce', variants: [], notes: '' },
           { name: 'FailsAlways', variants: [], notes: '' },
         ],
-        components: [],
-        patterns: [],
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
     };
     const next = await runInterpretation(three);
@@ -388,9 +392,10 @@ describe('runInterpretation — Worker-Pool (Konkurrenz 6) + Auto-Retry + Abort'
       source: 'image',
       raw: {
         meta: { import_id: 'quota1' },
-        atomics: Array.from({ length: 10 }, (_, i) => ({ name: `W${i + 1}`, variants: [], notes: '' })),
-        components: [],
-        patterns: [],
+        atoms: Array.from({ length: 10 }, (_, i) => ({ name: `W${i + 1}`, variants: [], notes: '' })),
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
     };
     const defs = {};
@@ -504,7 +509,7 @@ describe('retryInterpretation — führt nur den Request aus, liefert ein Outcom
     expect(sentBody.import_id).toBe('abc123');
     expect(sentBody.components).toHaveLength(1);
     expect(sentBody.components[0]).toEqual({
-      name: 'Avatar', kind: 'atomic', variants: [], notes: 'rund', bbox: null, selector: null, path: null,
+      name: 'Avatar', kind: 'atom', variants: [], notes: 'rund', bbox: null, selector: null, path: null,
     });
   });
 
@@ -631,9 +636,10 @@ describe('carryInterpretations', () => {
     source: 'url',
     raw: {
       meta: { import_id: 'u1' },
-      atomics: [{ name: 'Avatar' }],
-      components: [{ name: 'Stat Card' }],
-      patterns: [],
+      atoms: [{ name: 'Avatar' }],
+      molecules: [],
+      organisms: [{ name: 'Stat Card' }],
+      templates: [],
     },
     interpretations: { Avatar: { html: '<div/>', jsx: '' } },
     interpretFailed: ['Stat Card', 'Verschwundener Baustein'],
@@ -643,9 +649,10 @@ describe('carryInterpretations', () => {
     source: 'url',
     raw: {
       meta: { import_id: 'u1', ai_deepened: true },
-      atomics: [{ name: 'Avatar' }],
-      components: [{ name: 'Stat Card' }],
-      patterns: [],
+      atoms: [{ name: 'Avatar' }],
+      molecules: [],
+      organisms: [{ name: 'Stat Card' }],
+      templates: [],
     },
   };
 
@@ -666,7 +673,7 @@ describe('carryInterpretations', () => {
   });
 
   it('verwaiste interpretations-Keys stören nicht (Map bleibt wie sie ist)', () => {
-    const nextWithoutAvatar = { ...next, raw: { ...next.raw, atomics: [] } };
+    const nextWithoutAvatar = { ...next, raw: { ...next.raw, atoms: [] } };
     const merged = carryInterpretations(prev, nextWithoutAvatar);
     expect(merged.interpretations.Avatar).toBeTruthy();
   });
@@ -688,8 +695,8 @@ describe('componentsNeedingInterpretation — repo path', () => {
   it('componentsNeedingInterpretation reicht path durch', () => {
     // Reale /repo-Shape: Items mit Datei-Inhalt tragen immer sourceCode
     // (liftRepoInventory läuft vor res.json) — ohne sourceCode = kein Material.
-    const result = { source: 'repo', raw: { atomics: [], patterns: [],
-      components: [{ name: 'PricingWidget', path: 'src/components/PricingWidget.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
+    const result = { source: 'repo', raw: { atoms: [], templates: [],
+      organisms: [{ name: 'PricingWidget', path: 'src/components/PricingWidget.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
     const [c] = componentsNeedingInterpretation(result);
     expect(c.path).toBe('src/components/PricingWidget.tsx');
   });
@@ -702,8 +709,8 @@ describe('runInterpretation — source repo', () => {
       calls.push(JSON.parse(opts.body));
       return { ok: true, json: async () => ({ interpretations: [{ name: 'PricingWidget', html: '<div/>', jsx: '' }], failed: [] }) };
     };
-    const result = { source: 'repo', raw: { meta: { import_id: 'id1' }, atomics: [], patterns: [],
-      components: [{ name: 'PricingWidget', path: 'p.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
+    const result = { source: 'repo', raw: { meta: { import_id: 'id1' }, atoms: [], templates: [],
+      organisms: [{ name: 'PricingWidget', path: 'p.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] } };
     const next = await runInterpretation(result);
     expect(next).not.toBe(null);
     expect(calls[0].components[0].path).toBe('p.tsx');

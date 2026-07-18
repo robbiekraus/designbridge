@@ -5,7 +5,7 @@ function InventoryDetail({ extra }) {
   if (!extra) return null;
   return (
     <span className="text-[10px] text-zinc-500 ml-2">
-      {extra.atomics} atomics · {extra.components} components · {extra.patterns} patterns
+      {extra.atoms} atoms · {extra.molecules} molecules · {extra.organisms} organisms · {extra.templates} templates
     </span>
   );
 }

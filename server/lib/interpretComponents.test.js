@@ -195,7 +195,7 @@ test('Prompt verbietet Platzhalter-Boxen für Icons und fordert vereinfachte SVG
     ] }) }] };
   } } };
   const segments = [
-    { id: 'seg_0', label: 'social-icon', kind: 'atomic', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
+    { id: 'seg_0', label: 'social-icon', kind: 'atom', bounds: {x:0,y:0,w:0.2,h:0.2}, visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null },
   ];
   await interpretComponents(tmpImage(), 'image/png', segments, { client: fakeClient });
 

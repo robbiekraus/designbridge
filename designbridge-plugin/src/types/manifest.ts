@@ -113,7 +113,7 @@ export interface ImportMessage {
   json: string;
 }
 
-export type ImportComponentKind = 'atomic' | 'component' | 'pattern';
+export type ImportComponentKind = 'atom' | 'molecule' | 'organism' | 'template';
 
 export interface ImportSummary {
   colorsCreated: number;

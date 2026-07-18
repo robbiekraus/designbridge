@@ -10,7 +10,7 @@ afterEach(() => {
 
 describe('deepenWithAi', () => {
   it('posts the url and returns an adapted url-result', async () => {
-    const serverShape = { tokens: {}, atomics: [{ name: 'Button', confidence: 'high', source: 'rules+ai' }], components: [], patterns: [], meta: { ai_deepened: true } };
+    const serverShape = { tokens: {}, atoms: [{ name: 'Button', confidence: 'high', source: 'rules+ai' }], molecules: [], organisms: [], templates: [], meta: { ai_deepened: true } };
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => serverShape }));
     vi.stubGlobal('fetch', fetchMock);
     const next = await deepenWithAi(result);
@@ -35,7 +35,7 @@ describe('deepenWithAi', () => {
       raw: { meta: { source_url: 'https://github.com/a/b', branch: 'main' } },
     };
     const serverShape = {
-      tokens: {}, atomics: [], components: [], patterns: [],
+      tokens: {}, atoms: [], molecules: [], organisms: [], templates: [],
       meta: { model: 'repo-ingest+ai', ai_deepened: true },
     };
     global.fetch = vi.fn(async () => ({ ok: true, json: async () => serverShape }));

@@ -19,7 +19,7 @@ export const repoDecomposer = {
       return {
         id: `seg_${i}`,
         label: item.name,
-        kind: item.kind ?? 'component',
+        kind: item.kind ?? 'organism',
         confidence: item.confidence,
         notes: truncated ? `${item.notes ?? ''} (gekürzt)`.trim() : (item.notes ?? ''),
         bounds: null,
@@ -50,7 +50,7 @@ export function applyBaselinePaths(items, baseline) {
 }
 
 // Für die Scan-Route: hebt den (capped) Code direkt in die Inventar-Items.
-// Mutiert die übergebenen Items (gleiche Referenzen wie result.atomics/components).
+// Mutiert die übergebenen Items (gleiche Referenzen wie result.atoms/molecules/organisms).
 export async function liftRepoInventory(files, inventory, { cap = CODE_CAP } = {}) {
   const segments = await repoDecomposer.decompose({ files }, inventory, { cap });
   segments.forEach((seg, i) => {

@@ -46,7 +46,12 @@ test('Selector-Miss → Vollseiten-Fallback', async () => {
 test('überlanges HTML wird gekappt', async () => {
   const big = `<html><body><div class="x">${'a'.repeat(20000)}</div></body></html>`;
   const segs = await urlDecomposer.decompose({ html: big, css: '' }, [
-    { name: 'Big', kind: 'component', selector: 'html > body > div' },
+    { name: 'Big', kind: 'organism', selector: 'html > body > div' },
   ]);
   assert.ok(segs[0].structure.html.length <= 8000);
+});
+
+test('fehlender kind → Fallback-Default "organism" (Pinned Contract)', async () => {
+  const segs = await urlDecomposer.decompose({ html: HTML, css: CSS }, [{ name: 'Unbekannt' }]);
+  assert.equal(segs[0].kind, 'organism');
 });

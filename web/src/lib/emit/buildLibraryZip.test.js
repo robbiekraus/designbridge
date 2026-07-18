@@ -6,8 +6,8 @@ const result = {
   raw: {
     tokens: { colors: [{ hex: '#022d2c', role: 'primary', confidence: 'high' }],
       typography: [], spacing: [], border_radius: [], shadows: [] },
-    atomics: [{ name: 'Button', variants: ['primary'], confidence: 'high' }],
-    components: [], patterns: [],
+    atoms: [{ name: 'Button', variants: ['primary'], confidence: 'high' }],
+    molecules: [], organisms: [], templates: [],
   },
 };
 

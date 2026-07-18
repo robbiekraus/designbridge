@@ -14,7 +14,7 @@ function payloadWith(planNode: unknown): string {
     components: [
       {
         name: 'Test',
-        kind: 'atomic',
+        kind: 'atom',
         placeholder: false,
         variants: [{ name: 'default', plan: { type: 'box', children: [planNode] } }],
       },
@@ -151,7 +151,7 @@ function boxPayload(boxOverrides: Record<string, unknown>): string {
     components: [
       {
         name: 'Test',
-        kind: 'atomic',
+        kind: 'atom',
         placeholder: false,
         variants: [{ name: 'default', plan: { type: 'box', ...boxOverrides } }],
       },

@@ -8,11 +8,13 @@ import { pickTokenRefs } from './pickTokenRefs.js';
 import { htmlToPlan } from './htmlToPlan.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
-// bevor ihre Verwender (Moleküle/Organismen) als component-ref auf sie zeigen (Ein-Durchlauf).
+// bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
+// (Ein-Durchlauf, Reihenfolge atom → molecule → organism → template).
 const KINDS = [
-  ['atomics', 'atomic'],
-  ['components', 'component'],
-  ['patterns', 'pattern'],
+  ['atoms', 'atom'],
+  ['molecules', 'molecule'],
+  ['organisms', 'organism'],
+  ['templates', 'template'],
 ];
 
 export function emitFigmaComponents(result) {

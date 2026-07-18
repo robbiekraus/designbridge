@@ -112,7 +112,7 @@ export default function Export({ result }) {
               <p className="text-xs text-amber-800 leading-relaxed">
                 {placeholderComponents.length} Baustein{placeholderComponents.length === 1 ? '' : 'e'} ohne
                 Interpretation ({placeholderComponents.map((c) => c.name).join(', ')}) — {placeholderComponents.length === 1 ? 'wird' : 'werden'} in
-                Figma nur als Platzhalter-Karte angelegt. Vorher unter Components/Atomics erneut interpretieren.
+                Figma nur als Platzhalter-Karte angelegt. Vorher unter Atoms/Molecules/Organisms/Templates erneut interpretieren.
               </p>
             </div>
           )}

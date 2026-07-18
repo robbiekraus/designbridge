@@ -4,12 +4,13 @@ import { emitFigmaComponents } from './emitFigmaComponents.js';
 const result = {
   raw: {
     tokens: { colors: [{ hex: '#4263EB', role: 'primary' }], typography: [], spacing: [], border_radius: [], shadows: [] },
-    atomics: [
+    atoms: [
       { name: 'Primary Button', variants: ['primary', 'ghost'], confidence: 'high', source: 'rules', notes: 'CTA' },
       { name: 'Avatar', variants: ['sm', 'lg'], confidence: 'low', source: 'ai', notes: 'rund' },
     ],
-    components: [{ name: 'Card', variants: [], confidence: 'medium', source: null, notes: null }],
-    patterns: [{ name: 'Navbar', variants: ['default'], confidence: 'high', source: 'rules', notes: 'Logo links' }],
+    molecules: [{ name: 'Search Field', variants: ['default'], confidence: 'high', source: 'rules', notes: null }],
+    organisms: [{ name: 'Card', variants: [], confidence: 'medium', source: null, notes: null }],
+    templates: [{ name: 'Page Layout', variants: ['default'], confidence: 'high', source: 'rules', notes: 'Screen layout' }],
   },
 };
 
@@ -18,7 +19,7 @@ describe('emitFigmaComponents', () => {
     const out = emitFigmaComponents(result);
     const btn = out.find((c) => c.name === 'Primary Button');
     expect(btn.placeholder).toBe(false);
-    expect(btn.kind).toBe('atomic');
+    expect(btn.kind).toBe('atom');
     expect(btn.variants.map((v) => v.name)).toEqual(['primary', 'secondary', 'ghost']); // Template-Varianten, nicht Scan-Varianten
     expect(btn.variants[0].plan.type).toBe('box');
     expect(btn.variants[0].plan.fill).toEqual({ token: 'primary', hex: '#4263EB' });
@@ -34,10 +35,11 @@ describe('emitFigmaComponents', () => {
 
   it('kind wird je Liste gesetzt, Metadaten durchgereicht', () => {
     const out = emitFigmaComponents(result);
-    expect(out.find((c) => c.name === 'Card').kind).toBe('component');
-    const nav = out.find((c) => c.name === 'Navbar');
-    expect(nav.kind).toBe('pattern');
-    expect(nav.placeholder).toBe(true); // kein Navbar-Template
+    expect(out.find((c) => c.name === 'Search Field').kind).toBe('molecule');
+    expect(out.find((c) => c.name === 'Card').kind).toBe('organism');
+    const template = out.find((c) => c.name === 'Page Layout');
+    expect(template.kind).toBe('template');
+    expect(template.placeholder).toBe(true); // kein Page-Layout-Template
   });
 
   it('raw:null (Mock-Importe) → leere Liste', () => {
@@ -46,14 +48,14 @@ describe('emitFigmaComponents', () => {
   });
 
   it('Platzhalter ohne Scan-Varianten bekommt default-Variante', () => {
-    const out = emitFigmaComponents({ raw: { tokens: {}, atomics: [{ name: 'Avatar', variants: [] }], components: [], patterns: [] } });
+    const out = emitFigmaComponents({ raw: { tokens: {}, atoms: [{ name: 'Avatar', variants: [] }], molecules: [], organisms: [], templates: [] } });
     expect(out[0].variants).toEqual([{ name: 'default', plan: null }]);
   });
 
-  it('Export-Reihenfolge im Payload ist atomics → components → patterns', () => {
+  it('Export-Reihenfolge im Payload ist atoms → molecules → organisms → templates', () => {
     const out = emitFigmaComponents(result);
-    expect(out.map((c) => c.kind)).toEqual(['atomic', 'atomic', 'component', 'pattern']);
-    expect(out.map((c) => c.name)).toEqual(['Primary Button', 'Avatar', 'Card', 'Navbar']);
+    expect(out.map((c) => c.kind)).toEqual(['atom', 'atom', 'molecule', 'organism', 'template']);
+    expect(out.map((c) => c.name)).toEqual(['Primary Button', 'Avatar', 'Search Field', 'Card', 'Page Layout']);
   });
 });
 
@@ -62,9 +64,10 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
     const withInterp = {
       raw: {
         tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
-        atomics: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
-        components: [],
-        patterns: [],
+        atoms: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
       interpretations: {
         // Langform border-top-left-radius statt Shorthand border-radius: jsdom expandiert den
@@ -86,9 +89,10 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
     const withBoth = {
       raw: {
         tokens: { colors: [{ hex: '#4263EB', role: 'primary' }], typography: [], spacing: [], border_radius: [], shadows: [] },
-        atomics: [{ name: 'Primary Button', variants: ['primary'], confidence: 'high', source: 'rules', notes: null }],
-        components: [],
-        patterns: [],
+        atoms: [{ name: 'Primary Button', variants: ['primary'], confidence: 'high', source: 'rules', notes: null }],
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
       interpretations: {
         'Primary Button': { html: '<button>Sollte ignoriert werden</button>', jsx: '<button />' },
@@ -104,8 +108,8 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
   it('Baustein ohne Template UND ohne Interpretation bleibt Platzhalter (unverändert)', () => {
     const noInterp = {
       raw: {
-        tokens: {}, atomics: [{ name: 'Avatar', variants: ['sm'], confidence: 'low', source: 'ai', notes: null }],
-        components: [], patterns: [],
+        tokens: {}, atoms: [{ name: 'Avatar', variants: ['sm'], confidence: 'low', source: 'ai', notes: null }],
+        molecules: [], organisms: [], templates: [],
       },
     };
     const out = emitFigmaComponents(noInterp);
@@ -116,8 +120,8 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
   it('leeres/kaputtes Interpretations-HTML (plan:null) → Platzhalter wie bisher, keine Exception', () => {
     const brokenInterp = {
       raw: {
-        tokens: {}, atomics: [{ name: 'Weirdo', variants: [], confidence: null, source: null, notes: null }],
-        components: [], patterns: [],
+        tokens: {}, atoms: [{ name: 'Weirdo', variants: [], confidence: null, source: null, notes: null }],
+        molecules: [], organisms: [], templates: [],
       },
       interpretations: { Weirdo: { html: '   ', jsx: '' } },
     };
@@ -131,9 +135,10 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
     const hierarchy = {
       raw: {
         tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
-        atomics: [],
-        components: [{ name: 'Button', variants: [], confidence: 'high', source: 'ai', notes: null }],
-        patterns: [{ name: 'Toolbar', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        atoms: [],
+        molecules: [{ name: 'Button', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        organisms: [{ name: 'Toolbar', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        templates: [],
       },
       interpretations: {
         Button: { html: '<button class="btn">Save</button>', jsx: '<button />' },
@@ -154,8 +159,8 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
     const bigSvg = '<svg viewBox="0 0 100 100">' + '<rect x="0" y="0" width="1" height="1"/>'.repeat(700) + '</svg>';
     const withWarning = {
       raw: {
-        tokens: {}, atomics: [{ name: 'Weird Box', variants: [], confidence: null, source: null, notes: null }],
-        components: [], patterns: [], warnings: ['bestehende Scan-Warnung'],
+        tokens: {}, atoms: [{ name: 'Weird Box', variants: [], confidence: null, source: null, notes: null }],
+        molecules: [], organisms: [], templates: [], warnings: ['bestehende Scan-Warnung'],
       },
       interpretations: {
         'Weird Box': { html: bigSvg, jsx: '<div />' },
@@ -169,8 +174,8 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
   it('keine Konverter-Warnungen → raw.warnings bleibt unverändert (kein leeres Feld angehängt)', () => {
     const clean = {
       raw: {
-        tokens: {}, atomics: [{ name: 'Clean Box', variants: [], confidence: null, source: null, notes: null }],
-        components: [], patterns: [],
+        tokens: {}, atoms: [{ name: 'Clean Box', variants: [], confidence: null, source: null, notes: null }],
+        molecules: [], organisms: [], templates: [],
       },
       interpretations: { 'Clean Box': { html: '<div style="padding:16px"></div>', jsx: '<div />' } },
     };
@@ -193,9 +198,10 @@ describe('emitFigmaComponents — Token-Bindung gegen disambiguierte Namen (Revi
           ],
           typography: [], spacing: [], border_radius: [], shadows: [],
         },
-        atomics: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
-        components: [],
-        patterns: [],
+        atoms: [{ name: 'Stat Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
       interpretations: {
         'Stat Card': { html: '<div style="background:#222222"></div>', jsx: '<div />' },

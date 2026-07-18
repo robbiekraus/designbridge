@@ -93,9 +93,10 @@ export function ingestRepoFiles(files, { sourceUrl = null, branch = null } = {})
       design_style: 'aus tailwind.config & CSS abgeleitet',
     },
     tokens,
-    atomics: inventory.atomics,
-    components: inventory.components,
-    patterns: inventory.patterns,
+    atoms: inventory.atoms,
+    molecules: [], // Repo-Klassifikator erkennt keine molecules — Bucket bleibt leer (Pinned Contract).
+    organisms: inventory.organisms,
+    templates: inventory.templates,
     warnings: [...warnings],
     meta: { model: 'repo-ingest', source_url: sourceUrl, branch, ai_deepened: false, elapsed_ms: 0 },
   };

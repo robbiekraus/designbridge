@@ -5,7 +5,7 @@
 // @typedef {Object} Segment
 // @property {string} id
 // @property {string} label
-// @property {string} kind            'atomic' | 'component' | 'pattern'
+// @property {string} kind            'atom' | 'molecule' | 'organism' | 'template'
 // @property {string} [confidence]
 // @property {string} [notes]
 // @property {?{x:number,y:number,w:number,h:number}|{selector:string}} bounds   Bild: normiert 0..1 · URL: DOM-Pfad

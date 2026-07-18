@@ -18,10 +18,11 @@ function categoryRow(key, label, items) {
 
 export function adaptScanResponse(raw, source = 'image') {
   const tokens = raw?.tokens ?? {};
-  const atomics = raw?.atomics ?? [];
-  const components = raw?.components ?? [];
-  const patterns = raw?.patterns ?? [];
-  const inventoryItems = [...atomics, ...components, ...patterns];
+  const atoms = raw?.atoms ?? [];
+  const molecules = raw?.molecules ?? [];
+  const organisms = raw?.organisms ?? [];
+  const templates = raw?.templates ?? [];
+  const inventoryItems = [...atoms, ...molecules, ...organisms, ...templates];
 
   return {
     source,
@@ -39,9 +40,10 @@ export function adaptScanResponse(raw, source = 'image') {
         count: inventoryItems.length,
         confidence: worstConfidence(inventoryItems),
         extra: {
-          atomics: atomics.length,
-          components: components.length,
-          patterns: patterns.length,
+          atoms: atoms.length,
+          molecules: molecules.length,
+          organisms: organisms.length,
+          templates: templates.length,
         },
       },
     ],

@@ -8,21 +8,21 @@ const pascal = (s) =>
     .join('');
 
 export function recognizeRepoInventory(files) {
-  const atomics = new Map();
-  const components = new Map();
-  const patterns = new Map();
+  const atoms = new Map();
+  const organisms = new Map();
+  const templates = new Map();
   const put = (map, entry) => { if (!map.has(entry.name)) map.set(entry.name, entry); };
 
   for (const { path } of files) {
     const base = path.split('/').pop();
     if (isUiComponent(path)) {
-      put(atomics, {
+      put(atoms, {
         name: pascal(base), variants: [], confidence: 'high', source: 'rules', notes: `aus ${path}`, path,
       });
     } else if (isComponentFile(path)) {
-      put(components, { name: pascal(base), confidence: 'low', source: 'rules', notes: `aus ${path}`, path });
+      put(organisms, { name: pascal(base), confidence: 'low', source: 'rules', notes: `aus ${path}`, path });
     } else if (isLayoutFile(path)) {
-      put(patterns, { name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}` });
+      put(templates, { name: 'Layout', confidence: 'med', source: 'rules', notes: `aus ${path}` });
     } else if (isPageFile(path)) {
       // Next.js route groups `(marketing)` and dynamic segments `[slug]`,
       // `[...slug]`, `[[...slug]]` → strip parens/brackets and leading dots.
@@ -39,14 +39,14 @@ export function recognizeRepoInventory(files) {
         i -= 1;
       }
       if (!label || label === 'app' || label === 'pages' || label === 'src') label = 'Start';
-      put(patterns, {
+      put(templates, {
         name: `Seite: ${pascal(label)}`, confidence: 'low', source: 'rules', notes: `aus ${path}`,
       });
     }
   }
   return {
-    atomics: [...atomics.values()],
-    components: [...components.values()],
-    patterns: [...patterns.values()],
+    atoms: [...atoms.values()],
+    organisms: [...organisms.values()],
+    templates: [...templates.values()],
   };
 }

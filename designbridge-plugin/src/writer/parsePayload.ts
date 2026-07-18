@@ -100,7 +100,7 @@ export interface ImportVariant {
 
 export interface ImportComponent {
   name: string;
-  kind: 'atomic' | 'component' | 'pattern';
+  kind: 'atom' | 'molecule' | 'organism' | 'template';
   confidence: string | null;
   source: string | null;
   notes: string | null;
@@ -262,7 +262,7 @@ function parsePlan(v: unknown): PlanBox | null {
   };
 }
 
-const KINDS = ['atomic', 'component', 'pattern'] as const;
+const KINDS = ['atom', 'molecule', 'organism', 'template'] as const;
 
 function parseComponents(raw: unknown): ImportComponent[] {
   const out: ImportComponent[] = [];
@@ -270,7 +270,7 @@ function parseComponents(raw: unknown): ImportComponent[] {
     if (!c || typeof c !== 'object') continue;
     const r = c as Record<string, unknown>;
     if (typeof r.name !== 'string' || !r.name) continue;
-    const kind = KINDS.includes(r.kind as (typeof KINDS)[number]) ? (r.kind as ImportComponent['kind']) : 'component';
+    const kind = KINDS.includes(r.kind as (typeof KINDS)[number]) ? (r.kind as ImportComponent['kind']) : 'organism';
     const variants: ImportVariant[] = [];
     for (const v of Array.isArray(r.variants) ? r.variants : []) {
       if (!v || typeof v !== 'object') continue;

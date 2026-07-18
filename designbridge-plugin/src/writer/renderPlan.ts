@@ -104,7 +104,7 @@ function findComponentByName(
   sections: SectionFrames,
   name: string
 ): ComponentNode | ComponentSetNode | undefined {
-  for (const key of ['atomic', 'component', 'pattern'] as const) {
+  for (const key of ['atom', 'molecule', 'organism', 'template'] as const) {
     const found = sections[key].children.find((c) => c.name === name);
     if (found && (found.type === 'COMPONENT' || found.type === 'COMPONENT_SET')) {
       return found as ComponentNode | ComponentSetNode;

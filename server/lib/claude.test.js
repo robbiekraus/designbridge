@@ -20,9 +20,9 @@ test('analyzeScreenshot: prompt asks for bbox and passes it through', async () =
       create: async (args) => {
         captured = args;
         return { content: [{ text: JSON.stringify({
-          summary: {}, tokens: {}, atomics: [],
-          components: [{ name: 'Line Chart Card', confidence: 'high', notes: 'Sales', bbox: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 } }],
-          patterns: [], warnings: [],
+          summary: {}, tokens: {}, atoms: [],
+          organisms: [{ name: 'Line Chart Card', confidence: 'high', notes: 'Sales', bbox: { x: 0.1, y: 0.2, w: 0.3, h: 0.4 } }],
+          molecules: [], templates: [], warnings: [],
         }) }] };
       },
     },
@@ -32,7 +32,7 @@ test('analyzeScreenshot: prompt asks for bbox and passes it through', async () =
 
   const promptText = captured.messages[0].content.map((b) => b.text || '').join('');
   assert.match(promptText, /bbox/);
-  assert.equal(result.components[0].bbox.w, 0.3);
+  assert.equal(result.organisms[0].bbox.w, 0.3);
   // 4096 war zu knapp für token-reiche Screenshots (Live-Fund 15.07.):
   // Gemini schnitt mitten im JSON ab.
   assert.ok(captured.max_tokens >= 16384, `max_tokens zu klein: ${captured.max_tokens}`);
@@ -43,7 +43,7 @@ test('analyzeScreenshot: normalisiert String-Größen ("64px") zu Zahlen — Gem
   const fakeClient = {
     messages: {
       create: async () => ({ content: [{ text: JSON.stringify({
-        summary: {}, atomics: [], components: [], patterns: [], warnings: [],
+        summary: {}, atoms: [], molecules: [], organisms: [], templates: [], warnings: [],
         tokens: {
           colors: [{ hex: '#121212', role: 'background-primary', confidence: 'high' }],
           typography: [{ size: '64px', weight: '700', role: 'heading-xl', sample: 'Aa', confidence: 'high' }],
@@ -66,14 +66,14 @@ test('analyzeScreenshot: verschmilzt gleichnamige Bausteine und vereinigt Varian
   const fakeClient = {
     messages: {
       create: async () => ({ content: [{ text: JSON.stringify({
-        summary: {}, patterns: [], warnings: [], tokens: {},
-        atomics: [
+        summary: {}, molecules: [], templates: [], warnings: [], tokens: {},
+        atoms: [
           { name: 'button', variants: ['primary'], confidence: 'high', notes: 'Send message', bbox: { x: 0.1, y: 0.1, w: 0.2, h: 0.05 } },
           { name: 'button', variants: ['chip'], confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.3, w: 0.1, h: 0.04 } },
           { name: 'Button', variants: [], confidence: 'medium', notes: '', bbox: { x: 0.6, y: 0.3, w: 0.1, h: 0.04 } },
           { name: 'status-dot', variants: [], confidence: 'high', notes: '', bbox: { x: 0.9, y: 0.0, w: 0.02, h: 0.02 } },
         ],
-        components: [
+        organisms: [
           { name: 'contact-form', confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.2, w: 0.4, h: 0.6 } },
           { name: 'contact-form', confidence: 'high', notes: '', bbox: { x: 0.5, y: 0.2, w: 0.4, h: 0.6 } },
         ],
@@ -83,12 +83,31 @@ test('analyzeScreenshot: verschmilzt gleichnamige Bausteine und vereinigt Varian
   const result = await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient });
   fs.unlinkSync(imgPath);
 
-  assert.equal(result.atomics.length, 2); // button (3× verschmolzen) + status-dot
-  const button = result.atomics.find((a) => a.name.toLowerCase() === 'button');
+  assert.equal(result.atoms.length, 2); // button (3× verschmolzen) + status-dot
+  const button = result.atoms.find((a) => a.name.toLowerCase() === 'button');
   assert.deepEqual(button.variants, ['primary', 'chip']);
   assert.equal(button.notes, 'Send message');
   assert.deepEqual(button.bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.05 }); // erster Treffer behält seine bbox
-  assert.equal(result.components.length, 1);
+  assert.equal(result.organisms.length, 1);
+});
+
+test('analyzeScreenshot: Prompt enthält den wörtlichen Atomic-Design-Definitionsblock (4 Ebenen)', async () => {
+  const imgPath = tmpImage();
+  let captured;
+  const fakeClient = {
+    messages: {
+      create: async (args) => {
+        captured = args;
+        return { content: [{ text: JSON.stringify({ summary: {}, tokens: {}, atoms: [], molecules: [], organisms: [], templates: [], warnings: [] }) }] };
+      },
+    },
+  };
+  await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient });
+  fs.unlinkSync(imgPath);
+  const promptText = captured.messages.find((m) => Array.isArray(m.content)).content
+    .map((b) => b.text || '').join('\n');
+  assert.match(promptText, /a card, a chart and a table are ORGANISMS, not molecules/);
+  assert.match(promptText, /Emit AT MOST ONE template for the whole screen/);
 });
 
 test('mergeByName behält die größte bbox statt der ersten', () => {

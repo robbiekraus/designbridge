@@ -61,7 +61,7 @@ export const imageDecomposer = {
       segments.push({
         id: `seg_${i}`,
         label: item.name,
-        kind: item.kind ?? 'component',
+        kind: item.kind ?? 'organism',
         confidence: item.confidence,
         notes: item.notes ?? '',
         bounds,

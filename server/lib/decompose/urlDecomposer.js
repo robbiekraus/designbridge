@@ -77,7 +77,7 @@ export const urlDecomposer = {
       return {
         id: `seg_${i}`,
         label: item.name,
-        kind: item.kind ?? 'component',
+        kind: item.kind ?? 'organism',
         confidence: item.confidence,
         notes: item.notes ?? '',
         bounds: el ? { selector: item.selector } : null,

@@ -778,7 +778,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
     const html =
       '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px">' +
       '<button class="btn btn-primary" style="text-align:left">Save</button></div>';
-    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atom' }] });
     expect(plan.type).toBe('box');
     expect(plan.children).toHaveLength(1);
     const ref = plan.children[0];
@@ -816,7 +816,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
 
   it('<input type="search"> → component-ref "Suche" wenn bekannt', () => {
     const { plan } = htmlToPlan('<input type="search">', {
-      knownComponents: [{ name: 'Suche', kind: 'atomic' }],
+      knownComponents: [{ name: 'Suche', kind: 'atom' }],
     });
     expect(plan.children[0].type).toBe('component-ref');
     expect(plan.children[0].name).toBe('Suche');
@@ -824,7 +824,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
 
   it('<input> (nicht search) / <select> → component-ref "Input" wenn bekannt', () => {
     const { plan } = htmlToPlan('<div><input><select></select></div>', {
-      knownComponents: [{ name: 'Input', kind: 'atomic' }],
+      knownComponents: [{ name: 'Input', kind: 'atom' }],
     });
     expect(plan.children).toHaveLength(2);
     expect(plan.children[0].type).toBe('component-ref');
@@ -835,7 +835,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
 
   it('Klasse "badge"/"chip"/"tag" → component-ref "Badge" wenn bekannt', () => {
     const { plan } = htmlToPlan('<span class="badge">Neu</span>', {
-      knownComponents: [{ name: 'Badge', kind: 'atomic' }],
+      knownComponents: [{ name: 'Badge', kind: 'atom' }],
     });
     expect(plan.children[0].type).toBe('component-ref');
     expect(plan.children[0].name).toBe('Badge');
@@ -849,7 +849,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
   });
 
   it('Button ohne Variant-Wort-Klasse → variant:null', () => {
-    const { plan } = htmlToPlan('<button>Save</button>', { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    const { plan } = htmlToPlan('<button>Save</button>', { knownComponents: [{ name: 'Button', kind: 'atom' }] });
     expect(plan.children[0]).toMatchObject({ type: 'component-ref', name: 'Button', variant: null });
   });
 
@@ -858,7 +858,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
       '<div style="border-top-left-radius:8px;background-color:#ffffff;padding:16px">' + // Organismus (unbekannt)
       '<div style="border-top-left-radius:6px;background-color:#ffffff;padding:8px"><button class="btn">Save</button></div>' + // Molekül "Card" wäre bekannt, hier einfach unbekannte Box
       '</div>';
-    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atomic' }] });
+    const { plan } = htmlToPlan(html, { knownComponents: [{ name: 'Button', kind: 'atom' }] });
     // Organismus bleibt Box (kein Match), steigt normal ab, sein Kind (Box) enthält den erkannten Button als component-ref.
     expect(plan.type).toBe('box');
     const inner = plan.children[0];

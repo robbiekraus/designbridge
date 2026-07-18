@@ -130,9 +130,10 @@ router.post('/url', async (req, res) => {
       result.warnings.push(`${skippedStylesheets} Stylesheet(s) waren nicht lesbar und wurden übersprungen — einzelne Tokens können fehlen.`);
     }
     const rec = recognizeComponents(html);
-    result.atomics = rec.atomics;
-    result.components = rec.components;
-    result.patterns = rec.patterns;
+    result.atoms = rec.atoms;
+    result.molecules = rec.molecules;
+    result.organisms = rec.organisms;
+    result.templates = rec.templates;
     result.meta = { ...result.meta, ai_deepened: false, import_id: putPage(html, css) };
     res.json(result);
   } catch (err) {
@@ -155,9 +156,10 @@ router.post('/url/ai', async (req, res) => {
     const result = ingestCss(css, { sourceUrl: url });
     const baseline = recognizeComponents(html);
     const merged = await recognizeWithAi(html, css, baseline);
-    result.atomics = merged.atomics;
-    result.components = merged.components;
-    result.patterns = merged.patterns;
+    result.atoms = merged.atoms;
+    result.molecules = merged.molecules;
+    result.organisms = merged.organisms;
+    result.templates = merged.templates;
     result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
     result.meta = { ...result.meta, ai_deepened: true };
     res.json(result);
@@ -194,8 +196,8 @@ router.post('/repo', async (req, res) => {
     const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
     const files = await extractRepoFiles(buffer);
     const result = ingestRepoFiles(files, { sourceUrl: req.body.url, branch: usedBranch });
-    // Echten Quellcode (capped) in atomics/components heben — patterns tragen keinen Code.
-    await liftRepoInventory(files, [...result.atomics, ...result.components]);
+    // Echten Quellcode (capped) in atoms/molecules/organisms heben — templates tragen keinen Code.
+    await liftRepoInventory(files, [...result.atoms, ...result.molecules, ...result.organisms]);
     // Volle Dateien im Store für die spätere on-demand-Interpretation.
     result.meta = { ...result.meta, import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }) };
     res.json(result);
@@ -220,18 +222,21 @@ router.post('/repo/ai', async (req, res) => {
     const { buffer, branch: usedBranch } = await downloadRepoTarball({ ...parsed, branch });
     const files = await extractRepoFiles(buffer);
     const result = ingestRepoFiles(files, { sourceUrl: req.body.url, branch: usedBranch });
-    const baseline = { atomics: result.atomics, components: result.components, patterns: result.patterns };
+    const baseline = {
+      atoms: result.atoms, molecules: result.molecules, organisms: result.organisms, templates: result.templates,
+    };
     const merged = await deepenRepoWithAi(files, baseline);
-    result.atomics = merged.atomics;
-    result.components = merged.components;
-    result.patterns = merged.patterns;
+    result.atoms = merged.atoms;
+    result.molecules = merged.molecules;
+    result.organisms = merged.organisms;
+    result.templates = merged.templates;
     result.warnings = [...(result.warnings || []), ...(merged.warnings || [])];
     // Wie /repo: Code heben + Dateien im Store — sonst verliert „Mit KI vertiefen"
     // den gehobenen Code UND das import_id (→ Interpretation danach unmöglich).
     // deepenRepoWithAi droppt `path` (Schema kennt keinen) → erst per Name aus der
     // Baseline zurückmappen, sonst ist der Lift ein No-op (FF1).
-    const mergedInv = [...result.atomics, ...result.components];
-    applyBaselinePaths(mergedInv, [...baseline.atomics, ...baseline.components]);
+    const mergedInv = [...result.atoms, ...result.molecules, ...result.organisms];
+    applyBaselinePaths(mergedInv, [...baseline.atoms, ...baseline.molecules, ...baseline.organisms]);
     await liftRepoInventory(files, mergedInv);
     result.meta = {
       ...result.meta, model: 'repo-ingest+ai', ai_deepened: true,

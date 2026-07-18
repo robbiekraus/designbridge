@@ -5,9 +5,10 @@ import { pickTokens } from './pickTokens.js';
 import { slugify } from './slugify.js';
 
 const KINDS = [
-  ['atomics', 'atomic'],
-  ['components', 'component'],
-  ['patterns', 'pattern'],
+  ['atoms', 'atom'],
+  ['molecules', 'molecule'],
+  ['organisms', 'organism'],
+  ['templates', 'template'],
 ];
 
 function toPascal(slug) {

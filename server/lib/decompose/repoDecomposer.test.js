@@ -54,3 +54,8 @@ test('decompose cappt per Default auf CODE_CAP (Interpret-Route ruft ohne Option
   assert.equal(segs[0].structure.code.length, CODE_CAP);
   assert.match(segs[0].notes, /gekürzt/);
 });
+
+test('fehlender kind → Fallback-Default "organism" (Pinned Contract)', async () => {
+  const segs = await repoDecomposer.decompose({ files }, [{ name: 'Unbekannt', path: 'nope.tsx' }]);
+  assert.equal(segs[0].kind, 'organism');
+});

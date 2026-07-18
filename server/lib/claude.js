@@ -21,11 +21,19 @@ Structure:
     "border_radius": [{ "value": "px or % value", "usage": "where used", "confidence": "high|medium|low" }],
     "shadows": [{ "description": "semantic name e.g. card-shadow", "css": "box-shadow CSS value", "confidence": "high|medium|low" }]
   },
-  "atomics": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
-  "components": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
-  "patterns": [{ "name": "pattern name", "confidence": "high|medium|low", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "atoms": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "molecules": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "organisms": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "templates": [{ "name": "template name", "confidence": "high|medium|low", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
   "warnings": ["any caveats about low-confidence extractions or things that cannot be inferred from a static image"]
 }
+
+Classify every UI element into exactly ONE of four atomic-design levels:
+- "atoms": smallest indivisible UI elements — button, input field, label, icon, badge/chip, avatar, status dot, single checkbox/radio/toggle. If it can't be split into smaller meaningful UI parts, it's an atom.
+- "molecules": a small group of atoms acting as ONE simple unit — search field (input + icon), dropdown/select (field + menu), one form field (label + input + hint), a list item (icon + text + value), a metric/stat pair (label + number), breadcrumb, pagination.
+- "organisms": a larger self-contained section built from molecules and atoms — a card (KPI/stat card), a chart (bar/line/donut incl. its legend and axes), a data table, a full form, a navigation bar, a header/topbar, a sidebar navigation, a footer, a hero. If it's a distinct block you could lift out and reuse as a whole section, it's an organism.
+- "templates": the overall screen layout — how organisms are arranged into a full screen (e.g. sidebar + topbar + content grid). Emit AT MOST ONE template for the whole screen.
+CRITICAL: a card, a chart and a table are ORGANISMS, not molecules. A button and a bare input are ATOMS. The whole screen is the single TEMPLATE — never fold the individual sections into it, and never mark an individual section as a template.
 
 Rules:
 - Only include items you can actually observe in the screenshot
@@ -35,7 +43,8 @@ Rules:
 - Mark anything estimated (not directly readable) as confidence: "medium" or "low"
 - Motion tokens cannot be extracted from static screenshots — omit them entirely
 - Be generous: extract everything visible, even partial elements
-- For every atomic/component/pattern add "bbox": a TIGHT bounding box around that element AS IT APPEARS in the screenshot, as fractions of image size: x,y = top-left corner (0..1), w,h = width,height (0..1). If unsure, give your best estimate.`;
+- For every atom/molecule/organism add "bbox": a TIGHT bounding box around that element AS IT APPEARS in the screenshot, as fractions of image size: x,y = top-left corner (0..1), w,h = width,height (0..1). If unsure, give your best estimate.
+- For the "templates" entry, the bbox is the ENTIRE screen: { "x": 0, "y": 0, "w": 1, "h": 1 }.`;
 
 // Gemini nimmt die Prompt-Formulierung "px value" wörtlich und liefert "64px"
 // statt 64 (Claude gab nackte Zahlen) — die UI hängt selbst px an → "64pxpx"
@@ -132,9 +141,10 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
   return {
     ...parsed,
     tokens: normalizeTokenUnits(parsed.tokens),
-    atomics: mergeByName(parsed.atomics),
-    components: mergeByName(parsed.components),
-    patterns: mergeByName(parsed.patterns),
+    atoms: mergeByName(parsed.atoms),
+    molecules: mergeByName(parsed.molecules),
+    organisms: mergeByName(parsed.organisms),
+    templates: mergeByName(parsed.templates),
     meta: { model: response.model ?? 'claude-sonnet-5', elapsed_ms: elapsed },
   };
 }

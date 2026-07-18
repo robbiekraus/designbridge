@@ -57,7 +57,7 @@ describe('emitFigma', () => {
   });
 
   it('hängt components an und setzt version 2', () => {
-    const comps = [{ name: 'Button', kind: 'atomic', confidence: null, source: null, notes: null, placeholder: false, variants: [] }];
+    const comps = [{ name: 'Button', kind: 'atom', confidence: null, source: null, notes: null, placeholder: false, variants: [] }];
     const parsed = JSON.parse(emitFigma([], comps));
     expect(parsed.version).toBe(2);
     expect(parsed.components).toHaveLength(1);

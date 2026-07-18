@@ -43,9 +43,10 @@ export default function Dashboard({ result }) {
   const invExtra = categories.find(cat => cat.key === 'inventory')?.extra;
   const inventoryRows = invExtra
     ? [
-        { label: 'Atomics', count: invExtra.atomics },
-        { label: 'Components', count: invExtra.components },
-        { label: 'Patterns', count: invExtra.patterns },
+        { label: 'Atoms', count: invExtra.atoms },
+        { label: 'Molecules', count: invExtra.molecules },
+        { label: 'Organisms', count: invExtra.organisms },
+        { label: 'Templates', count: invExtra.templates },
       ]
     : [];
 

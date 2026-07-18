@@ -32,7 +32,7 @@ test('deckt die Nicht-Template-Bausteine der Demo-Dashboard-Fixture ab', () => {
   for (const required of [
     'Avatar', 'Status Dot', 'Sidebar Navigation', 'Donut Chart', 'Bar Chart',
     'Data Table', 'Tooltip', 'Segmented Control', 'Category List Item',
-    'Dashboard Grid Layout', 'Metrics Overview', 'Sidebar + Content Shell',
+    'Dashboard Layout',
   ]) {
     assert.ok(names.has(required), `fehlt: ${required}`);
   }

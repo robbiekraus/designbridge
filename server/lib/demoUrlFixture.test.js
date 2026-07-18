@@ -13,7 +13,7 @@ test('demo-url-interpretations deckt die demo-site-Kandidaten ab', () => {
     fs.readFileSync(new URL('../fixtures/demo-url-interpretations.json', import.meta.url), 'utf8')
   );
   const have = new Set(fixture.map((f) => f.name));
-  const candidates = r.components.filter((c) => c.notes === 'unerkannter Baustein-Kandidat');
+  const candidates = r.organisms.filter((c) => c.notes === 'unerkannter Baustein-Kandidat');
   for (const c of candidates) {
     assert.ok(have.has(c.name), `Fixture-Eintrag fehlt für Kandidat "${c.name}"`);
   }
@@ -27,7 +27,7 @@ test('demo-url-interpretations deckt alle demo-site-Bausteine ohne Hand-Template
   );
   const have = new Set(fixture.map((f) => f.name));
   const { matchTemplate } = await import('../../web/src/lib/components/templates/registry.js');
-  const all = [...r.atomics, ...r.components, ...r.patterns];
+  const all = [...r.atoms, ...r.molecules, ...r.organisms, ...r.templates];
   for (const item of all) {
     if (matchTemplate(item.name)) continue;
     assert.ok(have.has(item.name), `Fixture-Eintrag fehlt für Baustein ohne Template "${item.name}"`);

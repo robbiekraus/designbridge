@@ -102,12 +102,13 @@ export async function applyImport(payload: ImportPayload): Promise<ImportSummary
 // Pure string formatting, kein figma-Zugriff — bewusst hier statt in ui.ts, damit
 // es ohne DOM-Global unter node:test läuft (siehe tests/formatImportSummary.test.ts).
 
-const KIND_ORDER: ImportComponentKind[] = ['atomic', 'component', 'pattern'];
+const KIND_ORDER: ImportComponentKind[] = ['atom', 'molecule', 'organism', 'template'];
 
 const KIND_LABELS: Record<ImportComponentKind, { singular: string; plural: string }> = {
-  atomic: { singular: 'Atomic', plural: 'Atomics' },
-  component: { singular: 'Component', plural: 'Components' },
-  pattern: { singular: 'Pattern', plural: 'Patterns' },
+  atom: { singular: 'Atom', plural: 'Atoms' },
+  molecule: { singular: 'Molecule', plural: 'Molecules' },
+  organism: { singular: 'Organism', plural: 'Organisms' },
+  template: { singular: 'Template', plural: 'Templates' },
 };
 
 /** "3 Atomics, 9 Components, 1 Pattern" — feste Reihenfolge, kinds mit 0 werden weggelassen. */

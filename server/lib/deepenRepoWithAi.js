@@ -25,9 +25,10 @@ function buildPrompt(digest, ruleList) {
 
 Return ONLY valid JSON, no markdown, no preamble, in this shape:
 {
-  "atomics":    [{ "name": "...", "variants": ["..."], "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
-  "components": [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
-  "patterns":   [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
+  "atoms":      [{ "name": "...", "variants": ["..."], "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
+  "molecules":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
+  "organisms":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
+  "templates":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
   "warnings":   ["..."]
 }
 
@@ -64,9 +65,10 @@ export async function deepenRepoWithAi(files, ruleList, { client } = {}) {
   const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
   if (truncated) warnings.push('Repo-Digest war groß und wurde für die KI-Analyse gekürzt.');
   return {
-    atomics: parsed.atomics ?? [],
-    components: parsed.components ?? [],
-    patterns: parsed.patterns ?? [],
+    atoms: parsed.atoms ?? [],
+    molecules: parsed.molecules ?? [],
+    organisms: parsed.organisms ?? [],
+    templates: parsed.templates ?? [],
     warnings,
   };
 }

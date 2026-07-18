@@ -40,11 +40,19 @@ test('crops the right region for a bbox and fills visual', async () => {
 
 test('no bbox → segment without visual', async () => {
   const p = await makeSplitImage();
-  const inv = [{ name: 'Whatever', kind: 'component' }];
+  const inv = [{ name: 'Whatever', kind: 'organism' }];
   const segs = await imageDecomposer.decompose({ imagePath: p, mimetype: 'image/png' }, inv);
   fs.unlinkSync(p);
   assert.equal(segs[0].visual, null);
   assert.equal(segs[0].bounds, null);
+});
+
+test('fehlender kind → Fallback-Default "organism" (Pinned Contract)', async () => {
+  const p = await makeSplitImage();
+  const inv = [{ name: 'Unbekannt' }]; // kein kind gesetzt
+  const segs = await imageDecomposer.decompose({ imagePath: p, mimetype: 'image/png' }, inv);
+  fs.unlinkSync(p);
+  assert.equal(segs[0].kind, 'organism');
 });
 
 test('clamps out-of-range bbox to image bounds', async () => {

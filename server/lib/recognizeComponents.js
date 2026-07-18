@@ -51,6 +51,9 @@ const UTILITY_CLASS = new RegExp(
 const titleCase = (cls) =>
   cls.split(/[-_]/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
+// Unbenannte, wiederholte Klassen-Cluster — bisher default "component", jetzt
+// default "organism" (Kernkorrektur: unbekannte größere Bausteine sind eher
+// eigenständige Abschnitte als kleine Gruppen).
 function recognizeCandidates(els) {
   const CONTAINER = new Set(['DIV', 'SECTION', 'ARTICLE']);
   const byClass = new Map();
@@ -88,7 +91,9 @@ function buttonVariants(buttons) {
   return [...found].sort();
 }
 
-function recognizeAtomics(els) {
+// atoms: nicht weiter teilbare Bausteine — Button, Input, Badge. Suche ist
+// KEIN atom mehr (Input+Icon = funktionale Kleingruppe → molecule).
+function recognizeAtoms(els) {
   const out = [];
 
   const buttons = els.filter(
@@ -108,19 +113,6 @@ function recognizeAtomics(els) {
       selector: cssPath(buttons[0]),
     });
   }
-
-  const searches = els.filter(
-    (el) => (el.tagName === 'INPUT' && typeOf(el) === 'search') || roleOf(el) === 'search'
-  );
-  if (searches.length)
-    out.push({
-      name: 'Suche',
-      variants: [],
-      confidence: 'high',
-      source: 'rules',
-      notes: '',
-      selector: cssPath(searches[0]),
-    });
 
   const inputs = els.filter(
     (el) =>
@@ -152,7 +144,28 @@ function recognizeAtomics(els) {
   return out;
 }
 
-function recognizePatterns(els) {
+// molecules: kleine Gruppe von Atomen als EINE einfache Einheit. Regelbasiert
+// erkennbar ist nur Suche (Input+Icon) — Listeneintrag/Formularfeld bleiben KI-Sache.
+function recognizeMolecules(els) {
+  const out = [];
+  const searches = els.filter(
+    (el) => (el.tagName === 'INPUT' && typeOf(el) === 'search') || roleOf(el) === 'search'
+  );
+  if (searches.length)
+    out.push({
+      name: 'Suche',
+      variants: [],
+      confidence: 'high',
+      source: 'rules',
+      notes: '',
+      selector: cssPath(searches[0]),
+    });
+  return out;
+}
+
+// organisms: größere eigenständige Abschnitte — Navbar/Hero/Footer/Sidebar
+// (bisher "patterns"!) wandern hierher, NUR der ganze Screen wird Template.
+function recognizeLandmarks(els) {
   const out = [];
   const add = (pred, name, note) => {
     const hit = els.find(pred);
@@ -224,17 +237,62 @@ function recognizeComposed(els) {
   return out;
 }
 
+const NAV_LIKE = (el) =>
+  el.tagName === 'NAV' || el.tagName === 'ASIDE' || roleOf(el) === 'navigation' || roleOf(el) === 'complementary';
+
+// templates: höchstens EIN "Page Layout" pro Import — der ganze Screen.
+// Treffer bei einem <main>-Landmark ODER einem äußersten Container, der
+// sowohl Navigation/Sidebar als auch einen Inhaltsbereich umschließt.
+// `els` liegt in Pre-Order vor (walk() ruft fn(node) vor den Kindern auf) —
+// der erste Treffer in der Schleife ist daher automatisch der äußerste.
+function recognizeTemplate(els) {
+  const main = els.find((el) => el.tagName === 'MAIN' || roleOf(el) === 'main');
+  if (main) {
+    return [{
+      name: 'Page Layout',
+      variants: [],
+      confidence: 'low',
+      source: 'rules',
+      notes: 'aus <main>-Landmarke',
+      selector: cssPath(main),
+    }];
+  }
+  for (const container of els) {
+    // Der synthetische Dokument-/Fragment-Wurzelknoten hat nodeType 1, aber
+    // keinen tagName — er ist kein echter DOM-Container und darf nicht als
+    // "äußerster Container" zählen (sonst würden lose Geschwister-Landmarken
+    // auf oberster Ebene fälschlich ein Template ergeben).
+    if (!container.tagName) continue;
+    const kids = (container.childNodes || []).filter((c) => c.nodeType === 1);
+    if (kids.length < 2) continue;
+    const hasNav = kids.some(NAV_LIKE);
+    const hasContent = kids.some((k) => !NAV_LIKE(k) && k.tagName !== 'HEADER' && k.tagName !== 'FOOTER');
+    if (hasNav && hasContent) {
+      return [{
+        name: 'Page Layout',
+        variants: [],
+        confidence: 'med',
+        source: 'rules',
+        notes: 'aus Navigation/Sidebar + Inhaltsbereich',
+        selector: cssPath(container),
+      }];
+    }
+  }
+  return [];
+}
+
 export function recognizeComponents(html) {
   try {
     const root = parse(typeof html === 'string' ? html : '');
     const els = [];
     walk(root, (el) => els.push(el));
     return {
-      atomics: recognizeAtomics(els),
-      components: [...recognizeComposed(els), ...recognizeCandidates(els)],
-      patterns: recognizePatterns(els),
+      atoms: recognizeAtoms(els),
+      molecules: recognizeMolecules(els),
+      organisms: [...recognizeComposed(els), ...recognizeLandmarks(els), ...recognizeCandidates(els)],
+      templates: recognizeTemplate(els),
     };
   } catch {
-    return { atomics: [], components: [], patterns: [] };
+    return { atoms: [], molecules: [], organisms: [], templates: [] };
   }
 }

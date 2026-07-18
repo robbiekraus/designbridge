@@ -154,9 +154,10 @@ export function ingestCss(cssText, { sourceUrl = null } = {}) {
       border_radius: [...vars.radius, ...decls.radius],
       shadows: [...vars.shadows, ...decls.shadows],
     },
-    atomics: [],
-    components: [],
-    patterns: [],
+    atoms: [],
+    molecules: [],
+    organisms: [],
+    templates: [],
     warnings,
     meta: { model: 'css-ingest', source_url: sourceUrl, elapsed_ms: 0 },
   };

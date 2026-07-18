@@ -15,9 +15,10 @@ export interface BuildResult {
 }
 
 export interface SectionFrames {
-  atomic: FrameNode;
-  component: FrameNode;
-  pattern: FrameNode;
+  atom: FrameNode;
+  molecule: FrameNode;
+  organism: FrameNode;
+  template: FrameNode;
 }
 
 const BADGE_YELLOW: SolidPaint = { type: 'SOLID', color: { r: 1, g: 0.95, b: 0.75 } };
@@ -101,8 +102,8 @@ export async function buildComponents(
     updated: 0,
     placeholders: 0,
     skipped: [],
-    createdByKind: { atomic: 0, component: 0, pattern: 0 },
-    updatedByKind: { atomic: 0, component: 0, pattern: 0 },
+    createdByKind: { atom: 0, molecule: 0, organism: 0, template: 0 },
+    updatedByKind: { atom: 0, molecule: 0, organism: 0, template: 0 },
   };
 
   for (const comp of components) {

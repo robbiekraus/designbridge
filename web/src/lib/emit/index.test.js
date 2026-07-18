@@ -8,7 +8,7 @@ const imageResult = {
       typography: [{ size: 32, weight: 700, role: 'headline', confidence: 'high' }],
       spacing: [], border_radius: [], shadows: [],
     },
-    atomics: [{ name: 'Button', variants: [] }],
+    atoms: [{ name: 'Button', variants: [] }],
   },
 };
 const mockResult = { source: 'url', mocked: true, raw: null };

@@ -27,7 +27,7 @@ export default function AiDeepenBanner({ result, onDeepened }) {
   return (
     <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
       <div className="flex-1">
-        <div className="text-sm font-medium text-amber-900">Komponenten &amp; Patterns noch nicht analysiert</div>
+        <div className="text-sm font-medium text-amber-900">Atoms, Molecules, Organisms &amp; Templates noch nicht analysiert</div>
         {error ? (
           <div className="text-xs text-amber-700">KI-Analyse gerade nicht möglich — die Regel-Funde bleiben erhalten.</div>
         ) : (

@@ -14,7 +14,7 @@ const sampleResult = {
     { key: 'shadows', label: 'Shadows', count: 3, confidence: 'med' },
     {
       key: 'inventory', label: 'UI inventory', count: 12, confidence: 'med',
-      extra: { atomics: 4, components: 5, patterns: 3 },
+      extra: { atoms: 4, molecules: 2, organisms: 5, templates: 1 },
     },
   ],
   raw: null,
@@ -28,9 +28,10 @@ describe('ImportSuccess', () => {
     expect(screen.getByText('Typography')).toBeInTheDocument();
     expect(screen.getByText('UI inventory')).toBeInTheDocument();
     expect(screen.getByText('12')).toBeInTheDocument();
-    expect(screen.getByText(/4 atomics/)).toBeInTheDocument();
-    expect(screen.getByText(/5 components/)).toBeInTheDocument();
-    expect(screen.getByText(/3 patterns/)).toBeInTheDocument();
+    expect(screen.getByText(/4 atoms/)).toBeInTheDocument();
+    expect(screen.getByText(/2 molecules/)).toBeInTheDocument();
+    expect(screen.getByText(/5 organisms/)).toBeInTheDocument();
+    expect(screen.getByText(/1 templates/)).toBeInTheDocument();
   });
 
   it('shows the mocked badge only when mocked is true', () => {
@@ -66,7 +67,7 @@ describe('ImportSuccess', () => {
         { key: 'spacing', label: 'Spacing', count: 0, confidence: null },
         { key: 'radius', label: 'Border radius', count: 0, confidence: null },
         { key: 'shadows', label: 'Shadows', count: 0, confidence: null },
-        { key: 'inventory', label: 'UI inventory', count: 0, confidence: null, extra: { atomics: 0, components: 0, patterns: 0 } },
+        { key: 'inventory', label: 'UI inventory', count: 0, confidence: null, extra: { atoms: 0, molecules: 0, organisms: 0, templates: 0 } },
       ],
       raw: {},
     };

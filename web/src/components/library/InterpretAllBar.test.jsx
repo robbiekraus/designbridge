@@ -6,8 +6,8 @@ import InterpretAllBar from './InterpretAllBar.jsx';
 // nur die zählen für den Batch („gehobene Bausteine ohne Vorschau").
 const repoWithTodo = {
   source: 'repo',
-  raw: { meta: { import_id: 'id1' }, atomics: [], patterns: [],
-    components: [{ name: 'PricingWidget', path: 'p.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] },
+  raw: { meta: { import_id: 'id1' }, atoms: [], templates: [],
+    organisms: [{ name: 'PricingWidget', path: 'p.tsx', sourceCode: 'export const PricingWidget=()=>null;' }] },
 };
 
 describe('InterpretAllBar', () => {
@@ -19,7 +19,7 @@ describe('InterpretAllBar', () => {
   });
 
   it('rendert nichts für Bild-Import', () => {
-    const { container } = render(<InterpretAllBar result={{ source: 'image', raw: { meta: {}, atomics: [], components: [], patterns: [] } }} onInterpretAll={() => {}} />);
+    const { container } = render(<InterpretAllBar result={{ source: 'image', raw: { meta: {}, atoms: [], molecules: [], organisms: [], templates: [] } }} onInterpretAll={() => {}} />);
     expect(container.firstChild).toBe(null);
   });
 

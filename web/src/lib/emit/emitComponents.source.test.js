@@ -6,12 +6,13 @@ describe('emitComponents source passthrough', () => {
     const result = {
       raw: {
         tokens: {},
-        atomics: [{ name: 'Button', confidence: 'high', source: 'rules+ai', notes: 'Input → Suche' }],
-        components: [],
-        patterns: [],
+        atoms: [{ name: 'Button', confidence: 'high', source: 'rules+ai', notes: 'Input → Suche' }],
+        molecules: [],
+        organisms: [],
+        templates: [],
       },
     };
-    const items = emitComponents(result, 'atomic');
+    const items = emitComponents(result, 'atom');
     expect(items[0].source).toBe('rules+ai');
     expect(items[0].notes).toBe('Input → Suche');
   });
@@ -22,18 +23,18 @@ describe('emitComponents source passthrough', () => {
     const result = {
       raw: {
         tokens: {},
-        atomics: [],
-        components: [{
+        atoms: [],
+        organisms: [{
           name: 'CardSkeleton', confidence: 'high', source: 'rules',
           sourceCode: 'export const CardSkeleton = () => <div className="animate-pulse" />;',
           path: 'src/components/ui/card-skeleton.tsx',
         }],
-        patterns: [],
+        templates: [],
       },
     };
-    const [card] = emitComponents(result, 'component');
+    const [card] = emitComponents(result, 'organism');
     expect(card.lifted).toBe(true);
-    expect(card.code).toBe(result.raw.components[0].sourceCode); // echter Code
+    expect(card.code).toBe(result.raw.organisms[0].sourceCode); // echter Code
     expect(card.templateKey).toBe(null);   // Template ignoriert
     expect(card.hasPreview).toBe(false);    // keine generische Template-Vorschau
     expect(card.variants).toEqual([]);      // keine Template-Varianten

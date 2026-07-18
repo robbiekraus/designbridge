@@ -4,9 +4,10 @@
 import { matchTemplate } from './components/templates/registry.js';
 
 const KINDS = [
-  ['atomics', 'atomic'],
-  ['components', 'component'],
-  ['patterns', 'pattern'],
+  ['atoms', 'atom'],
+  ['molecules', 'molecule'],
+  ['organisms', 'organism'],
+  ['templates', 'template'],
 ];
 
 /** Bausteine ohne Template, die noch keine Interpretation im Cache haben. */

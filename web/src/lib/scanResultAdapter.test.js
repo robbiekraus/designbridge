@@ -9,15 +9,16 @@ const fixture = {
     border_radius: [{ value: '6px', confidence: 'high' }],
     shadows: [],
   },
-  atomics: [{ name: 'Button', confidence: 'high' }],
-  components: [{ name: 'Card', confidence: 'med' }, { name: 'Modal', confidence: 'low' }],
-  patterns: [],
+  atoms: [{ name: 'Button', confidence: 'high' }],
+  molecules: [],
+  organisms: [{ name: 'Card', confidence: 'med' }, { name: 'Modal', confidence: 'low' }],
+  templates: [],
   warnings: [],
 };
 
 const raw = {
   tokens: { colors: [{ hex: '#022d2c', role: 'primary', confidence: 'high', source: '--color-primary' }] },
-  atomics: [], components: [], patterns: [],
+  atoms: [], molecules: [], organisms: [], templates: [],
 };
 
 describe('adaptImageScanResponse', () => {
@@ -34,12 +35,12 @@ describe('adaptImageScanResponse', () => {
     expect(byKey.inventory).toMatchObject({
       count: 3,
       confidence: 'low',
-      extra: { atomics: 1, components: 2, patterns: 0 },
+      extra: { atoms: 1, molecules: 0, organisms: 2, templates: 0 },
     });
   });
 
   it('returns count 0 / confidence null when a category is missing', () => {
-    const result = adaptImageScanResponse({ tokens: {}, atomics: [], components: [], patterns: [] });
+    const result = adaptImageScanResponse({ tokens: {}, atoms: [], molecules: [], organisms: [], templates: [] });
     const colors = result.categories.find(c => c.key === 'colors');
     expect(colors.count).toBe(0);
     expect(colors.confidence).toBeNull();

@@ -3,14 +3,21 @@ import ImportModal from './components/ImportModal/ImportModal.jsx';
 import { loadLastImport, saveLastImport } from './lib/libraryStore.js';
 import Dashboard from './pages/Dashboard.jsx';
 import Tokens from './pages/Tokens.jsx';
-import Atomics from './pages/Atomics.jsx';
-import Components from './pages/Components.jsx';
-import Patterns from './pages/Patterns.jsx';
+import LibraryLevel from './pages/LibraryLevel.jsx';
 import Export from './pages/Export.jsx';
 import EmptyState from './components/library/EmptyState.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
 import InterpretAllBar from './components/library/InterpretAllBar.jsx';
 import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyRetryOutcome, carryInterpretations, applyIfSameImport, normalizeStalePending } from './lib/interpret.js';
+
+// Nav-Label → kind-Filter für die generische LibraryLevel-Seite. Reihenfolge
+// überall atom → molecule → organism → template (PINNED CONTRACT).
+const LIBRARY_LEVELS = {
+  Atoms: 'atom',
+  Molecules: 'molecule',
+  Organisms: 'organism',
+  Templates: 'template',
+};
 
 export default function App() {
   const [page, setPage] = useState('Dashboard');
@@ -139,11 +146,20 @@ export default function App() {
 
   const renderPage = () => {
     if (!lastImport) return <EmptyState onNewImport={() => setModalOpen(true)} />;
+    const kind = LIBRARY_LEVELS[page];
+    if (kind) {
+      return (
+        <LibraryLevel
+          result={lastImport}
+          kind={kind}
+          title={page}
+          onRetryInterpret={handleRetryInterpret}
+          retryingNames={retryingNames}
+        />
+      );
+    }
     switch (page) {
       case 'Tokens': return <Tokens result={lastImport} />;
-      case 'Atomics': return <Atomics result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
-      case 'Components': return <Components result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
-      case 'Patterns': return <Patterns result={lastImport} onRetryInterpret={handleRetryInterpret} retryingNames={retryingNames} />;
       case 'Export': return <Export result={lastImport} />;
       case 'Dashboard':
       default: return <Dashboard result={lastImport} />;
@@ -155,9 +171,10 @@ export default function App() {
   const invExtra = navCategories.find(c => c.key === 'inventory')?.extra ?? {};
   const navCounts = {
     Tokens: catCount('colors') + catCount('typography') + catCount('spacing') + catCount('radius') + catCount('shadows'),
-    Atomics: invExtra.atomics ?? 0,
-    Components: invExtra.components ?? 0,
-    Patterns: invExtra.patterns ?? 0,
+    Atoms: invExtra.atoms ?? 0,
+    Molecules: invExtra.molecules ?? 0,
+    Organisms: invExtra.organisms ?? 0,
+    Templates: invExtra.templates ?? 0,
   };
 
   return (
@@ -194,7 +211,7 @@ export default function App() {
             Dashboard
           </button>
           <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-3 pb-1">Library</div>
-          {['Tokens', 'Atomics', 'Components', 'Patterns', 'Export'].map((label) => (
+          {['Tokens', 'Atoms', 'Molecules', 'Organisms', 'Templates', 'Export'].map((label) => (
             <button key={label} onClick={() => setPage(label)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-zinc-100 text-zinc-900 font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
               <span>{label}</span>
@@ -208,7 +225,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto">
           <div className="p-8">
             {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
-            {lastImport && ['Atomics', 'Components', 'Patterns'].includes(page) && (
+            {lastImport && Boolean(LIBRARY_LEVELS[page]) && (
               <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
             )}
             {renderPage()}

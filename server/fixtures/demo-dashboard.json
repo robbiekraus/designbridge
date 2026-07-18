@@ -50,28 +50,28 @@
       { "description": "tooltip-shadow", "css": "0 8px 24px rgba(0,0,0,0.12)", "confidence": "low" }
     ]
   },
-  "atomics": [
+  "atoms": [
     { "name": "Button", "variants": ["primary", "ghost", "segmented"], "confidence": "high", "notes": "Day/Week/Month toggles and View all", "bbox": { "x": 0.60, "y": 0.03, "w": 0.18, "h": 0.05 } },
     { "name": "Icon Button", "variants": ["search", "add"], "confidence": "high", "notes": "", "bbox": { "x": 0.90, "y": 0.03, "w": 0.06, "h": 0.04 } },
     { "name": "Avatar", "variants": ["user"], "confidence": "high", "notes": "bottom-left of sidebar", "bbox": { "x": 0.02, "y": 0.93, "w": 0.06, "h": 0.05 } },
     { "name": "Status Dot", "variants": ["online", "alert"], "confidence": "medium", "notes": "sidebar indicators", "bbox": { "x": 0.03, "y": 0.45, "w": 0.03, "h": 0.02 } },
-    { "name": "Search Input", "variants": [], "confidence": "medium", "notes": "topbar", "bbox": { "x": 0.20, "y": 0.02, "w": 0.30, "h": 0.05 } }
+    { "name": "Tooltip", "confidence": "medium", "notes": "March $48.200 on charts", "bbox": { "x": 0.45, "y": 0.22, "w": 0.10, "h": 0.06 } }
   ],
-  "components": [
+  "molecules": [
+    { "name": "Search Input", "variants": [], "confidence": "medium", "notes": "topbar", "bbox": { "x": 0.20, "y": 0.02, "w": 0.30, "h": 0.05 } },
+    { "name": "Segmented Control", "confidence": "high", "notes": "Day/Week/Month", "bbox": { "x": 0.60, "y": 0.10, "w": 0.15, "h": 0.05 } },
+    { "name": "Category List Item", "confidence": "high", "notes": "Popular categories rows", "bbox": { "x": 0.28, "y": 0.82, "w": 0.30, "h": 0.10 } }
+  ],
+  "organisms": [
     { "name": "Sidebar Navigation", "confidence": "high", "notes": "icon rail with active state", "bbox": { "x": 0.0, "y": 0.0, "w": 0.15, "h": 1.0 } },
     { "name": "Stat Card", "confidence": "high", "notes": "category counts with icon tile", "bbox": { "x": 0.05, "y": 0.18, "w": 0.20, "h": 0.15 } },
     { "name": "Line Chart Card", "confidence": "high", "notes": "Your Sales / Income Details", "bbox": { "x": 0.28, "y": 0.18, "w": 0.42, "h": 0.30 } },
     { "name": "Donut Chart", "confidence": "high", "notes": "Income Breakdown with center label", "bbox": { "x": 0.72, "y": 0.18, "w": 0.24, "h": 0.30 } },
     { "name": "Bar Chart", "confidence": "medium", "notes": "Conversion history", "bbox": { "x": 0.28, "y": 0.52, "w": 0.30, "h": 0.28 } },
-    { "name": "Data Table", "confidence": "high", "notes": "Latest Events with row icons", "bbox": { "x": 0.60, "y": 0.52, "w": 0.36, "h": 0.35 } },
-    { "name": "Tooltip", "confidence": "medium", "notes": "March $48.200 on charts", "bbox": { "x": 0.45, "y": 0.22, "w": 0.10, "h": 0.06 } },
-    { "name": "Segmented Control", "confidence": "high", "notes": "Day/Week/Month", "bbox": { "x": 0.60, "y": 0.10, "w": 0.15, "h": 0.05 } },
-    { "name": "Category List Item", "confidence": "high", "notes": "Popular categories rows", "bbox": { "x": 0.28, "y": 0.82, "w": 0.30, "h": 0.10 } }
+    { "name": "Data Table", "confidence": "high", "notes": "Latest Events with row icons", "bbox": { "x": 0.60, "y": 0.52, "w": 0.36, "h": 0.35 } }
   ],
-  "patterns": [
-    { "name": "Dashboard Grid Layout", "confidence": "high", "bbox": { "x": 0.15, "y": 0.0, "w": 0.85, "h": 1.0 } },
-    { "name": "Metrics Overview", "confidence": "high", "bbox": { "x": 0.15, "y": 0.18, "w": 0.85, "h": 0.15 } },
-    { "name": "Sidebar + Content Shell", "confidence": "medium", "bbox": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 } }
+  "templates": [
+    { "name": "Dashboard Layout", "confidence": "high", "notes": "sidebar + topbar + content grid, the whole screen", "bbox": { "x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0 } }
   ],
   "warnings": [
     "Exact hex values are estimated from a static image — verify against the source file.",

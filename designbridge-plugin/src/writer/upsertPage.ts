@@ -5,9 +5,10 @@ import type { SectionFrames } from './buildComponents';
 export const PAGE_NAME = '🌉 DesignBridge';
 
 const SECTIONS: Array<{ key: keyof SectionFrames; title: string }> = [
-  { key: 'atomic', title: 'Atomics' },
-  { key: 'component', title: 'Components' },
-  { key: 'pattern', title: 'Patterns' },
+  { key: 'atom', title: 'Atoms' },
+  { key: 'molecule', title: 'Molecules' },
+  { key: 'organism', title: 'Organisms' },
+  { key: 'template', title: 'Templates' },
 ];
 
 async function sectionHeading(title: string): Promise<TextNode> {
