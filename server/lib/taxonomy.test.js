@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyByContainment, CONTAIN_RATIO, CANVAS_RATIO, SECTION_RATIO } from './taxonomy.js';
+import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO, CANVAS_RATIO, SECTION_RATIO } from './taxonomy.js';
 
 // Einfaches bbox-Modell für die Tests: ref = { x, y, w, h } als Flächen-Anteile 0..1.
 const areaOf = (ref) => (ref ? ref.w * ref.h : 0);
@@ -87,4 +87,53 @@ test('Konstanten sind wie in der Spec gepinnt', () => {
   assert.equal(CONTAIN_RATIO, 0.75);
   assert.equal(CANVAS_RATIO, 0.80);
   assert.equal(SECTION_RATIO, 0.05);
+});
+
+// buildCompositionTree — direkte Enthaltungs-Kanten als Baum.
+const it_ = (name, kind, x, y, w, h) => ({ name, kind, ref: { x, y, w, h } });
+
+test('buildCompositionTree: direct edges, grandchild hangs on molecule not template', () => {
+  const items = [
+    it_('Template', 'template', 0, 0, 1, 1),
+    it_('SidebarNav', 'organism', 0, 0, 0.25, 1),
+    it_('SearchMol', 'molecule', 0.01, 0.02, 0.2, 0.05),
+    it_('IconAtom', 'atom', 0.02, 0.025, 0.03, 0.03),
+  ];
+  const { children, roots } = buildCompositionTree(items, { areaOf, contains });
+  assert.deepEqual(roots, ['Template']);
+  assert.deepEqual(children['Template'], ['SidebarNav']);      // only direct child
+  assert.deepEqual(children['SidebarNav'], ['SearchMol']);
+  assert.deepEqual(children['SearchMol'], ['IconAtom']);       // grandchild NOT on Template
+  assert.equal(children['IconAtom'], undefined);
+});
+
+test('buildCompositionTree: two siblings ordered by y then x', () => {
+  const items = [
+    it_('Parent', 'organism', 0, 0, 1, 1),
+    it_('Lower', 'molecule', 0.1, 0.6, 0.2, 0.1),
+    it_('Upper', 'molecule', 0.1, 0.1, 0.2, 0.1),
+  ];
+  const { children } = buildCompositionTree(items, { areaOf, contains });
+  assert.deepEqual(children['Parent'], ['Upper', 'Lower']);
+});
+
+test('buildCompositionTree: item without bbox is leaf and root', () => {
+  const items = [
+    it_('Parent', 'organism', 0, 0, 1, 1),
+    { name: 'NoBox', kind: 'atom', ref: {} },
+  ];
+  const { children, roots } = buildCompositionTree(items, { areaOf, contains });
+  assert.ok(roots.includes('NoBox'));
+  assert.equal(children['NoBox'], undefined);
+  assert.equal((children['Parent'] || []).includes('NoBox'), false);
+});
+
+test('buildCompositionTree: multiple roots', () => {
+  const items = [
+    it_('Template', 'template', 0, 0, 0.6, 1),
+    it_('Stray', 'organism', 0.7, 0, 0.2, 0.2),
+    it_('Child', 'molecule', 0.01, 0.01, 0.1, 0.1),
+  ];
+  const { roots } = buildCompositionTree(items, { areaOf, contains });
+  assert.deepEqual(roots.sort(), ['Stray', 'Template']);
 });

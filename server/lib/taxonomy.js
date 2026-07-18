@@ -67,3 +67,41 @@ export function classifyByContainment(items, { areaOf, contains }) {
 
   return result;
 }
+
+/**
+ * buildCompositionTree(items, { areaOf, contains }) -> { children, roots }
+ * Direkter Elternteil von B = der flächenKLEINSTE A (A≠B) mit contains(A,B).
+ * Nur direkte Kanten. Kinder je Elternteil in Lesereihenfolge (y, dann x der ref).
+ * Quellen-agnostisch: contains/areaOf injiziert (Bild: bbox; Repo: eigener Aufruf).
+ */
+export function buildCompositionTree(items, { areaOf, contains }) {
+  const children = {};
+  const hasParent = new Set();
+  for (let i = 0; i < items.length; i++) {
+    const b = items[i];
+    let parentIdx = -1;
+    let parentArea = Infinity;
+    for (let j = 0; j < items.length; j++) {
+      if (j === i) continue;
+      if (!contains(items[j].ref, b.ref)) continue;
+      const a = areaOf(items[j].ref);
+      if (a < parentArea) { parentArea = a; parentIdx = j; }
+    }
+    if (parentIdx !== -1) {
+      const pName = items[parentIdx].name;
+      (children[pName] ??= []).push(b);       // push item; sort+map to names below
+      hasParent.add(b.name);
+    }
+  }
+  // Kinder nach y, dann x sortieren und auf Namen reduzieren.
+  const readY = (ref) => (ref && typeof ref.y === 'number' ? ref.y : 0);
+  const readX = (ref) => (ref && typeof ref.x === 'number' ? ref.x : 0);
+  for (const key of Object.keys(children)) {
+    children[key] = children[key]
+      .slice()
+      .sort((p, q) => (readY(p.ref) - readY(q.ref)) || (readX(p.ref) - readX(q.ref)))
+      .map((c) => c.name);
+  }
+  const roots = items.filter((x) => !hasParent.has(x.name)).map((x) => x.name);
+  return { children, roots };
+}
