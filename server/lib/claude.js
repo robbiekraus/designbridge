@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
+import { classifyByContainment, CONTAIN_RATIO } from './taxonomy.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -67,6 +68,52 @@ function normalizeTokenUnits(tokens) {
 }
 
 const bboxArea = (b) => (b && typeof b.w === 'number' && typeof b.h === 'number' ? b.w * b.h : 0);
+
+function bboxOverlapArea(a, b) {
+  if (!a || !b) return 0;
+  const x1 = Math.max(a.x, b.x);
+  const y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w);
+  const y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = Math.max(0, x2 - x1);
+  const h = Math.max(0, y2 - y1);
+  return w * h;
+}
+
+// Enthaltungs-Guard (Ansatz B, docs/superpowers/specs/2026-07-18-atomic-design-taxonomy-design.md):
+// Bild-Pfad v1 — bbox-basierte areaOf/contains, danach zurück in die 4 Buckets.
+// „A enthält B": B liegt zu >= CONTAIN_RATIO seiner Fläche in A UND A ist flächengrößer.
+function applyContainmentGuard(atoms, molecules, organisms, templates) {
+  const asRefItems = (items, kind) => (items ?? []).map((item) => ({ name: item.name, kind, ref: item }));
+  const flat = [
+    ...asRefItems(atoms, 'atom'),
+    ...asRefItems(molecules, 'molecule'),
+    ...asRefItems(organisms, 'organism'),
+    ...asRefItems(templates, 'template'),
+  ];
+
+  const areaOf = (ref) => bboxArea(ref?.bbox);
+  const contains = (a, b) => {
+    const areaA = bboxArea(a?.bbox);
+    const areaB = bboxArea(b?.bbox);
+    if (areaB === 0 || areaA <= areaB) return false;
+    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
+  };
+
+  const classified = classifyByContainment(flat, { areaOf, contains });
+
+  const buckets = { atom: [], molecule: [], organism: [], template: [] };
+  for (const entry of classified) {
+    const kind = buckets[entry.kind] ? entry.kind : 'organism'; // Fallback nach PINNED CONTRACT #5
+    buckets[kind].push(entry.ref);
+  }
+  return {
+    atoms: buckets.atom,
+    molecules: buckets.molecule,
+    organisms: buckets.organism,
+    templates: buckets.template,
+  };
+}
 
 // Die KI listet identische Bausteine mehrfach (Live-Fund 15.07.: dreimal
 // "button" für Chips + Send-Button) — gleichnamige Einträge verschmelzen,
@@ -138,13 +185,18 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
     throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
   }
 
-  return {
-    ...parsed,
-    tokens: normalizeTokenUnits(parsed.tokens),
+  const merged = {
     atoms: mergeByName(parsed.atoms),
     molecules: mergeByName(parsed.molecules),
     organisms: mergeByName(parsed.organisms),
     templates: mergeByName(parsed.templates),
+  };
+  const guarded = applyContainmentGuard(merged.atoms, merged.molecules, merged.organisms, merged.templates);
+
+  return {
+    ...parsed,
+    tokens: normalizeTokenUnits(parsed.tokens),
+    ...guarded,
     meta: { model: response.model ?? 'claude-sonnet-5', elapsed_ms: elapsed },
   };
 }

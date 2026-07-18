@@ -163,3 +163,35 @@ test('analyzeScreenshot: ungültiges JSON ohne Abschneiden → deutsche Meldung 
   );
   fs.unlinkSync(imgPath);
 });
+
+test('analyzeScreenshot: Enthaltungs-Guard hebt Card→organism und korrigiert Screen→template (Ansatz B)', async () => {
+  const imgPath = tmpImage();
+  const fakeClient = {
+    messages: {
+      create: async () => ({ content: [{ text: JSON.stringify({
+        summary: {}, tokens: {},
+        // Card besteht aus Icon+Value (2 enthaltene Atome) → Organism-Boden hebt sie an.
+        atoms: [
+          { name: 'Card Icon', confidence: 'high', notes: '', bbox: { x: 0.06, y: 0.06, w: 0.05, h: 0.05 } },
+          { name: 'Card Value', confidence: 'high', notes: '', bbox: { x: 0.15, y: 0.2, w: 0.1, h: 0.05 } },
+        ],
+        // KI-Fehlklassifikation wie im Live-Fund: die Card als molecule, der ganze Screen als organism.
+        molecules: [{ name: 'Stat Card', confidence: 'high', notes: '', bbox: { x: 0.05, y: 0.05, w: 0.3, h: 0.3 } }],
+        organisms: [{ name: 'Screen', confidence: 'high', notes: '', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+        templates: [], warnings: [],
+      }) }] }),
+    },
+  };
+  const result = await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient });
+  fs.unlinkSync(imgPath);
+
+  assert.equal(result.molecules.find((m) => m.name === 'Stat Card'), undefined);
+  const card = result.organisms.find((o) => o.name === 'Stat Card');
+  assert.ok(card, 'Stat Card sollte in organisms gelandet sein');
+
+  assert.equal(result.organisms.find((o) => o.name === 'Screen'), undefined);
+  const screen = result.templates.find((t) => t.name === 'Screen');
+  assert.ok(screen, 'Screen sollte in templates gelandet sein');
+
+  assert.equal(result.templates.length, 1);
+});

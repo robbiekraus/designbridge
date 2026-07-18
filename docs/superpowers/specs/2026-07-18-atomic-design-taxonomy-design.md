@@ -1,7 +1,9 @@
 # Atomic-Design-Taxonomie — Umstellung `atomic/component/pattern` → `atom/molecule/organism/template`
 
-**Datum:** 2026-07-18 · **Status:** In Umsetzung (Robs Entscheidung, s. Memory `project-designbridge-taxonomy`)
+**Datum:** 2026-07-18 · **Status:** Ansatz A GELANDET & LIVE (`a220ac4`, Server 217 · Web 448 · Plugin 92) · Ansatz B (Enthaltungs-Guard) in Umsetzung
 **Anlass:** Robs Figma-Test `test 7`: Cards/Charts/Tabellen liefen als „component", die ganze Seite als einziges „pattern" — aus Designer-Sicht falsch. Umstellung auf Atomic Design (Brad Frost).
+
+**Reconcile 18.07.:** Zwei parallele Session-Stränge. Der Fork hat **Ansatz A** (Prompt-Definitionen + Regel-Remap, dieses Dokument unten) gebaut, committet & gepusht (`a220ac4`) — verifiziert grün. Der andere Strang klärte im Brainstorm die Grundsatz-Entscheidungen (4 Ebenen + Tokens subatomar, englische Labels, oberste Ebene **Templates** nicht „Page") und ergänzt **Ansatz B** (unten). Beide Stränge kamen aufs selbe Modell; Naming final **Templates** (Rob).
 
 ## Zielmodell (Robs Wahl: 5 Ebenen, englische Begriffe)
 
@@ -95,8 +97,31 @@ Alle `result.atomics/components/patterns` → `result.atoms/molecules/organisms/
 
 Alle in der Blast-Radius-Karte gelisteten Tests auf die neuen Werte anpassen (Server/Web/Plugin). Besonders: exakte String-Assertions in `designbridge-plugin/tests/formatImportSummary.test.ts`; Bucket-Erwartungen in `recognizeComponents.test.js`, `repoInventory.test.js`, `scanResultAdapter.test.js`. **Neue Tests:** (a) recognizeComponents: Navbar/Sidebar → `organisms` (nicht template!), Card/Table → `organisms`, Suche → `molecules`, `<main>`-Screen → genau 1 `templates`-Eintrag; (b) repoInventory: `page.tsx` → `templates`; (c) ein Web-Test, dass die generische `LibraryLevel`-Seite für alle 4 kinds rendert.
 
+## Ansatz B — Enthaltungs-Guard (Folge-Scheibe auf grüner A-Basis, Bild-Pfad v1)
+
+Ansatz A verlässt sich auf die Prompt-Definitionen (nicht-deterministisch). Der Guard ist das **deterministische Sicherheitsnetz**, das genau Robs systematischen Fehler strukturell erzwingt — über die Komposition (das Wesen von Atomic Design), nicht über Bauchgefühl. **Promote-only** (hebt nur an) außer der Template-Regel (setzt hart).
+
+**Neues Modul `server/lib/taxonomy.js`** — reine Funktion, testbar ohne KI/DOM:
+```
+classifyByContainment(items, { areaOf, contains }) → items mit korrigiertem kind
+```
+`items` = flache Liste `{ name, kind, ref }`; `areaOf(ref)` → Fläche 0..1; `contains(a, b)` → bool. Quellen-agnostisch: der Bild-Pfad liefert bbox-basierte `areaOf`/`contains`, ein späterer URL/Repo-Pfad DOM-basierte.
+
+**Konstanten (benannt, per TDD gepinnt, als Heuristik dokumentiert):** `CONTAIN_RATIO = 0.75` (B liegt zu ≥75 % seiner Fläche in A **und** A ist flächengrößer → A enthält B), `CANVAS_RATIO = 0.80` (deckt Screen), `SECTION_RATIO = 0.05` (Mindestgröße für Organism-Boden — schützt kleine Moleküle).
+
+**Zwei Regeln (in dieser Reihenfolge):**
+1. **Template-Boden (hart):** die flächengrößte Einheit, die (a) Fläche ≥ `CANVAS_RATIO` hat UND (b) ≥ 2 andere erkannte Einheiten enthält → `kind = 'template'`. Setzt auch runter (der Screen darf kein Organism-Geschwister sein). Höchstens EINE.
+2. **Organism-Boden (promote-only):** jede Einheit, die ≥ 2 andere enthält UND Fläche ≥ `SECTION_RATIO` hat → mindestens `organism` (nie zurück auf atom/molecule). Der Größenfilter lässt eine KPI-Kachel (Icon+2 Labels, < SECTION_RATIO) als `molecule` in Ruhe.
+
+**Bild-Pfad-Verdrahtung (`server/lib/claude.js`, v1):** nach `mergeByName` die vier Arrays flach zusammenführen (kind je Herkunft), `classifyByContainment` mit bbox-`areaOf`=`w*h` (Helper existiert) und bbox-`contains` laufen lassen, dann nach kind zurück in die vier Arrays bucketen. Das `templates`-Item trägt laut Prompt bbox {0,0,1,1} → die Template-Regel greift robust, korrigiert aber auch, wenn die KI den Screen fälschlich als organism ausgibt.
+
+**Tests:** `taxonomy.test.js` (rein) — ganzflächige Einheit mit 2 Kindern → template; große Sektion mit 2 Kindern → organism; kleine Kachel < SECTION_RATIO → bleibt molecule; promote-only (Atom ohne Enthaltung bleibt Atom); genau EIN Template. Plus `claude.test.js`-Integration mit Fake-KI-Client: KI labelt Card als molecule + Screen als organism → Guard hebt Card→organism, Screen→template.
+
+**Bewusst NICHT in B v1 (YAGNI/Folge):** URL/Repo-DOM-Guard (Selektoren tragen keine bbox; die Regel-Remap aus A klassifiziert dort bereits Card→organism etc.) — dokumentierter Folge-Schritt, sobald der Bild-Guard sich bewährt.
+
 ## Bewusste Grenzen (dokumentiert)
 
+- **Enthaltungs-Guard ist Heuristik** (bbox): überlappende/ungenaue KI-bboxes können Kanten falsch einordnen; Schwellen tunebar. Greift v1 nur im Bild-Pfad.
 - **Persistierte Figma-Frame-Namen** (`DB/Atomics` … in ALTEN Files) werden nach dem Rename NICHT wiederverwendet — der Import legt neue `DB/Atoms`-Sektionen an. Akzeptiert: Robs Workflow importiert in LEERE Files (RESUME-Regel).
 - **Alte `localStorage`-Library-Daten** (Bucket `atomics/…`) einer laufenden Sitzung erscheinen nach dem Deploy leer, bis neu importiert wird. Akzeptiert (kein Migrations-Shim; Testphase).
 - **Template-Erkennung aus einem Screenshot** bleibt heuristisch (höchstens 1, „Page Layout") — Template↔Page-Feinunterscheidung wurde bewusst zu einer Ebene zusammengefasst.
