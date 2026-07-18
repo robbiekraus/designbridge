@@ -37,15 +37,19 @@ const JUSTIFY_MAP = {
   'space-between': 'SPACE_BETWEEN',
 };
 
+// Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec 2026-07-18, §Vertrag): stretch/normal (CSS-
+// Default von align-items, kein exotischer Sonderfall!) mappte bisher fälschlich auf CENTER — der
+// Browser richtet Flex-Kinder ohne explizites align-items aber am Start der Gegenachse aus bzw.
+// STRECKT sie über sie. baseline bleibt bewusst CENTER (kein Gegenstück im Plan-Vertrag).
 const ALIGN_ITEMS_MAP = {
   'flex-start': 'MIN',
   start: 'MIN',
   center: 'CENTER',
   'flex-end': 'MAX',
   end: 'MAX',
-  stretch: 'CENTER',
+  stretch: 'MIN',
   baseline: 'CENTER',
-  normal: 'CENTER',
+  normal: 'MIN',
 };
 
 const TEXT_ALIGN_MAP = {
@@ -189,8 +193,11 @@ function readLayout(computed, hasElementChildren) {
   return hasElementChildren ? 'column' : 'row';
 }
 
+// Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec §Vertrag): Nicht-Flex-Container mappten bisher
+// auf counterAlign CENTER — Block-Flow-Kinder werden im Browser aber am Start ausgerichtet/
+// gestreckt, nie zufällig zentriert. Ändert bewusst auch Bestands-Pläne (Browser-Wahrheit).
 function readAlignment(computed) {
-  if (!isFlexLike(computed.display)) return { primaryAlign: 'MIN', counterAlign: 'CENTER' };
+  if (!isFlexLike(computed.display)) return { primaryAlign: 'MIN', counterAlign: 'MIN' };
   return {
     primaryAlign: JUSTIFY_MAP[computed.justifyContent] ?? 'MIN',
     counterAlign: ALIGN_ITEMS_MAP[computed.alignItems] ?? 'CENTER',
@@ -231,35 +238,145 @@ function readBorder(computed, ctx) {
 /** width/height (Spec §Mapping: NUR wenn das Element eine vom Content abweichende, gesetzte Größe
  *  hat — Heuristik: expliziter Inline-Style oder Flex-Basis; sonst null=HUG). Bewusst konservativ
  *  (Spec §Risiken „Über-Fixierung"): Größe aus einer CSS-Klasse/Kaskade (statt Inline-Style) zählt
- *  NICHT als „gesetzt" — sonst würde praktisch jede Box starr. */
-function readSize(el, computed, layout) {
-  const inlineWidth = el.style?.width;
-  const inlineHeight = el.style?.height;
+ *  NICHT als „gesetzt" — sonst würde praktisch jede Box starr.
+ *
+ *  Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec §Erkennung Punkt 5): Inline `width:100%`/
+ *  `height:100%` auf einem NICHT-Wurzel-Element wird nicht mehr als px eingefroren (der Wert wäre
+ *  ohnehin nur der unaufgelöste "100%"-String, s. jsdom-Testgrenze oben) — die Achse bleibt null
+ *  (HUG), das eigentliche „Füllen" übernimmt `stretch`/`grow` (readStretchGrow). Andere Prozentwerte
+ *  (z. B. `width:50%`) bleiben unverändert beim bisherigen px-Freeze. Wurzeln sind ausgenommen
+ *  (`isRoot`): deren `100%` friert weiterhin px ein (Testrunde-8-Vertrag, WYSIWYG mit der
+ *  1024px-Mess-Breite). */
+function readSize(el, computed, layout, isRoot) {
+  const inlineWidth = el.style?.width || '';
+  const inlineHeight = el.style?.height || '';
   const hasInlineWidth = !!inlineWidth && inlineWidth !== 'auto';
   const hasInlineHeight = !!inlineHeight && inlineHeight !== 'auto';
+  const widthIs100 = hasInlineWidth && inlineWidth.trim() === '100%';
+  const heightIs100 = hasInlineHeight && inlineHeight.trim() === '100%';
 
   const flexBasis = computed.flexBasis;
   const hasFlexBasis = isFlexLike(computed.display) && !!flexBasis && flexBasis !== 'auto' && flexBasis !== '0%' && flexBasis !== 'content';
 
   let width = null;
   let height = null;
-  if (hasInlineWidth || (hasFlexBasis && layout !== 'column')) width = pxOrNull(computed.width);
-  if (hasInlineHeight || (hasFlexBasis && layout === 'column')) height = pxOrNull(computed.height);
+  if (hasInlineWidth && widthIs100 && !isRoot) {
+    width = null;
+  } else if (hasInlineWidth || (hasFlexBasis && layout !== 'column')) {
+    width = pxOrNull(computed.width);
+  }
+  if (hasInlineHeight && heightIs100 && !isRoot) {
+    height = null;
+  } else if (hasInlineHeight || (hasFlexBasis && layout === 'column')) {
+    height = pxOrNull(computed.height);
+  }
   return { width, height };
 }
 
 /** Entscheidet, ob ein Blatt-Element (keine Kind-ELEMENTE) trotzdem eine Box werden soll, weil es
  *  sichtbare Box-Stile trägt (Padding/Radius/Fill/Rahmen/Flex-Grid-Display/gesetzte Größe) — Ersatz
- *  für v1s klassenbasiertes `boxTrigger`, jetzt aus berechneten Stilen abgeleitet (Spec §Mapping). */
+ *  für v1s klassenbasiertes `boxTrigger`, jetzt aus berechneten Stilen abgeleitet (Spec §Mapping).
+ *
+ *  Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec §Erkennung Punkt 5): die readSize()-Abfrage hier
+ *  ruft bewusst IMMER mit `isRoot=true` auf — unabhängig vom tatsächlichen `isRoot` des Elements.
+ *  Diese Stelle beantwortet nur „hat das Element überhaupt eine explizit gesetzte Größe (statt
+ *  HUG)?", nicht „welcher px-Wert kommt am Ende raus?". Ein Inline-`width:100%`/`height:100%` ist
+ *  so eine Größenabsicht — auch wenn sie sich (bei echten Nicht-Wurzeln) später zu stretch/grow statt
+ *  eines eingefrorenen px-Werts auflöst (s. `readSize`, `buildBoxNode`) — und macht ein sonst
+ *  stilloses Blatt genauso zur Box wie jede andere explizite Größe. */
 function hasBoxTrigger(el, computed) {
   if (isFlexLike(computed.display)) return true;
   if (['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].some((p) => pxOr0(computed[p]) > 0)) return true;
   if (readRadius(computed) > 0) return true;
   if (normalizeColor(computed.backgroundColor) != null) return true;
   if ([computed.borderTopWidth, computed.borderRightWidth, computed.borderBottomWidth, computed.borderLeftWidth].some((w) => pxOr0(w) > 0)) return true;
-  const { width, height } = readSize(el, computed, readLayout(computed, el.children.length > 0));
+  const { width, height } = readSize(el, computed, readLayout(computed, el.children.length > 0), true);
   if (width != null || height != null) return true;
   return false;
+}
+
+// Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec §Erkennung Punkt 4, zweiter Spiegelstrich):
+// computed-`display`-Werte, die ein Kind unter einem NICHT-flex (Block-Flow) Elternteil block-level
+// machen und damit für Stretch qualifizieren. `flex`/`grid` sind bewusst enthalten — ein
+// Flex-/Grid-Container ist aus Sicht SEINES Elternteils weiterhin ein normales Block-Level-Element
+// (nur seine eigenen Kinder ordnet er als Flex an). Inline-Displays (inline, inline-block,
+// inline-flex, inline-grid) sind bewusst NICHT enthalten — sie strecken im Block-Flow nicht.
+const BLOCK_LEVEL_DISPLAYS = new Set(['block', 'flex', 'grid', 'table', 'list-item', 'flow-root']);
+
+/** flex-grow robust lesen (Spec §Erkennung Punkt 3, jsdom-Falle): die `flex:1`-Shorthand löst
+ *  jsdom teils nicht zu `computed.flexGrow` auf — Fallback auf das rohe Inline-Style
+ *  (`el.style.flexGrow`, von CSSStyleDeclaration bei Shorthand-Zuweisung mit-expandiert). */
+function readFlexGrow(el, computed) {
+  const raw = computed.flexGrow || el.style?.flexGrow || '';
+  const n = parseFloat(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Stretch/Grow-Erkennung für ein Element-Kind relativ zu seinem unmittelbaren Eltern-Kontext
+ *  (Spec §Erkennung, Punkte 3–5). `parent` ist `{ computed, layout }` des Eltern-ELEMENTS oder
+ *  `null` für Wurzeln — Punkt 2 („Wurzeln bekommen nie stretch/grow") wird hier zentral
+ *  durchgesetzt. Punkt 1 („absolute gewinnt") prüft der Aufrufer VORHER und ruft diese Funktion für
+ *  absolute Nodes gar nicht erst auf (s. buildNormalNode/convertElement).
+ *
+ *  `layout` im Elternkontext ist immer 'row' ODER 'column' (nie 'grid' o.ä. — readLayout normiert
+ *  bereits), das mappt 1:1 auf die physische Achse: 'row'-Eltern → primär=Breite, gegen=Höhe;
+ *  'column'-Eltern (inkl. simulierter Block-Flow-Spalte) → primär=Höhe, gegen=Breite. */
+function readStretchGrow(el, computed, parent) {
+  if (!parent) return { stretch: false, grow: false };
+
+  const inlineWidth = el.style?.width || '';
+  const inlineHeight = el.style?.height || '';
+  const hasInlineWidth = !!inlineWidth && inlineWidth !== 'auto';
+  const hasInlineHeight = !!inlineHeight && inlineHeight !== 'auto';
+  const widthIs100 = hasInlineWidth && inlineWidth.trim() === '100%';
+  const heightIs100 = hasInlineHeight && inlineHeight.trim() === '100%';
+
+  const parentFlex = isFlexLike(parent.computed.display);
+  let grow = false;
+  let stretch = false;
+
+  // Punkt 3: grow via flex-grow — nur unter flex-like Eltern aussagekräftig.
+  if (parentFlex && readFlexGrow(el, computed) > 0) {
+    grow = true;
+  }
+
+  // Punkt 4: stretch via alignSelf/alignItems (flex-like Eltern) bzw. Block-Flow (nicht-flex Eltern).
+  if (parentFlex) {
+    const alignSelf = computed.alignSelf;
+    const effective = alignSelf && alignSelf !== 'auto' ? alignSelf : parent.computed.alignItems;
+    if (effective === 'stretch' || effective === 'normal') {
+      const counterHasInlineSize = parent.layout === 'column' ? hasInlineWidth : hasInlineHeight;
+      if (!counterHasInlineSize) stretch = true;
+    }
+  } else if (parent.layout === 'column') {
+    if (BLOCK_LEVEL_DISPLAYS.has(computed.display) && !hasInlineWidth) stretch = true;
+  }
+
+  // Punkt 5: Inline-100%-Sonderfall — width:100%/height:100% sind ein eigenständiges Stretch/Grow-
+  // Signal (Achse relativ zum Eltern-Layout), unabhängig vom bisherigen Ergebnis oben (kann sich
+  // z. B. mit Punkt 4 decken oder es ergänzen — beide Achsen können unabhängig voneinander gefüllt
+  // werden). readSize() friert diese Achse dafür nicht mehr als px ein (s. dort).
+  if (widthIs100) {
+    if (parent.layout === 'row') grow = true;
+    else stretch = true;
+  }
+  if (heightIs100) {
+    if (parent.layout === 'row') stretch = true;
+    else grow = true;
+  }
+
+  return { stretch, grow };
+}
+
+/** Hängt `stretch: true` / `grow: true` an einen bereits gebauten Node an — WEGGELASSEN statt
+ *  `false` (gleiche Begründung wie bei `absolute`, s. readAbsolute-Kommentar). Wird NIE für svg-
+ *  Nodes aufgerufen (Spec §Vertrag: „svg-Nodes bekommen NIE stretch/grow" — die Aufrufer lassen
+ *  svg-Knoten aus, s. convertSvgElement). */
+function attachStretchGrow(node, stretchGrow) {
+  let result = node;
+  if (stretchGrow.stretch) result = { ...result, stretch: true };
+  if (stretchGrow.grow) result = { ...result, grow: true };
+  return result;
 }
 
 function buildTextNode(text, computed, ctx) {
@@ -274,21 +391,35 @@ function buildTextNode(text, computed, ctx) {
   };
 }
 
-function buildBoxNode(el, computed, children, ctx) {
+function buildBoxNode(el, computed, children, ctx, parent, isRoot, ownStretchGrow) {
   const layout = readLayout(computed, el.children.length > 0);
   const { primaryAlign, counterAlign } = readAlignment(computed);
   const { stroke, strokeWeight } = readBorder(computed, ctx);
-  let { width, height } = readSize(el, computed, layout);
+  let { width, height } = readSize(el, computed, layout, isRoot);
 
   // Figma-Auto-Layout huggt NUR In-Flow-Kinder: Ein Parent, dessen Kinder (teils) absolut
   // positioniert sind, würde sonst kollabieren und die absoluten Kinder wegclippen
   // (Regression Figma-Test `test6`, 18.07. — Chart-Body bestand NUR aus absoluten Kindern).
   // Vertrag: fehlende Maße aus dem eigenen gemessenen Rect einfrieren; explizit gesetzte
   // Maße (readSize) behalten Vorrang.
+  //
+  // Wechselwirkung mit Stretch/Grow (Pattern-Fidelity-Scheibe „Stretch & Grow", Spec §Wechsel-
+  // wirkung mit dem Absolute-Kinder-Freeze, Nachfix 18.07.): eine Achse, die bereits durch das
+  // EIGENE stretch (Gegenachse) bzw. grow (Primärachse) DIESES Nodes — relativ zu SEINEM
+  // Eltern-Layout — abgedeckt ist, wird NICHT zusätzlich aus dem Rect eingefroren; sie kommt zur
+  // Laufzeit vom Parent. Welche physische Achse (Breite/Höhe) das ist, hängt vom Eltern-Layout ab
+  // (`parent.layout`): 'row'-Eltern → Gegenachse=Höhe/Primärachse=Breite; 'column'-Eltern (bzw.
+  // fehlender Parent) → umgekehrt.
   if ((width == null || height == null) && children.some((c) => c && c.absolute)) {
     const rect = el.getBoundingClientRect();
-    if (width == null) width = Math.max(1, Math.round(rect.width));
-    if (height == null) height = Math.max(1, Math.round(rect.height));
+    const stretchAxis = ownStretchGrow.stretch && parent ? (parent.layout === 'row' ? 'height' : 'width') : null;
+    const growAxis = ownStretchGrow.grow && parent ? (parent.layout === 'row' ? 'width' : 'height') : null;
+    if (width == null && stretchAxis !== 'width' && growAxis !== 'width') {
+      width = Math.max(1, Math.round(rect.width));
+    }
+    if (height == null && stretchAxis !== 'height' && growAxis !== 'height') {
+      height = Math.max(1, Math.round(rect.height));
+    }
   }
   return {
     type: 'box',
@@ -327,7 +458,7 @@ function emptyBoxNode(children = []) {
     width: null,
     height: null,
     primaryAlign: 'MIN',
-    counterAlign: 'CENTER',
+    counterAlign: 'MIN',
     children,
   };
 }
@@ -479,30 +610,48 @@ function matchKnownComponent(el) {
 
 /** Der eigentliche box/text-Nachbau — ausgelagert, damit sowohl der normale Pfad als auch der
  *  component-ref-Fallback (Spec §Konverter Punkt 2) ihn nutzen können. Liest getComputedStyle(el)
- *  (Live-DOM, im echten `document` gemountet — Spec §Kernidee). */
-function buildNormalNode(el, ctx) {
+ *  (Live-DOM, im echten `document` gemountet — Spec §Kernidee).
+ *
+ *  `parent` (Pattern-Fidelity-Scheibe „Stretch & Grow", Spec §Erkennung): der Eltern-Kontext
+ *  `{ computed, layout }` DIESES Elements, oder `null` für Wurzeln (direkte Kinder des Mess-
+ *  Containers — kein Figma-Parent zu füllen). Wird durchgereicht für die Stretch/Grow-Erkennung
+ *  von `el` selbst; für die EIGENEN Kinder von `el` wird unten ein neuer Kontext aus `el`s
+ *  computed/layout gebaut. `absolute` gewinnt über stretch/grow (Spec §Vertrag Punkt 1) — wird
+ *  daher zuerst bestimmt, stretch/grow nur berechnet, wenn `el` nicht absolut positioniert ist. */
+function buildNormalNode(el, ctx, parent) {
   const computed = getComputedStyle(el);
   const elementChildren = Array.from(el.children || []);
+  const isRoot = parent === null;
   const isBox = elementChildren.length > 0 || hasBoxTrigger(el, computed);
+
+  const absolute = readAbsolute(el, computed);
+  const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
 
   if (!isBox) {
     const text = (el.textContent || '').trim();
-    if (text) return withAbsolute(buildTextNode(text, computed, ctx), el, computed);
-    return withAbsolute(buildBoxNode(el, computed, [], ctx), el, computed);
+    const baseNode = text
+      ? buildTextNode(text, computed, ctx)
+      : buildBoxNode(el, computed, [], ctx, parent, isRoot, stretchGrow);
+    return absolute ? { ...baseNode, absolute } : attachStretchGrow(baseNode, stretchGrow);
   }
 
+  const layout = readLayout(computed, elementChildren.length > 0);
+  const childParent = { computed, layout };
   const children = [];
   for (const node of el.childNodes) {
     if (node.nodeType === 1) {
-      children.push(convertElement(node, ctx));
+      children.push(convertElement(node, ctx, childParent));
     } else if (node.nodeType === 3) {
       const text = (node.textContent || '').trim();
       // Loser Textknoten hat kein eigenes Element → erbt die berechneten Font-Stile seines
       // Eltern-Elements (dieselbe Semantik wie v1, das die Eltern-classified-Werte wiederverwendete).
+      // Bekommt NIE stretch/grow (Spec §Erkennung Punkt 4, dritter Spiegelstrich) — es wird
+      // absichtlich nirgends daran angehängt.
       if (text) children.push(buildTextNode(text, computed, ctx));
     }
   }
-  return withAbsolute(buildBoxNode(el, computed, children, ctx), el, computed);
+  const boxNode = buildBoxNode(el, computed, children, ctx, parent, isRoot, stretchGrow);
+  return absolute ? { ...boxNode, absolute } : attachStretchGrow(boxNode, stretchGrow);
 }
 
 /**
@@ -512,21 +661,29 @@ function buildNormalNode(el, ctx) {
  *      IN DEN HAUPTBAUM (der Fallback selbst baut normal weiter — das ist, was Organismen dazu
  *      bringt, Moleküle/Atome zu referenzieren: der Matcher läuft bei jedem Kind erneut).
  *   3. Sonst normaler box/text-Nachbau (jetzt aus getComputedStyle statt Klassen-Raten).
+ *
+ * `parent` (Spec §Erkennung): Eltern-Kontext `{ computed, layout }` oder `null` für Wurzeln —
+ * s. buildNormalNode. svg-Nodes bekommen NIE stretch/grow (Spec §Vertrag) — convertSvgElement
+ * bekommt `parent` deshalb bewusst nicht gereicht, es bleibt bei reiner Absolute-Erkennung.
  */
-function convertElement(el, ctx) {
+function convertElement(el, ctx, parent = null) {
   if (isSvgElement(el)) return convertSvgElement(el, ctx);
 
   const match = matchKnownComponent(el);
   if (match && ctx.knownComponents.some((c) => c.name === match.name)) {
-    // absolute bezieht sich auf DIESEN component-ref-Knoten (das referenzierte Element selbst),
-    // nicht auf den Fallback-Baum — buildNormalNode() unten baut den Fallback bereits mit seinem
-    // eigenen (identischen) absolute-Feld, falls zutreffend; hier zusätzlich für den ref-Knoten,
-    // weil das Plugin bei erfolgreicher Referenz-Auflösung den Fallback verwirft (Spec §Konverter).
-    const refNode = { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx)) };
-    return withAbsolute(refNode, el, getComputedStyle(el));
+    // absolute/stretch/grow beziehen sich auf DIESEN component-ref-Knoten (das referenzierte
+    // Element selbst), nicht auf den Fallback-Baum — buildNormalNode() unten baut den Fallback
+    // bereits mit seinen eigenen (identischen) Feldern, falls zutreffend; hier zusätzlich für den
+    // ref-Knoten, weil das Plugin bei erfolgreicher Referenz-Auflösung den Fallback verwirft
+    // (Spec §Konverter).
+    const computed = getComputedStyle(el);
+    const absolute = readAbsolute(el, computed);
+    const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
+    const refNode = { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx, parent)) };
+    return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);
   }
 
-  return buildNormalNode(el, ctx);
+  return buildNormalNode(el, ctx, parent);
 }
 
 /**

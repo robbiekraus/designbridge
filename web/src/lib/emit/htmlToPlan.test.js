@@ -393,16 +393,29 @@ describe('htmlToPlan — primaryAlign / counterAlign (justify-content/align-item
     expect(plan.counterAlign).toBe('CENTER');
   });
 
-  it('display:flex ohne justify-content/align-items → primaryAlign MIN, counterAlign CENTER (Defaults)', () => {
+  // Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec 2026-07-18, §Vertrag): stretch/normal (CSS-
+  // Default von align-items) mappt jetzt auf MIN statt CENTER — der Browser richtet Flex-Kinder
+  // ohne explizites align-items am Start der Gegenachse aus/streckt sie, nie mittig-zufällig.
+  it('display:flex ohne justify-content/align-items → primaryAlign MIN, counterAlign MIN (Defaults, Browser-Wahrheit statt Zufalls-Zentrierung)', () => {
     const { plan } = htmlToPlan('<div style="display:flex"></div>');
     expect(plan.primaryAlign).toBe('MIN');
+    expect(plan.counterAlign).toBe('MIN');
+  });
+
+  it('align-items:stretch (explizit) → counterAlign MIN', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;align-items:stretch"></div>');
+    expect(plan.counterAlign).toBe('MIN');
+  });
+
+  it('align-items:baseline → counterAlign bleibt CENTER (Spec §Vertrag: baseline bleibt CENTER)', () => {
+    const { plan } = htmlToPlan('<div style="display:flex;align-items:baseline"></div>');
     expect(plan.counterAlign).toBe('CENTER');
   });
 
-  it('kein flex/grid-Display → primaryAlign MIN, counterAlign CENTER (Defaults, unabhängig vom Rest)', () => {
+  it('kein flex/grid-Display → primaryAlign MIN, counterAlign MIN (Defaults, unabhängig vom Rest)', () => {
     const { plan } = htmlToPlan('<div style="padding:8px"></div>');
     expect(plan.primaryAlign).toBe('MIN');
-    expect(plan.counterAlign).toBe('CENTER');
+    expect(plan.counterAlign).toBe('MIN');
   });
 });
 
@@ -503,7 +516,12 @@ describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures, jetzt aus
     });
   });
 
-  it('reiner Textknoten ohne Box-Trigger-Stile wird direkt zu PlanText (kein Box-Wrapper als Kind)', () => {
+  // Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec 2026-07-18, §Erkennung Punkt 4): <p> ist ein
+  // eigenes Element (kein loser Textknoten!) mit computed display:block (jsdom-UA-Default), dessen
+  // Eltern-<div> nicht-flex mit Element-Kindern ist (layout column) — ein Block-Level-Kind ohne
+  // Inline-Breite in einem Block-Flow-Elternteil streckt sich im Browser über dessen Breite.
+  // stretch:true ist hier also die BEABSICHTIGTE neue Erwartung, kein Bug.
+  it('reiner Textknoten ohne Box-Trigger-Stile wird direkt zu PlanText (kein Box-Wrapper als Kind), bekommt aber stretch (Block-Level-Kind ohne Inline-Breite)', () => {
     const { plan } = htmlToPlan('<div><p style="font-size:12px;color:#6b7280">Total Sales</p></div>');
     expect(plan.children[0]).toEqual({
       type: 'text',
@@ -513,6 +531,7 @@ describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures, jetzt aus
       color: { hex: '#6b7280', token: null },
       align: 'left',
       lineHeight: null,
+      stretch: true,
     });
   });
 
@@ -563,7 +582,7 @@ describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures, jetzt aus
       width: null,
       height: null,
       primaryAlign: 'MIN',
-      counterAlign: 'CENTER',
+      counterAlign: 'MIN',
       children: [],
     });
   });
@@ -589,6 +608,10 @@ describe('htmlToPlan — box/text-Entscheidung (realistische Fixtures, jetzt aus
 });
 
 describe('htmlToPlan — Stat-Card-Integration (realistische Fixture, mehrere Regeln gemeinsam)', () => {
+  // Pattern-Fidelity-Scheibe „Stretch & Grow" (Spec 2026-07-18): die Card ist Wurzel (nie
+  // stretch/grow), ihr Layout ist non-flex mit Element-Kindern → column. Beide <p>-Kinder sind
+  // Block-Level (jsdom-UA-Default display:block) ohne Inline-Breite → stretch:true (beabsichtigt,
+  // s. Kommentar bei der ähnlich gelagerten Einzeltest weiter oben).
   it('verschachtelte Card mit mehreren Text-Kindern', () => {
     const html =
       '<div style="border-top-left-radius:12px;border:1px solid #e5e7eb;background-color:#ffffff;padding:16px;width:224px">' +
@@ -611,6 +634,7 @@ describe('htmlToPlan — Stat-Card-Integration (realistische Fixture, mehrere Re
       color: { hex: '#6b7280', token: null },
       align: 'left',
       lineHeight: null,
+      stretch: true,
     });
     expect(plan.children[1]).toEqual({
       type: 'text',
@@ -620,6 +644,7 @@ describe('htmlToPlan — Stat-Card-Integration (realistische Fixture, mehrere Re
       color: { hex: '#111827', token: null },
       align: 'left',
       lineHeight: null,
+      stretch: true,
     });
   });
 });
@@ -773,7 +798,7 @@ describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverände
         width: null,
         height: null,
         primaryAlign: 'MIN',
-        counterAlign: 'CENTER',
+        counterAlign: 'MIN',
         children: [
           {
             type: 'text',
@@ -1070,5 +1095,179 @@ describe('htmlToPlan — absolute Positionierung (Scheibe A, Spec §Scheibe A)',
     const { plan } = htmlToPlan(html);
     expect(plan.width).toBeNull();
     expect(plan.height).toBeNull();
+  });
+});
+
+describe('htmlToPlan — stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Grow", Spec 2026-07-18)', () => {
+  // (a) Label-Zeile in 320px-Karte: die Karte ist Wurzel (behält ihre explizite Breite, Punkt 2 —
+  // Wurzeln bekommen nie stretch/grow), die Label-Zeile darunter ist ein NICHT-flex-Elternteil
+  // (Block-Flow, layout column) mit einem block-level Kind (display:flex ist Teil von
+  // BLOCK_LEVEL_DISPLAYS — ein Flex-Container ist selbst weiterhin ein Block-Level-Element aus
+  // Sicht SEINES Elternteils) ohne Inline-Breite → stretch:true, kein px-Freeze (Spec §Erkennung
+  // Punkt 4, zweiter Spiegelstrich; §Wirkung auf Robs Befunde, Zeile „DecJanFeb…").
+  it('(a) Label-Zeile in 320px-Karte → stretch:true, kein width-Freeze, Root counterAlign MIN', () => {
+    const html = `
+      <div style="width:320px">
+        <div style="display:flex;justify-content:space-between">
+          <span>Dec</span><span>Jan</span><span>Feb</span>
+        </div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    expect(plan.width).toBe(320);
+    expect(plan.counterAlign).toBe('MIN');
+    const labelRow = plan.children[0];
+    expect(labelRow.stretch).toBe(true);
+    expect(labelRow.width).toBeNull();
+    expect(labelRow.primaryAlign).toBe('SPACE_BETWEEN');
+  });
+
+  // (b) Shell: Sidebar + Content nebeneinander in einer Root-Row mit Default-Align (jsdom liefert
+  // 'normal' für unset align-items, Spec-Default verhält sich wie stretch). Sidebar hat eine
+  // explizite Breite (Primärachse), aber keine Höhe (Gegenachse) → stretch:true. Content hat
+  // flex-grow:1 (longhand, robust in jsdom) → grow:true.
+  it('(b) Shell: Sidebar (Breite gesetzt, Default-Align) → stretch, Content (flex-grow:1) → grow', () => {
+    const html = `
+      <div style="display:flex;width:600px">
+        <div style="width:96px">Sidebar</div>
+        <div style="flex-grow:1">Content</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html);
+    const [sidebar, content] = plan.children;
+    expect(sidebar.stretch).toBe(true);
+    expect(sidebar.grow).toBeUndefined();
+    expect(content.grow).toBe(true);
+  });
+
+  // (c) Block-Kind ohne Inline-Breite → stretch; mit Inline-Breite → kein stretch (Spec §Erkennung
+  // Punkt 4, zweiter Spiegelstrich: „Kind ist block-level UND kein Inline-`width`").
+  it('(c) Block-Kind ohne Inline-width → stretch, mit Inline-width → kein stretch', () => {
+    const { plan: noWidth } = htmlToPlan('<div><div>A</div></div>');
+    expect(noWidth.children[0].stretch).toBe(true);
+
+    const { plan: withWidth } = htmlToPlan('<div><div style="width:120px">A</div></div>');
+    expect(withWidth.children[0].stretch).toBeUndefined();
+  });
+
+  // (d) align-self übersteuert den Eltern-Default (Spec §Erkennung Punkt 4, erster Spiegelstrich:
+  // „effektives Align = alignSelf !== 'auto' ? alignSelf : Eltern-alignItems").
+  it('(d) align-self:center übersteuert Eltern-Default-Stretch → kein stretch', () => {
+    const html = '<div style="display:flex"><div style="align-self:center">A</div></div>';
+    const { plan } = htmlToPlan(html);
+    expect(plan.children[0].stretch).toBeUndefined();
+  });
+
+  // (e)+(j) brauchen echte Rects (getBoundingClientRect) — gleicher Mock wie in der Absolute-Suite
+  // oben (jsdom hat keine Layout-Engine, s. Kopf-Kommentar dieser Datei).
+  describe('mit gemocktem getBoundingClientRect (absolute + Freeze-Wechselwirkung)', () => {
+    let restoreGetBoundingClientRect;
+
+    beforeEach(() => {
+      const original = Element.prototype.getBoundingClientRect;
+      restoreGetBoundingClientRect = () => {
+        Element.prototype.getBoundingClientRect = original;
+      };
+      Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+        const raw = this.getAttribute?.('data-mock-rect');
+        const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+        return {
+          x: r.x,
+          y: r.y,
+          left: r.x,
+          top: r.y,
+          width: r.width,
+          height: r.height,
+          right: r.x + r.width,
+          bottom: r.y + r.height,
+          toJSON() {
+            return this;
+          },
+        };
+      };
+    });
+
+    afterEach(() => {
+      restoreGetBoundingClientRect();
+    });
+
+    // (e) absolute gewinnt über stretch/grow (Spec §Erkennung Punkt 1) — das Kind hätte über den
+    // Eltern-Default (row, 'normal') sonst stretch bekommen (keine Inline-Höhe gesetzt).
+    it('(e) absolut positioniertes Kind bekommt kein stretch/grow (absolute gewinnt)', () => {
+      const html = `
+        <div style="display:flex" data-mock-rect='{"x":0,"y":0,"width":300,"height":200}'>
+          <div style="position:absolute;width:96px" data-mock-rect='{"x":0,"y":0,"width":96,"height":50}'>Abs</div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      expect(plan.children[0].absolute).toBeDefined();
+      expect(plan.children[0].stretch).toBeUndefined();
+      expect(plan.children[0].grow).toBeUndefined();
+    });
+
+    // (j) Absolute-Kinder-Freeze (buildBoxNode) füllt keine Achse mehr, die durch eigenes
+    // stretch/grow des Nodes selbst (relativ zu SEINEM Eltern-Layout) abgedeckt ist (Spec
+    // §Wechselwirkung mit dem Absolute-Kinder-Freeze). Chart-Body: Eltern nicht-flex (layout
+    // column) → stretch deckt die Gegenachse (Breite) ab → nur Höhe wird aus dem Rect eingefroren.
+    it('(j) Chart-Body mit absolutem Kind + eigenem stretch → nur Höhe eingefroren, Breite bleibt null', () => {
+      const html = `
+        <div data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
+          <div data-mock-rect='{"x":0,"y":0,"width":870,"height":240}'>
+            <div style="position:absolute" data-mock-rect='{"x":0,"y":0,"width":800,"height":240}'>Chart</div>
+          </div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      const chartBody = plan.children[0];
+      expect(chartBody.stretch).toBe(true);
+      expect(chartBody.width).toBeNull();
+      expect(chartBody.height).toBe(240);
+    });
+  });
+
+  // (f) svg bekommt nie stretch/grow, selbst in einem Kontext, der sonst stretch auslösen würde
+  // (Spec §Vertrag: „svg-Nodes bekommen NIE stretch/grow").
+  it('(f) svg bekommt nie stretch/grow', () => {
+    const html = '<div style="display:flex"><svg viewBox="0 0 10 10"><rect width="5" height="5"></rect></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const svgNode = plan.children[0];
+    expect(svgNode.type).toBe('svg');
+    expect(svgNode.stretch).toBeUndefined();
+    expect(svgNode.grow).toBeUndefined();
+  });
+
+  // (g) Wurzeln bekommen nie stretch/grow — es gibt keinen Figma-Parent zu füllen (Spec §Erkennung
+  // Punkt 2), unabhängig davon, welche Stile sonst dafür qualifizieren würden.
+  it('(g) Wurzel bekommt nie stretch/grow, unabhängig vom eigenen Stil', () => {
+    const { plan } = htmlToPlan('<div style="width:100%;flex-grow:1"></div>');
+    expect(plan.stretch).toBeUndefined();
+    expect(plan.grow).toBeUndefined();
+  });
+
+  // (h) Inline-100%-Sonderfall (Spec §Erkennung Punkt 5): width:100% auf einem Nicht-Wurzel-Kind
+  // wird NICHT mehr als px eingefroren, sondern zu stretch (hier: Gegenachse eines column-Elternteils).
+  // Andere Prozentwerte (50%) bleiben unverändert beim bisherigen px-Freeze-Verhalten.
+  it('(h) Inline width:100% (nicht Wurzel) → stretch statt px-Freeze; width:50% bleibt px-Freeze', () => {
+    const { plan: plan100 } = htmlToPlan('<div style="width:300px"><div style="width:100%">A</div></div>');
+    const child100 = plan100.children[0];
+    expect(child100.width).toBeNull();
+    expect(child100.stretch).toBe(true);
+
+    const { plan: plan50 } = htmlToPlan('<div style="width:300px"><div style="width:50%">A</div></div>');
+    const child50 = plan50.children[0];
+    expect(child50.width).toBe(50);
+    expect(child50.stretch).toBeUndefined();
+  });
+
+  // (h, Ergänzung) Inline height:100% in einer row-Wurzel → grow (Primärachse eines row-Elternteils
+  // ist die Breite, die Gegenachse die Höhe... hier Höhe=100% unter einem ROW-Elternteil ist die
+  // GEGENACHSE → stretch. Ergänzender Fall: height:100% unter einem COLUMN-Elternteil ist die
+  // PRIMÄRACHSE → grow (Spec §Erkennung Punkt 5: „grow: true (Achse = Primärachse)").
+  it('(h, Ergänzung) Inline height:100% unter column-Elternteil → grow statt px-Freeze', () => {
+    const html = '<div><div style="height:100%">A</div></div>'; // Eltern non-flex, 1 Element-Kind → layout column
+    const { plan } = htmlToPlan(html);
+    const child = plan.children[0];
+    expect(child.height).toBeNull();
+    expect(child.grow).toBe(true);
   });
 });

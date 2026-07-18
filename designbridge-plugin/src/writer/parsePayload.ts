@@ -38,6 +38,12 @@ export interface PlanText {
   align: PlanTextAlign;
   lineHeight: number | null;
   absolute?: AbsoluteRect | null;
+  /** Pattern-Fidelity-Scheibe „Stretch & Grow" (docs/superpowers/specs/2026-07-18-pattern-fidelity-stretch-grow-design.md):
+   *  PINNED zwischen Web (htmlToPlan) und Plugin. Nur bei `true` gesetzt, sonst
+   *  WEGGELASSEN (wie `absolute` bei Plan-Fidelity-Scheibe A — bestehende
+   *  toEqual-Literale ohne diese Schlüssel bleiben gültig). */
+  stretch?: true;
+  grow?: true;
 }
 
 export type PlanPrimaryAlign = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
@@ -58,12 +64,20 @@ export interface PlanBox {
   primaryAlign: PlanPrimaryAlign;
   counterAlign: PlanCounterAlign;
   absolute?: AbsoluteRect | null;
+  /** s. PlanText.stretch/grow — gleicher Vertrag (Stretch & Grow, 2026-07-18). */
+  stretch?: true;
+  grow?: true;
 }
 
 export interface PlanSvg {
   type: 'svg';
   markup: string;
   absolute?: AbsoluteRect | null;
+  /** s. PlanText.stretch/grow. Wird von renderPlan.ts NIE angewendet (SVG skaliert
+   *  nicht mit) — Feld existiert hier nur, damit der Vertrag für alle 4 Node-Typen
+   *  einheitlich ist (Web-Seite reicht es evtl. trotzdem defensiv mit). */
+  stretch?: true;
+  grow?: true;
 }
 
 export interface PlanRef {
@@ -72,6 +86,9 @@ export interface PlanRef {
   variant: string | null;
   fallback: PlanBox | null;
   absolute?: AbsoluteRect | null;
+  /** s. PlanText.stretch/grow. */
+  stretch?: true;
+  grow?: true;
 }
 
 export type PlanNode = PlanBox | PlanText | PlanSvg | PlanRef;
@@ -155,11 +172,21 @@ function parseAbsolute(v: unknown): AbsoluteRect | null {
   return null;
 }
 
+/** stretch/grow defensiv parsen (Stretch & Grow, 2026-07-18): nur bei `=== true`
+ *  übernehmen, sonst das Feld GANZ WEGLASSEN (kein `false`/`null`) — konditionaler
+ *  Spread, damit bestehende `toEqual`-Literale ohne diese Schlüssel gültig bleiben. */
+function parseStretchGrow(r: Record<string, unknown>): { stretch?: true; grow?: true } {
+  const out: { stretch?: true; grow?: true } = {};
+  if (r.stretch === true) out.stretch = true;
+  if (r.grow === true) out.grow = true;
+  return out;
+}
+
 /** svg-Node validieren: markup muss ein String sein und wie SVG-Markup aussehen. */
 function parseSvgNode(r: Record<string, unknown>): PlanSvg | null {
   if (typeof r.markup !== 'string') return null;
   if (!r.markup.trim().startsWith('<svg')) return null;
-  return { type: 'svg', markup: r.markup, absolute: parseAbsolute(r.absolute) };
+  return { type: 'svg', markup: r.markup, absolute: parseAbsolute(r.absolute), ...parseStretchGrow(r) };
 }
 
 /** component-ref-Node validieren: name Pflicht, variant optional, fallback rekursiv über den Box-Parser. */
@@ -171,6 +198,7 @@ function parseRefNode(r: Record<string, unknown>): PlanRef | null {
     variant: typeof r.variant === 'string' ? r.variant : null,
     fallback: parsePlan(r.fallback),
     absolute: parseAbsolute(r.absolute),
+    ...parseStretchGrow(r),
   };
 }
 
@@ -190,6 +218,7 @@ function parsePlanNode(c: unknown): PlanNode | null {
       align: TEXT_ALIGNS.includes(r.align as (typeof TEXT_ALIGNS)[number]) ? (r.align as PlanTextAlign) : 'left',
       lineHeight: parseNullableNumber(r.lineHeight),
       absolute: parseAbsolute(r.absolute),
+      ...parseStretchGrow(r),
     };
   }
   if (r.type === 'svg') return parseSvgNode(r);
@@ -229,6 +258,7 @@ function parsePlan(v: unknown): PlanBox | null {
       ? (r.counterAlign as PlanCounterAlign)
       : 'CENTER',
     absolute: parseAbsolute(r.absolute),
+    ...parseStretchGrow(r),
   };
 }
 

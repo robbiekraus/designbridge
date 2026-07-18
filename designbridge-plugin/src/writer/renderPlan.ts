@@ -148,6 +148,95 @@ async function renderComponentRef(
  *  box/svg/component-ref: feste Größe per resize(). text: nur Höhe automatisch (textAutoResize
  *  'HEIGHT'), Breite wird nur fixiert, wenn absolute.width > 0 (0 würde eine leere/kollabierte
  *  Textbox erzwingen). */
+/** Pattern-Fidelity-Scheibe „Stretch & Grow" (docs/superpowers/specs/2026-07-18-pattern-fidelity-stretch-grow-design.md):
+ *  Achsen-Bestimmtheit EINES Frames — sagt aus, ob dessen width/height für Kinder als
+ *  „bestimmte Gegen-/Primärachse" zählen (Voraussetzung für STRETCH/GROW, s. u.). */
+export interface Determinacy {
+  widthDeterminate: boolean;
+  heightDeterminate: boolean;
+}
+
+/** Entscheidet für EIN Kind, ob stretch/grow angewendet werden (reine Plan-Logik, unabhängig
+ *  vom gerenderten Node — deshalb schon vor dem eigentlichen Rendern des Kindes aufrufbar).
+ *  Reihenfolge/Vorrang laut Spec:
+ *  - `absolute` gewinnt immer (kein stretch/grow).
+ *  - svg bekommt NIE stretch/grow (skaliert nicht mit, s. Spec „Bewusste Grenzen").
+ *  - stretch braucht eine bestimmte GEGENachse des Parents, grow eine bestimmte PRIMÄRachse
+ *    (Guard: HUG-Achse → kein Stretch/Grow, heutiges Verhalten bleibt Fallback).
+ *  - Text-Sonderregel: Text-Stretch in row-Parents (würde die Höhe füllen) wird NICHT
+ *    angewendet — Text-Stretch ist nur für column-Parents (Breite füllen) sinnvoll. */
+function decideStretchGrow(
+  child: PlanNode,
+  parentLayout: 'row' | 'column',
+  counterDeterminate: boolean,
+  primaryDeterminate: boolean
+): { appliedStretch: boolean; appliedGrow: boolean } {
+  if (child.absolute || child.type === 'svg') {
+    return { appliedStretch: false, appliedGrow: false };
+  }
+  const isText = child.type === 'text';
+  const appliedStretch = child.stretch === true && counterDeterminate && !(isText && parentLayout === 'row');
+  const appliedGrow = child.grow === true && primaryDeterminate;
+  return { appliedStretch, appliedGrow };
+}
+
+/** Wendet eine bereits getroffene stretch/grow-Entscheidung auf den eingehängten Node an.
+ *  MUSS nach appendChild passieren (Auto-Layout-Property, gleiche Reihenfolge-Regel wie
+ *  applyAbsolute — layoutAlign/layoutGrow auf einem noch nicht eingehängten Kind ist
+ *  undefiniert/wirft). Text-Sonderregeln (Spec §Plugin): Text-Stretch (nur column-Parents,
+ *  s. decideStretchGrow) UND Text-Grow (row-Parents) fixieren die Breite extern und setzen
+ *  daher textAutoResize='HEIGHT' (Höhe wächst weiter automatisch). */
+function applyStretchGrow(
+  node: SceneNode,
+  child: PlanNode,
+  parentLayout: 'row' | 'column',
+  decision: { appliedStretch: boolean; appliedGrow: boolean }
+): void {
+  const isText = child.type === 'text';
+  const alignable = node as SceneNode & {
+    layoutAlign?: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'INHERIT';
+    layoutGrow?: number;
+  };
+  if (decision.appliedStretch) {
+    alignable.layoutAlign = 'STRETCH';
+    if (isText && parentLayout === 'column') {
+      (node as TextNode).textAutoResize = 'HEIGHT';
+    }
+  }
+  if (decision.appliedGrow) {
+    alignable.layoutGrow = 1;
+    if (isText && parentLayout === 'row') {
+      (node as TextNode).textAutoResize = 'HEIGHT';
+    }
+  }
+}
+
+/** Achsen-Bestimmtheit fürs Kind berechnen — wird nur für Box-Kinder tatsächlich weitergereicht
+ *  (an den rekursiven renderPlan-Aufruf, s. renderNode), bei anderen Node-Typen folgenlos.
+ *  Vertrag (Spec §Plugin „Bestimmtheit für die Rekursion"): eine Achse ist bestimmt, wenn das
+ *  Kind sie selbst explizit setzt (width/height !== null), ODER `absolute` (wird resized),
+ *  ODER sie über angewendetes stretch/grow vom (bestimmten) Parent kommt. Welche physische
+ *  Achse (Breite/Höhe) stretch (Gegenachse) bzw. grow (Primärachse) jeweils betrifft, hängt
+ *  vom Parent-`layout` ab. */
+function childDeterminacy(
+  child: PlanNode,
+  parentLayout: 'row' | 'column',
+  appliedStretch: boolean,
+  appliedGrow: boolean
+): Determinacy {
+  const explicitWidth = child.type === 'box' && child.width !== null;
+  const explicitHeight = child.type === 'box' && child.height !== null;
+  const abs = !!child.absolute;
+  const stretchGivesWidth = parentLayout === 'column' && appliedStretch;
+  const stretchGivesHeight = parentLayout === 'row' && appliedStretch;
+  const growGivesWidth = parentLayout === 'row' && appliedGrow;
+  const growGivesHeight = parentLayout === 'column' && appliedGrow;
+  return {
+    widthDeterminate: explicitWidth || abs || stretchGivesWidth || growGivesWidth,
+    heightDeterminate: explicitHeight || abs || stretchGivesHeight || growGivesHeight,
+  };
+}
+
 function applyAbsolute(node: SceneNode, el: PlanNode): void {
   const abs = el.absolute;
   if (!abs) return;
@@ -168,7 +257,8 @@ async function renderNode(
   el: PlanNode,
   paintByName: Map<string, PaintStyle>,
   warnings: string[],
-  sections: SectionFrames
+  sections: SectionFrames,
+  determinacy?: Determinacy
 ): Promise<SceneNode> {
   switch (el.type) {
     case 'text':
@@ -178,7 +268,9 @@ async function renderNode(
     case 'component-ref':
       return renderComponentRef(el, paintByName, warnings, sections);
     case 'box':
-      return renderPlan(el, paintByName, warnings, sections);
+      // Nur Box-Kinder rekursieren über renderPlan — die Achsen-Bestimmtheit wird deshalb
+      // nur hier weitergereicht (Spec §Plugin „renderNode reicht sie an Box-Kinder weiter").
+      return renderPlan(el, paintByName, warnings, sections, determinacy);
   }
 }
 
@@ -186,7 +278,8 @@ export async function renderPlan(
   plan: PlanBox,
   paintByName: Map<string, PaintStyle>,
   warnings: string[],
-  sections: SectionFrames
+  sections: SectionFrames,
+  determinacy?: Determinacy
 ): Promise<FrameNode> {
   const frame = figma.createFrame();
   try {
@@ -205,10 +298,27 @@ export async function renderPlan(
       frame.strokes = [solidPaint(plan.stroke)];
       frame.strokeWeight = plan.strokeWeight;
     }
+    // Achsen-Bestimmtheit DIESES Frames (Stretch & Grow, 2026-07-18): ohne explizit
+    // durchgereichten Parameter (Wurzel-Aufruf, z. B. buildComponents.ts) aus dem eigenen
+    // plan.width/height abgeleitet — exakt der Vertrag „Wurzel-Aufruf: aus plan.width/height
+    // !== null". Rekursive Aufrufe (Box-Kinder, s. renderNode) reichen den bereits kombinierten
+    // Wert (explizit ODER von einem bestimmten Parent geerbt) explizit durch.
+    const own: Determinacy = determinacy ?? {
+      widthDeterminate: plan.width !== null,
+      heightDeterminate: plan.height !== null,
+    };
+    const counterDeterminate = plan.layout === 'row' ? own.heightDeterminate : own.widthDeterminate;
+    const primaryDeterminate = plan.layout === 'row' ? own.widthDeterminate : own.heightDeterminate;
     for (const child of plan.children) {
-      const node = await renderNode(child, paintByName, warnings, sections);
+      const decision = decideStretchGrow(child, plan.layout, counterDeterminate, primaryDeterminate);
+      const nodeDeterminacy = childDeterminacy(child, plan.layout, decision.appliedStretch, decision.appliedGrow);
+      const node = await renderNode(child, paintByName, warnings, sections, nodeDeterminacy);
       frame.appendChild(node);
-      applyAbsolute(node, child);
+      if (child.absolute) {
+        applyAbsolute(node, child);
+      } else {
+        applyStretchGrow(node, child, plan.layout, decision);
+      }
     }
     // Fixe Größen erst NACH layoutMode + Kindern anwenden: erst die betroffene Achse
     // (primary vs. counter, abhängig von row/column) auf FIXED umstellen, dann resizen.

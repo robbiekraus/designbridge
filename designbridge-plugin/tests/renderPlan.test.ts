@@ -38,6 +38,12 @@ type FrameStub = {
   x: number;
   y: number;
   layoutPositioning: string;
+  // Stretch & Grow (docs/superpowers/specs/2026-07-18-pattern-fidelity-stretch-grow-design.md):
+  // Figma-Realverhalten-Default für Auto-Layout-Kinder ist 'INHERIT' (layoutAlign) / 0 (layoutGrow) —
+  // der Stub spiegelt das, damit die Guard-Tests (kein Stretch/Grow) einen echten Default statt
+  // eines freundlich vorbelegten "leeren" Werts prüfen.
+  layoutAlign: string;
+  layoutGrow: number;
   children: unknown[];
   removed: boolean;
   appendChild(node: unknown): void;
@@ -72,6 +78,8 @@ function makeFrameStub(): FrameStub {
     y: 0,
     // Figma-Realverhalten: Kinder eines Auto-Layout-Frames starten mit layoutPositioning 'AUTO'.
     layoutPositioning: 'AUTO',
+    layoutAlign: 'INHERIT',
+    layoutGrow: 0,
     children: [],
     removed: false,
     appendChild(node: unknown) {
@@ -98,6 +106,8 @@ type TextStub = {
   x: number;
   y: number;
   layoutPositioning: string;
+  layoutAlign: string;
+  layoutGrow: number;
   width: number;
   height: number;
   textAutoResize: string;
@@ -117,6 +127,8 @@ function makeTextStub(): TextStub {
     x: 0,
     y: 0,
     layoutPositioning: 'AUTO',
+    layoutAlign: 'INHERIT',
+    layoutGrow: 0,
     width: 100,
     height: 20,
     textAutoResize: 'WIDTH_AND_HEIGHT',
@@ -128,14 +140,50 @@ function makeTextStub(): TextStub {
   };
 }
 
+type SvgStub = {
+  type: 'VECTOR_GROUP';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  layoutPositioning: string;
+  layoutAlign: string;
+  layoutGrow: number;
+  resize(w: number, h: number): void;
+};
+
+function makeSvgStub(): SvgStub {
+  return {
+    type: 'VECTOR_GROUP',
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    layoutPositioning: 'AUTO',
+    layoutAlign: 'INHERIT',
+    layoutGrow: 0,
+    resize(w: number, h: number) {
+      this.width = w;
+      this.height = h;
+    },
+  };
+}
+
 /** Installiert einen minimalen figma-Stub global. Nur Box-Pläne ohne SVG-/component-ref-
  *  Kinder werden hier gerendert, daher bleibt createNodeFromSvg ein Stub, der im Testpfad
  *  nicht aufgerufen wird, aber typenmäßig vorhanden sein muss, falls renderPlan.ts ihn
  *  referenziert. createText/loadFontAsync werden für die absolute-Positionierungs-Tests
- *  auf Text-Kindern gebraucht (Fix Plan-Fidelity-Scheibe A). */
-function installFigmaStub(): { frames: FrameStub[]; texts: TextStub[] } {
+ *  auf Text-Kindern gebraucht (Fix Plan-Fidelity-Scheibe A). withSvg (Stretch & Grow,
+ *  2026-07-18) schaltet einen funktionierenden createNodeFromSvg-Stub frei — nur für den
+ *  Test „svg bekommt nie stretch/grow" gebraucht. */
+function installFigmaStub(options: { withSvg?: boolean } = {}): {
+  frames: FrameStub[];
+  texts: TextStub[];
+  svgs: SvgStub[];
+} {
   const frames: FrameStub[] = [];
   const texts: TextStub[] = [];
+  const svgs: SvgStub[] = [];
   (globalThis as unknown as { figma: unknown }).figma = {
     createFrame: () => {
       const f = makeFrameStub();
@@ -148,11 +196,16 @@ function installFigmaStub(): { frames: FrameStub[]; texts: TextStub[] } {
       return t;
     },
     createNodeFromSvg: () => {
-      throw new Error('createNodeFromSvg nicht erwartet in diesem Test');
+      if (!options.withSvg) {
+        throw new Error('createNodeFromSvg nicht erwartet in diesem Test');
+      }
+      const s = makeSvgStub();
+      svgs.push(s);
+      return s;
     },
     loadFontAsync: async () => {},
   };
-  return { frames, texts };
+  return { frames, texts, svgs };
 }
 
 function emptySections(): SectionFrames {
@@ -315,4 +368,143 @@ test('Waisen-Cleanup bleibt intakt: absolute-Kind schon gerendert + positioniert
   // entfernt werden — die absolute-Änderung darf den bestehenden Waisen-Cleanup-Pfad nicht
   // aushebeln.
   assert.equal(frames[0].removed, true);
+});
+
+// ─── Stretch & Grow (Pattern-Fidelity-Scheibe, docs/superpowers/specs/2026-07-18-pattern-fidelity-stretch-grow-design.md) ──
+//
+// Guard-Vertrag: STRETCH braucht eine bestimmte GEGENachse des Parents, GROW eine bestimmte
+// PRIMÄRachse. Ohne das (HUG-Parent) bleibt das heutige Verhalten (kein Stretch/Grow) erhalten —
+// ein STRETCH-Kind in einer HUG-Achse ist in Figma nicht definiert (s. Spec-Guard-Pflicht).
+
+test('Guard: HUG-Parent (row, kein width/height) → stretch:true-Kind bekommt KEIN STRETCH', async () => {
+  installFigmaStub();
+  const child = emptyBox({ layout: 'row', stretch: true });
+  const parent = emptyBox({ layout: 'row', children: [child] }); // width/height beide null (HUG)
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutAlign, 'INHERIT', 'HUG-Gegenachse darf kein STRETCH auslösen');
+});
+
+test('Guard: HUG-Parent (row, kein width) → grow:true-Kind bekommt KEIN layoutGrow', async () => {
+  installFigmaStub();
+  const child = emptyBox({ layout: 'row', grow: true });
+  const parent = emptyBox({ layout: 'row', children: [child] }); // width null (HUG) → Primärachse unbestimmt
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutGrow, 0, 'HUG-Primärachse darf kein Grow auslösen');
+});
+
+test('row-Parent mit bestimmter Höhe (Gegenachse) → stretch:true-Kind bekommt layoutAlign STRETCH', async () => {
+  installFigmaStub();
+  const child = emptyBox({ layout: 'row', stretch: true });
+  const parent = emptyBox({ layout: 'row', height: 100, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutAlign, 'STRETCH');
+});
+
+test('row-Parent mit bestimmter Breite (Primärachse) → grow:true-Kind bekommt layoutGrow 1', async () => {
+  installFigmaStub();
+  const child = emptyBox({ layout: 'row', grow: true });
+  const parent = emptyBox({ layout: 'row', width: 300, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutGrow, 1);
+});
+
+test('column-Parent mit bestimmter Breite (Gegenachse) → stretch:true-Kind bekommt layoutAlign STRETCH', async () => {
+  installFigmaStub();
+  const child = emptyBox({ layout: 'column', stretch: true });
+  const parent = emptyBox({ layout: 'column', width: 320, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutAlign, 'STRETCH');
+});
+
+test('absolute gewinnt über stretch/grow: absolutes Kind bekommt trotz stretch/grow:true KEIN STRETCH/Grow', async () => {
+  installFigmaStub();
+  const child = emptyBox({
+    layout: 'row',
+    stretch: true,
+    grow: true,
+    absolute: { x: 1, y: 2, width: 3, height: 4 },
+  });
+  const parent = emptyBox({ layout: 'row', width: 300, height: 100, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as FrameStub;
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.layoutAlign, 'INHERIT', 'absolute schließt STRETCH aus');
+  assert.equal(rendered.layoutGrow, 0, 'absolute schließt Grow aus');
+});
+
+test('svg bekommt NIE stretch/grow, auch bei bestimmten Achsen auf beiden Seiten', async () => {
+  const { svgs } = installFigmaStub({ withSvg: true });
+  const child = {
+    type: 'svg' as const,
+    markup: '<svg></svg>',
+    stretch: true as const,
+    grow: true as const,
+  };
+  const parent = emptyBox({ layout: 'row', width: 300, height: 100, children: [child] });
+  await renderPlan(parent, new Map(), [], emptySections());
+  assert.equal(svgs.length, 1);
+  assert.equal(svgs[0].layoutAlign, 'INHERIT', 'svg darf nie STRETCH bekommen');
+  assert.equal(svgs[0].layoutGrow, 0, 'svg darf nie Grow bekommen');
+});
+
+test('Text-Stretch nur in column-Parents: column-Parent mit bestimmter Breite → STRETCH + textAutoResize HEIGHT', async () => {
+  installFigmaStub();
+  const child = emptyText({ stretch: true });
+  const parent = emptyBox({ layout: 'column', width: 320, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as TextStub;
+  assert.equal(rendered.layoutAlign, 'STRETCH');
+  assert.equal(rendered.textAutoResize, 'HEIGHT');
+});
+
+test('Text-Stretch in row-Parents (würde Höhe füllen) wird NICHT angewendet, obwohl Gegenachse bestimmt ist', async () => {
+  installFigmaStub();
+  const child = emptyText({ stretch: true });
+  const parent = emptyBox({ layout: 'row', height: 80, children: [child] }); // Gegenachse (Höhe) bestimmt
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as TextStub;
+  assert.equal(rendered.layoutAlign, 'INHERIT', 'Text-Stretch in row-Parents ist laut Spec ausgenommen');
+  assert.equal(rendered.textAutoResize, 'WIDTH_AND_HEIGHT', 'unverändert, da Stretch nicht angewendet wurde');
+});
+
+test('Text-Grow in row-Parents: bestimmte Breite (Primärachse) → layoutGrow 1 + textAutoResize HEIGHT', async () => {
+  installFigmaStub();
+  const child = emptyText({ grow: true });
+  const parent = emptyBox({ layout: 'row', width: 300, children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as TextStub;
+  assert.equal(rendered.layoutGrow, 1);
+  assert.equal(rendered.textAutoResize, 'HEIGHT');
+});
+
+test('Bestimmtheits-Propagation über 2 Ebenen: Stretch/Grow-Achse korrekt weitergereicht, NICHT blind auf beide Achsen', async () => {
+  // Wurzel: column, width=300 (explizit) → Gegenachse (Breite) bestimmt, Primärachse (Höhe) HUG.
+  // Ebene 1 (Kind, layout row): stretch:true → Gegenachse der Wurzel ist Breite → STRETCH greift,
+  // das macht Ebene 1s BREITE bestimmt (nicht die Höhe!).
+  // Ebene 2 (Enkel, in Ebene 1 = row): Gegenachse von row ist Höhe → die wurde NICHT bestimmt
+  // gemacht (nur Breite kam via Stretch durch) → Enkel-stretch darf NICHT greifen (Guard).
+  // Enkel-grow: Primärachse von row ist Breite → die IST bestimmt (via Ebene-1-Stretch) → greift.
+  installFigmaStub();
+  const grandchild = emptyBox({ layout: 'row', stretch: true, grow: true });
+  const child = emptyBox({ layout: 'row', stretch: true, children: [grandchild] });
+  const root = emptyBox({ layout: 'column', width: 300, children: [child] });
+  const frame = (await renderPlan(root, new Map(), [], emptySections())) as unknown as FrameStub;
+  const renderedChild = frame.children[0] as FrameStub;
+  assert.equal(renderedChild.layoutAlign, 'STRETCH', 'Ebene 1: Wurzel-Breite ist bestimmt (explizit)');
+  const renderedGrandchild = renderedChild.children[0] as FrameStub;
+  assert.equal(
+    renderedGrandchild.layoutAlign,
+    'INHERIT',
+    'Ebene 2: Ebene-1-Gegenachse (Höhe) wurde NIE bestimmt gemacht — Guard muss greifen'
+  );
+  assert.equal(
+    renderedGrandchild.layoutGrow,
+    1,
+    'Ebene 2: Ebene-1-Primärachse (Breite) kam über Ebene-1-Stretch durch — Grow darf greifen'
+  );
 });

@@ -400,6 +400,72 @@ test('text: non-number lineHeight falls back to null', () => {
   assert.equal((children[0] as { lineHeight?: number | null }).lineHeight, null);
 });
 
+// ─── stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Grow", 2026-07-18) ──
+// Vertrag: nur bei `=== true` übernehmen, sonst das Feld GANZ WEGLASSEN (kein
+// `stretch: false`/`stretch: null` im geparsten Node) — die bestehenden
+// toEqual-Literale oben (ohne `stretch`/`grow`-Schlüssel) müssen weiter gültig
+// bleiben, was die deepEqual-Assertions unten indirekt mitprüfen.
+
+test('box: stretch:true and grow:true parse as true', () => {
+  const plan = firstPlan(boxPayload({ stretch: true, grow: true }));
+  assert.equal(plan?.stretch, true);
+  assert.equal(plan?.grow, true);
+});
+
+test('box: missing stretch/grow → keys are absent (not false/null)', () => {
+  const plan = firstPlan(boxPayload({}));
+  assert.equal('stretch' in (plan as object), false);
+  assert.equal('grow' in (plan as object), false);
+});
+
+test('box: stretch:false / grow:false → keys are absent, not carried as false', () => {
+  const plan = firstPlan(boxPayload({ stretch: false, grow: 'yes' }));
+  assert.equal('stretch' in (plan as object), false);
+  assert.equal('grow' in (plan as object), false);
+});
+
+test('box: backward-compat literal without stretch/grow still deepEquals (no stray keys)', () => {
+  const plan = firstPlan(boxPayload({ layout: 'column', padding: [1, 2, 3, 4], radius: 8 }));
+  assert.deepEqual(plan, {
+    type: 'box',
+    layout: 'column',
+    padding: [1, 2, 3, 4],
+    radius: 8,
+    fill: null,
+    stroke: null,
+    children: [],
+    width: null,
+    height: null,
+    gap: 0,
+    strokeWeight: 1,
+    primaryAlign: 'MIN',
+    counterAlign: 'CENTER',
+    absolute: null,
+  });
+});
+
+test('text: stretch:true parses as true, grow absent when not sent', () => {
+  const children = firstChild(textPayload({ stretch: true }));
+  assert.equal((children[0] as { stretch?: true }).stretch, true);
+  assert.equal('grow' in (children[0] as object), false);
+});
+
+test('svg: stretch/grow parse when present but renderPlan.ts must never apply them (see renderPlan.test.ts)', () => {
+  const children = firstChild(
+    payloadWith({ type: 'svg', markup: '<svg viewBox="0 0 10 10"></svg>', stretch: true, grow: true })
+  );
+  assert.equal((children[0] as { stretch?: true }).stretch, true);
+  assert.equal((children[0] as { grow?: true }).grow, true);
+});
+
+test('component-ref: grow:true parses, stretch absent when not sent', () => {
+  const children = firstChild(
+    payloadWith({ type: 'component-ref', name: 'Button', variant: null, fallback: null, grow: true })
+  );
+  assert.equal((children[0] as { grow?: true }).grow, true);
+  assert.equal('stretch' in (children[0] as object), false);
+});
+
 test('text: backward-compat payload without any new fields parses with v2 defaults', () => {
   const children = firstChild(payloadWith({ type: 'text', content: 'Hi', color: { hex: '#000000' } }));
   assert.deepEqual(children[0], {
