@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { analyzeScreenshot } from '../lib/claude.js';
+import { readImageDims } from '../lib/imageDims.js';
 import { fetchSite } from '../lib/fetchSite.js';
 import { ingestCss } from '../lib/cssIngest.js';
 import { recognizeComponents } from '../lib/recognizeComponents.js';
@@ -87,6 +88,15 @@ router.post('/image', uploadImage, async (req, res) => {
     result.meta.image_filename = req.file.originalname;
     // Bild kurzlebig behalten, damit /api/interpret/components es ansehen kann.
     result.meta.import_id = putImage(req.file.path, req.file.mimetype);
+
+    // Pixelmaße für die Kompositions-Canvas (raw.composition → composePlan).
+    const dims = await readImageDims(req.file.path);
+    if (dims) {
+      result.meta.image_width = dims.width;
+      result.meta.image_height = dims.height;
+    } else {
+      (result.warnings ??= []).push('Bildmaße nicht lesbar — quadratischer Fallback für Komposition.');
+    }
 
     res.json(result);
   } catch (err) {
