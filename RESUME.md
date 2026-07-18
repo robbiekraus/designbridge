@@ -2,6 +2,17 @@
 
 Stand: **18.07.2026 nachts (COMPOSITION-NESTING 1+2 + CARD-FIX + SPLICE FERTIG & LIVE — `b4094f5`..`8cb61f5`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **474/474** · Plugin **93/93**.
 
+## 🤖 AUTONOMER FIGMA-E2E-TEST STEHT (18.07. tiefe Nacht) — ROB MUSS NICHT MEHR KLICKEN!
+Robs Frust nach 11 manuellen Tests → Testlauf komplett automatisiert und **als test12 erfolgreich bewiesen**: Payload auf Prod legen → Figma Desktop per AppleScript (⌘N neue Datei, Menü Plugins→Entwicklung→DesignBridge, `AXManualAccessibility=true` für Electron-Webview, Button „Aus DesignBridge übernehmen" per Accessibility-Klick, Status „Fertig — …" auslesen, ⌘L+pbpaste für den Link) → Figma-MCP-Verifikation. **Komplette Anleitung + Fallen: `.claude/skills/figma-e2e-test/SKILL.md`** (im Repo). Einmalige Voraussetzung (erledigt): Bedienungshilfen-Freigabe für „Claude"; Bildschirmaufnahme NICHT freigegeben (nicht nötig).
+
+## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Robs Schnitt 18.07. tief nachts)
+**test12-Ergebnis (autonom gefahren, Datei `iSMO0AzME4GIEkntYut1kf`, „Ohne Namen"):** DEUTLICH besser — Sidebar volle Nav-Liste ohne Fragmente/Doppelung (test-11-Befund B trat NICHT mehr auf), KPI-Cards vollständig ohne Überlappung, Reports-Tabelle komplett, Bild-Platzhalter erkennbar. **Nächste priorisierte Fixes (Rest-Issues, Root Causes bekannt):**
+1. **Gesplicte Instanzen ohne Ziel-Maße** → rechte Template-Spalte (Energy/Category) ragt über den Rand. Fix-Richtung klar: splice-Branch in `htmlToPlan` gibt das gemessene Element-Rect als `absolute` mit (Plugin resized Instanzen via `applyAbsolute` schon) — ODER Instanz in Flow lassen und Root breiter (abwägen in kurzer Spec).
+2. **SVG skaliert nicht mit** (Trend-Linie im Template kollabiert klein; einzeln perfekt) — dokumentierte Grenze, jetzt sichtbar → eigene kleine Scheibe.
+3. Titel/Wert-Abstände (Top Emissions) — Polish.
+Danach: Robs test-11-Befund **D** (Balken/Donut-Rundungen = KI-Interpretationsqualität, Prompt-Schärfung „exakte border-radius-Treue") als eigene Scheibe; dann zurück zur Roadmap (Breiten-Test Eingabetypen → Figma-Reverse-Import → Developer-Empfangsseite).
+**Testen ab jetzt: `/figma-e2e-test`-Skill nutzen — Claude fährt den Beweis selbst, Rob schaut nur noch Ergebnisse an.**
+
 ## 🔧 TEST-11-FIXES A+C (18.07. tiefe Nacht, `994ebe4`+`dfd0224`) — 2 von 4 Befunden behoben, 2 bewusst offen
 Robs test-11 (`hruC4fV2yaPyD8IVynmA6Z`): 4 Befunde, systematisch diagnostiziert:
 - **A Template-Crop (gefixt ✅, Robs „Quatsch"):** Eltern-Root bekam Mount-Breite 1024 + Plugin-clipsContent → breitere Karten-Reihen rechts abgeschnitten. Fix: `readSize` nimmt für die WURZEL `max(computed.width, scrollWidth)` — Live-Browser-bewiesen (Overflow-Fall Root=1480 statt 1024; ohne Overflow unverändert 1024). ⚠️ Falle für Nachtests: Flex-Kinder shrinken — Overflow-Repro braucht `flex:0 0 <px>`.
