@@ -1,6 +1,9 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **18.07.2026 spätabends (COMPOSITION-NESTING SCHEIBE 1+2 FERTIG & GEPUSHT — `b4094f5`..`3c4dc5d`, s. unten)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID** (Google Cloud Billing seit 17.07., kein Quota-Engpass mehr). Server **243/243** · Web **454/454** · Plugin **93/93**.
+Stand: **18.07.2026 nachts (COMPOSITION-NESTING SCHEIBE 1+2 + CARD-TEMPLATE-FIX FERTIG & LIVE — `b4094f5`..`22f6509`)** — **🚀 APP IST LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **455/455** · Plugin **93/93**.
+
+## 🩹 CARD-TEMPLATE-FIX (18.07. nachts, `22f6509`) — Robs test9-Befund behoben
+Robs test9: Verschachtelung ✅ (Template enthält echte ◇-Instanzen, mehrstufig — Session-Ziel erreicht!), ABER 3 „…Card"-Bausteine kamen als generische lila „Card-Titel"-Stubs (App + Figma). **Root Cause (systematic-debugging):** das generische **Card-Template** kaperte inhaltstragende Karten, deren Name kein Wort aus einer festen `CONTENT_TOKENS`-Liste (chart/kpi/table…) trug — auf ZWEI Ebenen: (1) `interpret.js:24` schloss Template-Treffer vom Interpretieren aus, (2) Emit stubte sie. Nicht neu, aber durch die Komposition sichtbar geworden (früher malte die monolithische Template-Interpretation sie selbst). **Fix (Robs Entscheidung):** Card-Template komplett gestrichen (eine Karte ist Inhaltscontainer, nie Leaf-Primitive → immer interpretiert/komponiert; Button/Badge/Input bleiben). **Live bewiesen (Prod, EcoMetrics-Bild):** „Energy Consumption Type Card"/„Top Emissions By Plants Card"/„Category Of Emissions Chart Card" liefern jetzt echtes HTML (2146/2875/2542 Zeichen, failed:[]) statt Stub. Web 454→455.
 
 ## 🧬 COMPOSITION-NESTING (18.07. spätabends, Robs Kernauftrag aus `test8`) — Scheibe 1+2 FERTIG
 
