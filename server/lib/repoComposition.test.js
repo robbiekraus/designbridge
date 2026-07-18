@@ -59,3 +59,34 @@ test('children in first-appearance order', () => {
   const { children } = buildRepoComposition(items, f);
   assert.deepEqual(children['Layout'], ['Header', 'SidebarNav']);
 });
+
+// Live-Fund (shadcn-ui/taxonomy): kebab-case Dateinamen, PascalCase JSX-Nutzung.
+// baseIdent('site-header.tsx') === 'site-header' matcht nie <SiteHeader/> — 0 Kanten.
+const kebabItems = [
+  { name: 'Layout', path: 'src/app/layout.tsx' },
+  { name: 'SiteHeader', path: 'src/components/site-header.tsx' },
+  { name: 'Button', path: 'src/components/ui/button.tsx' },
+];
+const kebabFiles = {
+  'src/app/layout.tsx':
+    "import { SiteHeader } from '../components/site-header';\nexport default function Layout(){return(<div><SiteHeader/></div>);}",
+  'src/components/site-header.tsx':
+    "import { Button } from './ui/button';\nexport function SiteHeader(){return(<header><Button/></header>);}",
+  'src/components/ui/button.tsx': "export function Button(){return <button/>;}",
+};
+
+test('kebab-case filenames still produce edges via PascalCase ident (shadcn taxonomy pattern)', () => {
+  const { children } = buildRepoComposition(kebabItems, kebabFiles);
+  assert.deepEqual(children['Layout'], ['SiteHeader']);
+  assert.deepEqual(children['SiteHeader'], ['Button']);
+});
+
+test('ambiguous PascalCase ident from kebab-case basenames produces no edge', () => {
+  // Zwei Items, deren kebab-case Basenamen auf denselben PascalCase-Bezeichner mappen.
+  const amb = [
+    ...kebabItems,
+    { name: 'SiteHeaderAlt', path: 'src/components/other/site_header.tsx' }, // pascal() -> 'SiteHeader' ebenfalls
+  ];
+  const { children } = buildRepoComposition(amb, kebabFiles);
+  assert.equal((children['Layout'] || []).includes('SiteHeader'), false);
+});

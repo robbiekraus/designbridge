@@ -1,6 +1,6 @@
 import { isUiComponent, isComponentFile, isPageFile, isLayoutFile } from './repoFilePatterns.js';
 
-const pascal = (s) =>
+export const pascal = (s) =>
   s.replace(/\.[^.]+$/, '')
     .split(/[-_.\s]/)
     .filter(Boolean)

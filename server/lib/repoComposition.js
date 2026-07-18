@@ -2,6 +2,8 @@
 // Komponenten). Rein, deterministisch. Vertrag: raw.composition (children/roots).
 // Spec: 2026-07-18-repo-composition-extraction-design.md.
 
+import { pascal } from './repoInventory.js';
+
 function baseIdent(path) {
   const base = String(path || '').split('/').pop() || '';
   return base.replace(/\.(t|j)sx?$/, '');
@@ -42,11 +44,19 @@ function jsxUsages(src) {
 export function buildRepoComposition(items, files) {
   // Bezeichner → Baustein-Name; mehrdeutige verwerfen.
   const identToNames = new Map();
-  for (const it of items) {
-    const id = baseIdent(it.path);
-    if (!id) continue;
+  const addIdent = (id, name) => {
+    if (!id) return;
     if (!identToNames.has(id)) identToNames.set(id, []);
-    identToNames.get(id).push(it.name);
+    const list = identToNames.get(id);
+    if (!list.includes(name)) list.push(name);
+  };
+  for (const it of items) {
+    const raw = baseIdent(it.path);
+    addIdent(raw, it.name);
+    // Kebab-/snake-case Dateinamen (z. B. 'site-header.tsx') werden in JSX als
+    // PascalCase importiert/gerendert ('<SiteHeader/>') — siehe repoInventory.js `pascal()`,
+    // das denselben Namen für die Baustein-Bezeichnung nutzt. Beide Formen indexieren.
+    addIdent(pascal(raw), it.name);
   }
   const identToName = new Map();
   for (const [id, names] of identToNames) {
