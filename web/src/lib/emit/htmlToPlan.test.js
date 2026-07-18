@@ -1595,3 +1595,135 @@ describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)'
     expect(withUndefined.plan).toEqual(withoutOption.plan);
   });
 });
+
+describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-instance-slot-sizing-design.md)', () => {
+  // Gleicher Mock-Ansatz wie die spliceTargets-Suite oben: Rects über `data-mock-rect` injiziert.
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  it('1) gesplictes FLOW-Element (nicht CSS-positioniert) → ref-Node trägt absolute mit gemessenem Rect relativ zum Parent', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Alpha</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const alphaNode = plan.children[0];
+    expect(alphaNode.type).toBe('component-ref');
+    expect(alphaNode.name).toBe('Alpha Widget');
+    expect(alphaNode.absolute).toEqual({ x: 10, y: 10, width: 300, height: 100 });
+  });
+
+  it('2) gesplictes CSS-absolute-Element → trägt weiterhin absolute (readAbsolute-Pfad)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div style="position:absolute" data-mock-rect='{"x":50,"y":60,"width":200,"height":80}'>Delta</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Delta Widget', bbox: { x: 50 / 1000, y: 60 / 500, w: 200 / 1000, h: 80 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const deltaNode = plan.children[0];
+    expect(deltaNode.type).toBe('component-ref');
+    expect(deltaNode.name).toBe('Delta Widget');
+    expect(deltaNode.absolute).toEqual({ x: 50, y: 60, width: 200, height: 80 });
+  });
+
+  it('3) degeneriertes Rect (0×0 erst NACH der Zuordnung gemessen) → kein absolute, Fallback stretch/grow', () => {
+    // Zuordnung (computeSpliceAssignment) und Messung (measureRectRelParent) rufen
+    // getBoundingClientRect() auf demselben Element zu unterschiedlichen Zeitpunkten auf — hier
+    // bewusst mit einer Sequenz gemockt: 1. Aufruf (Zuordnungsphase) liefert ein reales Rect (damit
+    // die IoU-Zuordnung überhaupt zustande kommt), jeder weitere Aufruf (Messung in convertElement)
+    // liefert ein degeneriertes 0×0-Rect.
+    const rectCallCounts = new WeakMap();
+    Element.prototype.getBoundingClientRect = function mockedSequenceRect() {
+      const seqRaw = this.getAttribute?.('data-mock-rect-sequence');
+      if (seqRaw) {
+        const seq = JSON.parse(seqRaw);
+        const idx = rectCallCounts.get(this) || 0;
+        rectCallCounts.set(this, idx + 1);
+        const r = seq[Math.min(idx, seq.length - 1)];
+        return {
+          x: r.x, y: r.y, left: r.x, top: r.y, width: r.width, height: r.height,
+          right: r.x + r.width, bottom: r.y + r.height, toJSON() { return this; },
+        };
+      }
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x, y: r.y, left: r.x, top: r.y, width: r.width, height: r.height,
+        right: r.x + r.width, bottom: r.y + r.height, toJSON() { return this; },
+      };
+    };
+
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect-sequence='[{"x":10,"y":10,"width":300,"height":100},{"x":10,"y":10,"width":0,"height":0}]'>Gamma</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Gamma Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const gammaNode = plan.children[0];
+    expect(gammaNode.type).toBe('component-ref');
+    expect(gammaNode.name).toBe('Gamma Widget');
+    expect(gammaNode.absolute).toBeUndefined();
+  });
+
+  it('4) direkter Box-Parent eines gesplicten absoluten Kindes friert seine Maße aus dem eigenen Rect ein', () => {
+    // display:inline-block statt block, damit der Parent selbst kein eigenes stretch/grow erhält
+    // (BLOCK_LEVEL_DISPLAYS greift nicht) — sonst würde die betroffene Achse per Vertrag NICHT
+    // zusätzlich eingefroren, sondern dem Stretch überlassen (s. buildBoxNode:428-Kommentar).
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div style="display:inline-block" data-mock-rect='{"x":0,"y":0,"width":400,"height":250}'>
+          <div data-mock-rect='{"x":20,"y":20,"width":150,"height":90}'>Epsilon</div>
+        </div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Epsilon Widget', bbox: { x: 20 / 1000, y: 20 / 500, w: 150 / 1000, h: 90 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const middleNode = plan.children[0];
+    expect(middleNode.type).toBe('box');
+    expect(middleNode.width).toBe(400);
+    expect(middleNode.height).toBe(250);
+    const epsilonNode = middleNode.children[0];
+    expect(epsilonNode.type).toBe('component-ref');
+    expect(epsilonNode.name).toBe('Epsilon Widget');
+    expect(epsilonNode.absolute).toEqual({ x: 20, y: 20, width: 150, height: 90 });
+  });
+});

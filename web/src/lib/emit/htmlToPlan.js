@@ -517,6 +517,37 @@ function readAbsolute(el, computed) {
   };
 }
 
+/** Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-instance-slot-sizing-design.md §Vertrag): wie
+ *  `readAbsolute`, aber OHNE den `position:absolute|fixed`-Guard — liefert das gemessene Rect eines
+ *  Elements relativ zu seinem DIREKTEN Eltern-Element unabhängig von dessen CSS-Positionierung
+ *  (Flow-Elemente eingeschlossen). Nur für den Composition-Splice-Zweig gedacht (s. convertElement):
+ *  eine gesplicte Instanz soll IMMER auf ihr gemessenes Slot-Rect dimensioniert werden, nicht nur
+ *  wenn sie zufällig CSS-positioniert ist — sonst huggt sie im Plugin ihre Eigengröße (Root Cause
+ *  „brennende" Instanzen in test12, s. Spec-Kopf).
+ *
+ *  `readAbsolute` selbst bleibt UNANGETASTET (der 418-Test-Korpus prüft Plan-Literale ohne
+ *  `absolute`-Schlüssel per `toEqual` — ein zusätzlicher Aufruf-Pfad dort hätte dieses Risiko
+ *  unnötig vergrößert; die neue Funktion lebt deshalb separat).
+ *
+ *  Liefert `null` bei fehlendem Eltern-Element ODER degeneriertem Rect (`rect.width <= 0 ||
+ *  rect.height <= 0` — jsdom ohne gemocktes Rect liefert 0×0). Anders als `readAbsolute` wird die
+ *  Größe hier NICHT auf mindestens 1 geklemmt: ein degeneriertes Rect ist kein sinnvoller Slot,
+ *  Aufrufer fallen in diesem Fall bewusst auf stretch/grow zurück (kein Overflow-Schutz, aber auch
+ *  kein Schaden — heutiges Verhalten, s. Spec §Bewusste Grenzen). */
+function measureRectRelParent(el) {
+  const parent = el.parentElement;
+  if (!parent || typeof el.getBoundingClientRect !== 'function') return null;
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const parentRect = parent.getBoundingClientRect();
+  return {
+    x: Math.round(rect.left - parentRect.left),
+    y: Math.round(rect.top - parentRect.top),
+    width: Math.max(1, Math.round(rect.width)),
+    height: Math.max(1, Math.round(rect.height)),
+  };
+}
+
 /** Hängt `absolute` an einen bereits gebauten Node an — nur wenn `readAbsolute` etwas geliefert
  *  hat (s. Kommentar dort zur „weglassen statt null"-Entscheidung). Node bleibt in jedem Fall ein
  *  normales Kind im `children`-Array seines Elternknotens (Spec: aus dem Fluss nimmt erst das
@@ -823,11 +854,15 @@ function convertElement(el, ctx, parent = null) {
   const spliceName = ctx.spliceAssignment?.get(el);
   if (spliceName) {
     const computed = getComputedStyle(el);
-    const absolute = readAbsolute(el, computed);
-    const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
     const ctxNoSplice = { ...ctx, spliceAssignment: null };
     const refNode = { type: 'component-ref', name: spliceName, variant: null, fallback: ensureBox(buildNormalNode(el, ctxNoSplice, parent)) };
-    return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);
+    // Gesplicte Instanz IMMER auf ihr gemessenes Slot-Rect dimensionieren (readAbsolute für echte
+    // CSS-Positionierung, sonst gemessenes Flow-Rect relativ zum direkten Parent) — sonst huggt sie
+    // im Plugin ihre Eigengröße (Spec 2026-07-18-splice-instance-slot-sizing-design.md). Nur wenn
+    // beides null liefert (kein Parent / degeneriertes 0×0-Rect), Fallback auf stretch/grow.
+    const absolute = readAbsolute(el, computed) || measureRectRelParent(el);
+    if (absolute) return { ...refNode, absolute };
+    return attachStretchGrow(refNode, readStretchGrow(el, computed, parent));
   }
 
   return buildNormalNode(el, ctx, parent);
