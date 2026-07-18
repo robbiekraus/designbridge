@@ -248,6 +248,16 @@ function applyAbsolute(node: SceneNode, el: PlanNode): void {
     const t = node as TextNode;
     t.textAutoResize = 'HEIGHT';
     if (abs.width > 0) t.resize(abs.width, t.height);
+  } else if (el.type === 'component-ref') {
+    // Composition-Fidelity v2 (docs/superpowers/specs/2026-07-19-composition-fidelity-v2-
+    // shrink-only-design.md): eine Instanz darf pro Achse verkleinert, aber nie über ihre
+    // natürliche Größe (node.width/height NACH createInstance(), VOR resize()) hinaus
+    // gestreckt werden — unabhängig interpretierte Bausteine haben unterschiedlichen
+    // Maßstab, Strecken verzerrt/leert die Instanz.
+    const resizable = node as SceneNode & { resize(w: number, h: number): void };
+    const w = Math.min(node.width, abs.width);
+    const h = Math.min(node.height, abs.height);
+    resizable.resize(w, h);
   } else {
     (node as SceneNode & { resize(w: number, h: number): void }).resize(abs.width, abs.height);
   }

@@ -14,7 +14,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderPlan } from '../src/writer/renderPlan';
-import type { PlanBox, PlanText } from '../src/writer/parsePayload';
+import type { PlanBox, PlanNode, PlanText } from '../src/writer/parsePayload';
 import type { SectionFrames } from '../src/writer/buildComponents';
 
 type FrameStub = {
@@ -234,13 +234,13 @@ type InstanceStub = {
   resize(w: number, h: number): void;
 };
 
-function makeInstanceStub(): InstanceStub {
+function makeInstanceStub(naturalWidth = 10, naturalHeight = 10): InstanceStub {
   return {
     type: 'INSTANCE',
     x: 0,
     y: 0,
-    width: 10,
-    height: 10,
+    width: naturalWidth,
+    height: naturalHeight,
     layoutPositioning: 'AUTO',
     layoutAlign: 'INHERIT',
     layoutGrow: 0,
@@ -251,13 +251,22 @@ function makeInstanceStub(): InstanceStub {
   };
 }
 
-function sectionsWithComponent(name: string): { sections: SectionFrames; instances: InstanceStub[] } {
+// naturalSize: Größe der referenzierten Komponente NACH createInstance(), VOR resize() —
+// exakt der Wert, den Composition-Fidelity v2 (docs/superpowers/specs/2026-07-19-
+// composition-fidelity-v2-shrink-only-design.md) als Obergrenze für die Instanz-Resize
+// verwendet (min(natürlich, Slot) pro Achse). Default 10×10 (kleiner als alle bestehenden
+// abs-Werte in diesem File) erhält das alte Verhalten der schon existierenden Tests, die
+// diesen Parameter nicht setzen.
+function sectionsWithComponent(
+  name: string,
+  naturalSize: { width?: number; height?: number } = {}
+): { sections: SectionFrames; instances: InstanceStub[] } {
   const instances: InstanceStub[] = [];
   const stubComponent = {
     type: 'COMPONENT' as const,
     name,
     createInstance: () => {
-      const inst = makeInstanceStub();
+      const inst = makeInstanceStub(naturalSize.width, naturalSize.height);
       instances.push(inst);
       return inst;
     },
@@ -573,7 +582,10 @@ test('Bestimmtheits-Propagation über 2 Ebenen: Stretch/Grow-Achse korrekt weite
 
 test('composition plan: component-ref child with absolute → positioned instance', async () => {
   installFigmaStub();
-  const { sections, instances } = sectionsWithComponent('Sidebar');
+  // Natürliche Größe (400×800) bewusst GRÖSSER als der Slot (256×768) in beiden Achsen —
+  // Composition-Fidelity v2 min()t hier auf den Slot runter, der bestehende Vertrag dieses
+  // Tests (Instanz landet exakt bei abs.width/height) bleibt damit unverändert gültig.
+  const { sections, instances } = sectionsWithComponent('Sidebar', { width: 400, height: 800 });
   const plan = emptyBox({
     layout: 'column',
     width: 1024,
@@ -600,4 +612,99 @@ test('composition plan: component-ref child with absolute → positioned instanc
   assert.equal(rendered.y, 0);
   assert.equal(rendered.width, 256);
   assert.equal(rendered.height, 768);
+});
+
+// ─── Composition-Fidelity v2: Instanz-Resize nur verkleinern, nie strecken ─────────────────
+// (docs/superpowers/specs/2026-07-19-composition-fidelity-v2-shrink-only-design.md)
+//
+// applyAbsolute resized component-ref-Instanzen bisher hart auf abs.width×abs.height — das
+// STRECKT eine Instanz, wenn der (unabhängig interpretierte) Slot größer ist als die
+// natürliche Größe der referenzierten Komponente (Beweisfall: Sidebar 320×940 natürlich →
+// Template-Slot 260×1553 gezwungen → Inhalt gestaucht). Ab jetzt gilt pro Achse
+// min(natürlich, Slot) — verkleinern bleibt erlaubt, strecken nicht mehr. box/svg/text bleiben
+// unverändert (dort ist abs die gebaute Zielgröße, keine natürliche Größe zu erhalten).
+
+function componentRefChild(overrides: {
+  name?: string;
+  absolute: { x: number; y: number; width: number; height: number };
+}): PlanNode {
+  return {
+    type: 'component-ref',
+    name: overrides.name ?? 'Card',
+    variant: null,
+    absolute: overrides.absolute,
+    fallback: emptyBox(),
+  } as unknown as PlanNode;
+}
+
+test('component-ref: Slot kleiner als natürlich (beide Achsen) → resize auf Slot (Verkleinern erlaubt)', async () => {
+  installFigmaStub();
+  // Natürlich 400×300, Slot 200×150 — beide Achsen kleiner → volles Verkleinern auf den Slot.
+  const { sections, instances } = sectionsWithComponent('Card', { width: 400, height: 300 });
+  const child = componentRefChild({ absolute: { x: 0, y: 0, width: 200, height: 150 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(instances.length, 1);
+  assert.equal(rendered.width, 200);
+  assert.equal(rendered.height, 150);
+});
+
+test('component-ref: Slot höher als natürlich (Höhe) → Höhe bleibt natürlich, Breite = min', async () => {
+  installFigmaStub();
+  // Sidebar-Fall aus der Spec: natürlich 260×940, Template-Slot 260×1553 (nur Höhe größer).
+  const { sections, instances } = sectionsWithComponent('Sidebar', { width: 260, height: 940 });
+  const child = componentRefChild({ name: 'Sidebar', absolute: { x: 0, y: 0, width: 260, height: 1553 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(instances.length, 1);
+  assert.equal(rendered.width, 260, 'Breite: min(260, 260) = 260');
+  assert.equal(rendered.height, 940, 'Höhe bleibt natürlich (940) statt auf den Slot (1553) gestreckt zu werden');
+});
+
+test('component-ref: gemischt (Breite kleiner, Höhe größer als natürlich) → min pro Achse einzeln', async () => {
+  installFigmaStub();
+  const { sections, instances } = sectionsWithComponent('Card', { width: 320, height: 600 });
+  // Slot: Breite 200 (< 320, verkleinern erlaubt), Höhe 900 (> 600, nicht strecken).
+  const child = componentRefChild({ absolute: { x: 0, y: 0, width: 200, height: 900 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(instances.length, 1);
+  assert.equal(rendered.width, 200, 'Breite: min(320, 200) = 200');
+  assert.equal(rendered.height, 600, 'Höhe: min(600, 900) = 600, nicht gestreckt');
+});
+
+test('box/svg mit absolute bleiben unverändert hart auf abs (Regression-Schutz, nicht min-begrenzt)', async () => {
+  const { svgs } = installFigmaStub({ withSvg: true });
+  // Box-Kind: abs GRÖSSER als die Frame-Stub-Startgröße (100×100) — box hat keine "natürliche"
+  // Größe zu erhalten, muss also weiterhin hart auf abs gezogen werden (kein min()).
+  const boxChild = emptyBox({ absolute: { x: 0, y: 0, width: 500, height: 600 } });
+  // SVG-Kind: abs GRÖSSER als die SVG-Stub-Startgröße (10×10) — gleicher Vertrag wie box.
+  const svgChild = { type: 'svg' as const, markup: '<svg></svg>', absolute: { x: 0, y: 0, width: 300, height: 400 } };
+  const parent = emptyBox({ children: [boxChild, svgChild] });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  const renderedBox = frame.children[0] as FrameStub;
+  assert.equal(renderedBox.width, 500, 'box: hart auf abs.width, unabhängig von "natürlicher" Größe');
+  assert.equal(renderedBox.height, 600, 'box: hart auf abs.height, unabhängig von "natürlicher" Größe');
+  assert.equal(svgs.length, 1);
+  assert.equal(svgs[0].width, 300, 'svg: hart auf abs.width, unabhängig von "natürlicher" Größe');
+  assert.equal(svgs[0].height, 400, 'svg: hart auf abs.height, unabhängig von "natürlicher" Größe');
+});
+
+test('component-ref: Position x/y kommt in allen Fällen aus abs, auch wenn min() die Größe begrenzt', async () => {
+  installFigmaStub();
+  // Natürlich 400×300 (beide Achsen größer als der Slot) → Größe wird auf den Slot verkleinert,
+  // aber x/y müssen trotzdem exakt aus abs.x/abs.y kommen (Position ist von der Größen-min()-Logik
+  // komplett unabhängig).
+  const { sections, instances } = sectionsWithComponent('Card', { width: 400, height: 300 });
+  const child = componentRefChild({ absolute: { x: 42, y: 99, width: 200, height: 150 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(instances.length, 1);
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.x, 42);
+  assert.equal(rendered.y, 99);
 });
