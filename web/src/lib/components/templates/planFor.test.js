@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { buttonTemplate } from './button.js';
-import { cardTemplate } from './card.js';
 import { badgeTemplate } from './badge.js';
 import { inputTemplate } from './input.js';
 
@@ -73,19 +72,6 @@ describe('buttonTemplate.planFor', () => {
   it('unbekannte Variante fällt auf primary zurück', () => {
     const plan = buttonTemplate.planFor('weird', refs);
     expect(plan.fill).toEqual(toRef(refs.primary));
-  });
-});
-
-describe('cardTemplate.planFor', () => {
-  it('default: Spalten-Box, surface-Füllung, border-Rahmen, Titel+Text', () => {
-    const plan = cardTemplate.planFor('default', refs);
-    expect(plan.layout).toBe('column');
-    expect(plan.padding).toEqual([16, 16, 16, 16]);
-    expect(plan.fill).toEqual(toRef(refs.surface));
-    expect(plan.stroke).toEqual(toRef(refs.border));
-    expect(plan.children).toHaveLength(2);
-    expect(plan.children[0].fontWeight).toBe(600); // Titel
-    expect(plan.children[1].color).toEqual(toRef(refs.text));
   });
 });
 

@@ -190,4 +190,21 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.code).toMatch(/export const PricingCard/);
     expect(item.filename).toBe('PricingCard.tsx');
   });
+
+  it('Card-Template retired: ein "…Card"-Organismus mit echter Interpretation nutzt interp.jsx statt Card-Stub', () => {
+    const result = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [], templates: [],
+        organisms: [{ name: 'Category of Emissions Card', confidence: 'high', variants: [] }],
+      },
+      interpretations: {
+        'Category of Emissions Card': { html: '<div>real</div>', jsx: '<div>real jsx</div>', model: 'gemini-3.5-flash' },
+      },
+    };
+    const [item] = emitComponents(result, 'organism');
+    expect(item.templateKey).toBeNull();
+    expect(item.hasPreview).toBe(false);
+    expect(item.code).toBe('<div>real jsx</div>');
+  });
 });

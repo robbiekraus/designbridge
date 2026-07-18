@@ -40,15 +40,15 @@ describe('componentsNeedingInterpretation', () => {
     expect(todo[0]).toEqual({ name: 'Avatar', kind: 'atom', variants: [], notes: 'rund', bbox: null, selector: null, path: null });
   });
 
-  it('passes bbox through and routes content-bearing cards to interpretation', () => {
+  it('passes bbox through and routes ALL cards (plain or content-bearing) to interpretation — Card-Template retired', () => {
     const result = { raw: { organisms: [
-      { name: 'Card', confidence: 'high', notes: '', bbox: { x:0,y:0,w:0.1,h:0.1 } },        // Template → raus
+      { name: 'Card', confidence: 'high', notes: '', bbox: { x:0,y:0,w:0.1,h:0.1 } },        // kein Template mehr → rein
       { name: 'Stat Card', confidence: 'high', notes: 'Sales', bbox: { x:0.1,y:0,w:0.2,h:0.2 } }, // interpretieren
     ] } };
     const todo = componentsNeedingInterpretation(result);
     const names = todo.map((t) => t.name);
     expect(names).toContain('Stat Card');
-    expect(names).not.toContain('Card');
+    expect(names).toContain('Card');
     expect(todo.find((t) => t.name === 'Stat Card').bbox).toEqual({ x:0.1,y:0,w:0.2,h:0.2 });
   });
 
@@ -689,9 +689,8 @@ describe('carryInterpretations', () => {
 });
 
 describe('componentsNeedingInterpretation — repo path', () => {
-  // Name bewusst nicht "…Card/Tile/Panel" o.ä. — würde vom generischen
-  // Card-Template gematcht (matchTemplate) und flöge raus, noch bevor
-  // path je geprüft wird. Siehe web/src/lib/components/templates/card.js.
+  // Name bewusst generisch gewählt (Card-Template wurde retired — "…Card"
+  // matcht seit dessen Entfernung ohnehin kein Template mehr, siehe registry.js).
   it('componentsNeedingInterpretation reicht path durch', () => {
     // Reale /repo-Shape: Items mit Datei-Inhalt tragen immer sourceCode
     // (liftRepoInventory läuft vor res.json) — ohne sourceCode = kein Material.

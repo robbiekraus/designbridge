@@ -14,10 +14,11 @@ describe('PREVIEWS', () => {
     expect(el.style.background).toContain('rgb(2, 45, 44)');
   });
 
-  it('has a preview for every template key', () => {
-    ['button', 'card', 'badge', 'input'].forEach((k) => {
+  it('has a preview for every template key (card retired — no longer a template)', () => {
+    ['button', 'badge', 'input'].forEach((k) => {
       expect(typeof PREVIEWS[k]).toBe('function');
     });
+    expect(PREVIEWS.card).toBeUndefined();
   });
 
   it('ghost button uses the accent (primary) color, distinct from secondary', () => {

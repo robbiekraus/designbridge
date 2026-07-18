@@ -184,6 +184,30 @@ describe('emitFigmaComponents — KI-Interpretation (Scheibe 3, Task 4)', () => 
   });
 });
 
+describe('emitFigmaComponents — Card-Template retired (Karten werden interpretiert, nicht gestubbt)', () => {
+  it('ein "…Card"-Organismus mit echter Interpretation und ohne Kinder wird ai-interpreted, NICHT der generische Card-Stub', () => {
+    const withCardInterp = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [],
+        molecules: [],
+        organisms: [{ name: 'Category of Emissions Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        templates: [],
+      },
+      interpretations: {
+        'Category of Emissions Card': { html: '<div>real</div>', jsx: '<div>real</div>', model: 'gemini-3.5-flash' },
+      },
+    };
+    const out = emitFigmaComponents(withCardInterp);
+    const card = out.find((c) => c.name === 'Category of Emissions Card');
+    expect(card.source).toBe('ai-interpreted');
+    expect(card.placeholder).toBe(false);
+    // Kein Card-Template-Treffer mehr — es gibt keinen templateKey-Begriff hier, aber der Plan
+    // darf nicht der generische Card-Stub (Titel/Beschreibungstext-Box) sein.
+    expect(JSON.stringify(card.variants[0].plan)).not.toContain('Card-Titel');
+  });
+});
+
 describe('emitFigmaComponents — Token-Bindung gegen disambiguierte Namen (Review-Fix)', () => {
   it('bei kollidierenden Rollen bindet der Konverter an den disambiguierten Namen (primary-2), nicht an den rohen Slug', () => {
     // normalizeTokens.assignNames vergibt bei Kollision "primary" + "primary-2" (siehe normalizeTokens.js).
