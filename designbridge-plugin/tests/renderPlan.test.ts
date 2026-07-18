@@ -218,6 +218,59 @@ function emptySections(): SectionFrames {
   };
 }
 
+// Composition-Nesting (Spec 2026-07-18-composition-nesting-figma-design.md §5 "Keine Plugin-
+// Änderung"): findComponentByName (renderPlan.ts) sucht in sections[atom|molecule|organism|
+// template].children nach einem Kind mit passendem .name und .type === 'COMPONENT'. Ein minimaler
+// Stub genügt — renderComponentRef ruft nur .type/.name/.createInstance() auf.
+type InstanceStub = {
+  type: 'INSTANCE';
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  layoutPositioning: string;
+  layoutAlign: string;
+  layoutGrow: number;
+  resize(w: number, h: number): void;
+};
+
+function makeInstanceStub(): InstanceStub {
+  return {
+    type: 'INSTANCE',
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    layoutPositioning: 'AUTO',
+    layoutAlign: 'INHERIT',
+    layoutGrow: 0,
+    resize(w: number, h: number) {
+      this.width = w;
+      this.height = h;
+    },
+  };
+}
+
+function sectionsWithComponent(name: string): { sections: SectionFrames; instances: InstanceStub[] } {
+  const instances: InstanceStub[] = [];
+  const stubComponent = {
+    type: 'COMPONENT' as const,
+    name,
+    createInstance: () => {
+      const inst = makeInstanceStub();
+      instances.push(inst);
+      return inst;
+    },
+  };
+  const sections = {
+    atom: { children: [] } as unknown as SectionFrames['atom'],
+    molecule: { children: [] } as unknown as SectionFrames['molecule'],
+    organism: { children: [stubComponent] } as unknown as SectionFrames['organism'],
+    template: { children: [] } as unknown as SectionFrames['template'],
+  };
+  return { sections, instances };
+}
+
 function emptyBox(overrides: Partial<PlanBox> = {}): PlanBox {
   return {
     type: 'box',
@@ -509,4 +562,42 @@ test('Bestimmtheits-Propagation über 2 Ebenen: Stretch/Grow-Achse korrekt weite
     1,
     'Ebene 2: Ebene-1-Primärachse (Breite) kam über Ebene-1-Stretch durch — Grow darf greifen'
   );
+});
+
+// ─── Composition-Nesting (Spec 2026-07-18-composition-nesting-figma-design.md §5) ──────────
+//
+// Verifikationspunkt: eine Composition-PlanBox (Box mit component-ref-Kindern, die `absolute`
+// tragen) muss OHNE Plugin-Änderung als absolut positionierte Instanz rendern — component-ref →
+// Instanz (renderComponentRef) und absolute Positionierung (applyAbsolute) existieren bereits
+// unabhängig voneinander; dieser Test bestätigt nur, dass sie ZUSAMMEN funktionieren.
+
+test('composition plan: component-ref child with absolute → positioned instance', async () => {
+  installFigmaStub();
+  const { sections, instances } = sectionsWithComponent('Sidebar');
+  const plan = emptyBox({
+    layout: 'column',
+    width: 1024,
+    height: 768,
+    children: [
+      {
+        type: 'component-ref',
+        name: 'Sidebar',
+        variant: null,
+        absolute: { x: 0, y: 0, width: 256, height: 768 },
+        fallback: emptyBox(),
+      },
+    ],
+  });
+  const frame = (await renderPlan(plan, new Map(), [], sections)) as unknown as FrameStub;
+
+  // Instanz wurde erzeugt (component-ref → Instanz, KEIN Fallback gerendert).
+  assert.equal(instances.length, 1, 'genau eine Instanz von "Sidebar" erzeugt, kein Fallback');
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(rendered.type, 'INSTANCE');
+  // absolute positioniert (applyAbsolute wirkt auf JEDEN Kind-Node, auch Instanzen).
+  assert.equal(rendered.layoutPositioning, 'ABSOLUTE');
+  assert.equal(rendered.x, 0);
+  assert.equal(rendered.y, 0);
+  assert.equal(rendered.width, 256);
+  assert.equal(rendered.height, 768);
 });
