@@ -82,6 +82,43 @@ export function emitFigmaComponents(result) {
       const childNames = composition.children?.[item.name];
       if (Array.isArray(childNames) && childNames.length) {
         const childItems = childNames.map((n) => itemByName.get(n)).filter(Boolean);
+
+        // Composition-Splice (Scheibe 1b, Spec 2026-07-18-composition-splice-parent-fidelity-
+        // design.md §2): hat der Elternteil selbst eine KI-Interpretation UND haben Elternteil +
+        // ALLE Kinder eine bbox, splicen wir die erkannten Kinder als component-ref-Instanzen an
+        // ihre räumlich passende Stelle IN DIE EIGENE Interpretation des Elternteils, statt sie
+        // (wie composePlan) komplett zu ersetzen — Eltern-Chrome (Logo, Nav-Liste, Hintergründe …)
+        // bleibt dadurch erhalten. Sonst (Repo/URL-Pfad ohne bbox, fehlgeschlagene Interpretation,
+        // leeres HTML) Fallback auf composePlan wie bisher (Scheibe 1) — unveränderte Semantik.
+        const parentInterp = result?.interpretations?.[item.name];
+        const parentBbox = item.bbox;
+        const canSplice = !!parentInterp?.html && !!parentBbox && childItems.length > 0 && childItems.every((c) => c?.bbox);
+        if (canSplice) {
+          // Kind-bbox (absolute Bildkoordinaten 0..1) → auf den Elternteil normiert (Spec §2).
+          const spliceTargets = childItems.map((c) => ({
+            name: c.name,
+            bbox: {
+              x: (c.bbox.x - parentBbox.x) / parentBbox.w,
+              y: (c.bbox.y - parentBbox.y) / parentBbox.h,
+              w: c.bbox.w / parentBbox.w,
+              h: c.bbox.h / parentBbox.h,
+            },
+          }));
+          const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets });
+          if (warnings.length) converterWarnings.push(...warnings);
+          if (plan) {
+            out.push({
+              ...meta,
+              placeholder: false,
+              source: 'composed-spliced',
+              variants: [{ name: 'default', plan }],
+            });
+            continue;
+          }
+          // plan === null (leeres/kaputtes Eltern-HTML) → fällt durch auf den composePlan-Fallback
+          // unten, genau wie „keine Interpretation".
+        }
+
         out.push({
           ...meta,
           placeholder: false,

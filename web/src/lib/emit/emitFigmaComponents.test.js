@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { emitFigmaComponents } from './emitFigmaComponents.js';
 
 const result = {
@@ -290,5 +290,127 @@ describe('emitFigmaComponents — composition', () => {
     expect(layout.variants[0].plan.layout).toBe('column');
     expect(layout.variants[0].plan.children[0]).toMatchObject({ type: 'component-ref', name: 'SidebarNav' });
     expect(layout.variants[0].plan.children[0].absolute).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composition-Splice (Scheibe 1b, Spec: docs/superpowers/specs/2026-07-18-composition-splice-
+// parent-fidelity-design.md, Plan: docs/superpowers/plans/2026-07-18-composition-splice.md, Task 2).
+//
+// Eltern MIT eigener Interpretation + Kind-bbox splicen jetzt in ihre EIGENE Interpretation statt
+// (wie bisher) rein aus component-ref-Instanzen komponiert zu werden. htmlToPlan braucht dafür echte
+// Rects — jsdom liefert nur Nullen (s. htmlToPlan.test.js Kopf-Kommentar) — deshalb wird
+// Element.prototype.getBoundingClientRect für diese Suite gemockt (identischer Ansatz wie dort:
+// `data-mock-rect` JSON-Attribut je Element).
+// ---------------------------------------------------------------------------
+describe('emitFigmaComponents — composed-spliced (Composition-Splice, Task 2)', () => {
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  // Gepinnte Beispielrechnung (Spec §2, Organism-Parent NICHT bei 0,0):
+  //   parent.bbox = {x:0.1, y:0.2, w:0.6, h:0.4}
+  //   child.bbox  = {x:0.3, y:0.3, w:0.2, h:0.1}   (absolute Bild-Koordinaten)
+  //   childRel = { x:(0.3-0.1)/0.6, y:(0.3-0.2)/0.4, w:0.2/0.6, h:0.1/0.4 }
+  //            = { x: 1/3, y: 0.25, w: 1/3, h: 0.25 }
+  // Das gemockte Kind-Rect innerhalb der Eltern-Interpretation (Wurzel 900x400) wird EXAKT auf
+  // diese childRel-Fraktion gelegt — matcht die Zielposition nur, wenn die Normierungsformel
+  // korrekt implementiert ist (sonst IoU < SPLICE_MIN_IOU, kein component-ref).
+  const parentBbox = { x: 0.1, y: 0.2, w: 0.6, h: 0.4 };
+  const childBbox = { x: 0.3, y: 0.3, w: 0.2, h: 0.1 };
+
+  function baseResult(interpHtml) {
+    return {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [],
+        molecules: [],
+        organisms: [
+          { name: 'KPI Chart', bbox: childBbox, confidence: 'high', source: 'ai', notes: null },
+        ],
+        templates: [
+          { name: 'Dashboard', bbox: parentBbox, confidence: 'high', source: 'ai', notes: null },
+        ],
+        warnings: [],
+        meta: { image_width: 1024, image_height: 768 },
+        composition: { children: { Dashboard: ['KPI Chart'] }, roots: ['Dashboard'] },
+      },
+      interpretations: interpHtml ? { Dashboard: { html: interpHtml, jsx: '<div />' } } : {},
+    };
+  }
+
+  it('Eltern MIT Interpretation + Kind-bbox → source composed-spliced, component-ref an Kind-Position, Rest = Eltern-Interpretation', () => {
+    const html =
+      '<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\' style="border-top-left-radius:8px">' +
+      '<h2 style="font-size:20px">Dashboard-Titel</h2>' +
+      '<div data-mock-rect=\'{"x":300,"y":100,"width":300,"height":100}\'>Chart-Platzhalter</div>' +
+      '</div>';
+    const out = emitFigmaComponents(baseResult(html));
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed-spliced');
+    expect(dashboard.placeholder).toBe(false);
+    const plan = dashboard.variants[0].plan;
+    // Eltern-Struktur bleibt erhalten: Titel-Text als eigenes Kind vorhanden.
+    expect(JSON.stringify(plan)).toContain('Dashboard-Titel');
+    // Kind-Region wurde durch eine echte component-ref-Instanz ersetzt.
+    const refNode = plan.children.find((c) => c.type === 'component-ref');
+    expect(refNode).toBeDefined();
+    expect(refNode.name).toBe('KPI Chart');
+    expect(refNode.fallback.children[0]).toMatchObject({ type: 'text', content: 'Chart-Platzhalter' });
+  });
+
+  it('Eltern MIT Kindern, OHNE eigene Interpretation → Fallback composePlan (source composed), wie Scheibe 1', () => {
+    const out = emitFigmaComponents(baseResult(null));
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed');
+    expect(dashboard.placeholder).toBe(false);
+    expect(dashboard.variants[0].plan.children[0]).toMatchObject({ type: 'component-ref', name: 'KPI Chart' });
+  });
+
+  it('Eltern-Interpretation vorhanden, aber Kind OHNE bbox → Fallback composePlan (source composed)', () => {
+    const result = baseResult('<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\'>x</div>');
+    result.raw.organisms[0] = { name: 'KPI Chart', confidence: 'high', source: 'ai', notes: null }; // kein bbox
+    const out = emitFigmaComponents(result);
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed');
+  });
+
+  it('Eltern-Interpretation vorhanden, aber leer/kaputt (plan:null) → Fallback composePlan (source composed)', () => {
+    const out = emitFigmaComponents(baseResult('   '));
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed');
+  });
+
+  it('Leaf-Baustein (keine Kinder) bleibt unverändert (kein composed-spliced)', () => {
+    const out = emitFigmaComponents(baseResult(null));
+    const kpi = out.find((c) => c.name === 'KPI Chart');
+    expect(kpi.source).not.toBe('composed-spliced');
+    expect(kpi.source).not.toBe('composed');
   });
 });
