@@ -11,6 +11,12 @@
 import { slugify } from './slugify.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
+// Composition-Splice (Spec: docs/superpowers/specs/2026-07-18-composition-splice-parent-fidelity-
+// design.md §1): Schwelle für „genug räumliche Überlappung, um ein Kind als component-ref-Instanz
+// an Ort und Stelle zu splicen" statt es normal nachzubauen. Per Test kalibriert (Spec §Bewusste
+// Grenzen).
+export const SPLICE_MIN_IOU = 0.35;
+
 const SVG_MAX_CHARS = 20000;
 const DATA_URI_RE = /^data:/i;
 const HREF_LIKE_ATTRS = ['href', 'xlink:href', 'src'];
@@ -608,6 +614,122 @@ function matchKnownComponent(el) {
   return null;
 }
 
+/** IoU (Intersection over Union) zweier normierter Rechtecke {x,y,w,h} (0..1, gleicher Bezugsrahmen).
+ *  Reine Funktion — kein DOM nötig (Spec §Tests: direkt mit Plain-Objects testbar). Degenerierte/
+ *  nicht überlappende Rechtecke → 0 (kein `NaN`/Division durch 0 nach außen). */
+export function iou(a, b) {
+  if (!a || !b) return 0;
+  const ax2 = a.x + a.w;
+  const ay2 = a.y + a.h;
+  const bx2 = b.x + b.w;
+  const by2 = b.y + b.h;
+  const ix1 = Math.max(a.x, b.x);
+  const iy1 = Math.max(a.y, b.y);
+  const ix2 = Math.min(ax2, bx2);
+  const iy2 = Math.min(ay2, by2);
+  const interArea = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
+  const unionArea = a.w * a.h + b.w * b.h - interArea;
+  if (unionArea <= 0) return 0;
+  return interArea / unionArea;
+}
+
+/** Bestes noch nicht verbrauchtes Splice-Ziel für EIN Element-Rect (Spec §1: „Bester Treffer mit
+ *  IoU ≥ SPLICE_MIN_IOU"). Reine Funktion (kein DOM) — `usedNames` wird vom Aufrufer geführt, damit
+ *  jedes Ziel höchstens einmal vergeben wird. Gibt `null` zurück, wenn kein Ziel die Schwelle
+ *  erreicht (auch bei leeren/undefinierten `targets` — wirft nie). */
+export function bestSpliceMatch(elRectNorm, targets, usedNames) {
+  if (!elRectNorm || !Array.isArray(targets) || targets.length === 0) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const target of targets) {
+    if (!target?.name || !target.bbox) continue;
+    if (usedNames?.has(target.name)) continue;
+    const score = iou(elRectNorm, target.bbox);
+    if (score > bestScore) {
+      bestScore = score;
+      best = target;
+    }
+  }
+  if (!best || bestScore < SPLICE_MIN_IOU) return null;
+  return { name: best.name };
+}
+
+/** Alle Element-Knoten (Wurzeln + jeder Nachfahre) in Dokumentreihenfolge — Kandidatenliste für die
+ *  globale Splice-Zuordnung (s. computeSpliceAssignment). */
+function collectCandidateElements(roots) {
+  const list = [];
+  const visit = (el) => {
+    list.push(el);
+    for (const child of Array.from(el.children || [])) visit(child);
+  };
+  for (const root of roots) visit(root);
+  return list;
+}
+
+/** Rohes DOMRect → normiertes {x,y,w,h} relativ zu `ref` (ebenfalls ein rohes Rect). `null` bei
+ *  degeneriertem Referenzrahmen (Breite/Höhe 0 — jsdom-Default ohne gemocktes Rect). */
+function normalizeRectTo(rect, ref) {
+  if (!ref || ref.width <= 0 || ref.height <= 0) return null;
+  return {
+    x: (rect.left - ref.left) / ref.width,
+    y: (rect.top - ref.top) / ref.height,
+    w: rect.width / ref.width,
+    h: rect.height / ref.height,
+  };
+}
+
+/** Umschließendes Rect mehrerer roher Rects (Spec §1: „Bei mehreren Roots: Referenz = umschließendes
+ *  Rect aller Roots"). */
+function unionRect(rects) {
+  if (!rects.length) return null;
+  const left = Math.min(...rects.map((r) => r.left));
+  const top = Math.min(...rects.map((r) => r.top));
+  const right = Math.max(...rects.map((r) => r.right));
+  const bottom = Math.max(...rects.map((r) => r.bottom));
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+/** Löst `spliceTargets` global gegen alle Elemente im gemounteten Baum auf (Spec §1: „jedes Ziel
+ *  höchstens einmal; jedes Element höchstens einem Ziel — bestes IoU gewinnt bei Konkurrenz").
+ *
+ *  Bewusste Abweichung von einer rein SEQUENTIELLEN Zuordnung während des normalen Baum-Durchlaufs
+ *  (Dokumentreihenfolge, ein Element nach dem anderen): das würde bei zwei konkurrierenden
+ *  GESCHWISTER-Elementen fälschlich das ZUERST besuchte gewinnen lassen, nicht das mit dem höheren
+ *  IoU (Spec-Vertrag). Deshalb hier VORAB einmal über alle Elemente scoren, alle (Element, Ziel)-
+ *  Kandidaten mit IoU ≥ SPLICE_MIN_IOU nach IoU absteigend sortieren und gierig zuordnen (Standard-
+ *  Greedy-Matching — kein global optimales Bipartite-Matching, aber deterministisch und erfüllt den
+ *  Vertrag für den in der Praxis relevanten Fall klar unterschiedlicher IoU-Werte). `bestSpliceMatch`
+ *  bleibt die reine, direkt unit-testbare Kernfunktion; hier nur die Reihenfolge drumherum.
+ *
+ *  Liefert `{ assignment: Map<Element,string>, usedNames: Set<string> }`. Bei degeneriertem
+ *  Referenzrahmen (Breite/Höhe 0 — jsdom ohne gemocktes Rect) bleiben beide leer, kein Splice. */
+function computeSpliceAssignment(roots, spliceTargets, refRect) {
+  const usedNames = new Set();
+  const assignment = new Map();
+  if (!refRect || refRect.width <= 0 || refRect.height <= 0) return { assignment, usedNames };
+
+  const candidates = [];
+  for (const el of collectCandidateElements(roots)) {
+    if (typeof el.getBoundingClientRect !== 'function') continue;
+    const rectNorm = normalizeRectTo(el.getBoundingClientRect(), refRect);
+    if (!rectNorm) continue;
+    const match = bestSpliceMatch(rectNorm, spliceTargets, new Set());
+    if (!match) continue;
+    const target = spliceTargets.find((t) => t.name === match.name);
+    candidates.push({ el, name: match.name, score: iou(rectNorm, target.bbox) });
+  }
+  candidates.sort((a, b) => b.score - a.score);
+
+  const usedEls = new Set();
+  for (const cand of candidates) {
+    if (usedEls.has(cand.el) || usedNames.has(cand.name)) continue;
+    assignment.set(cand.el, cand.name);
+    usedEls.add(cand.el);
+    usedNames.add(cand.name);
+  }
+  return { assignment, usedNames };
+}
+
 /** Der eigentliche box/text-Nachbau — ausgelagert, damit sowohl der normale Pfad als auch der
  *  component-ref-Fallback (Spec §Konverter Punkt 2) ihn nutzen können. Liest getComputedStyle(el)
  *  (Live-DOM, im echten `document` gemountet — Spec §Kernidee).
@@ -665,6 +787,12 @@ function buildNormalNode(el, ctx, parent) {
  * `parent` (Spec §Erkennung): Eltern-Kontext `{ computed, layout }` oder `null` für Wurzeln —
  * s. buildNormalNode. svg-Nodes bekommen NIE stretch/grow (Spec §Vertrag) — convertSvgElement
  * bekommt `parent` deshalb bewusst nicht gereicht, es bleibt bei reiner Absolute-Erkennung.
+ *
+ * Composition-Splice (Spec 2026-07-18-composition-splice-parent-fidelity-design.md §1): NACH dem
+ * bestehenden component-ref-Zweig (Punkt 2) und VOR dem normalen Nachbau prüft ein dritter Zweig,
+ * ob `el` einem der `ctx.spliceAssignment`-Ziele räumlich zugeordnet wurde (vorab global bestimmt,
+ * s. computeSpliceAssignment) — auch hier kein weiterer Abstieg in den Hauptbaum, der Fallback wird
+ * mit `spliceAssignment:null` gebaut (kein rekursives Selbst-Splicing im Fallback).
  */
 function convertElement(el, ctx, parent = null) {
   if (isSvgElement(el)) return convertSvgElement(el, ctx);
@@ -680,6 +808,16 @@ function convertElement(el, ctx, parent = null) {
     const absolute = readAbsolute(el, computed);
     const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
     const refNode = { type: 'component-ref', name: match.name, variant: match.variant, fallback: ensureBox(buildNormalNode(el, ctx, parent)) };
+    return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);
+  }
+
+  const spliceName = ctx.spliceAssignment?.get(el);
+  if (spliceName) {
+    const computed = getComputedStyle(el);
+    const absolute = readAbsolute(el, computed);
+    const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
+    const ctxNoSplice = { ...ctx, spliceAssignment: null };
+    const refNode = { type: 'component-ref', name: spliceName, variant: null, fallback: ensureBox(buildNormalNode(el, ctxNoSplice, parent)) };
     return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);
   }
 
@@ -720,10 +858,13 @@ function freezeRootWidth(node, el) {
 
 /**
  * @param {string} html Sanitisiertes KI-HTML.
- * @param {{ tokens?: object, knownComponents?: Array<{name: string, kind: string}> }} [options]
+ * @param {{ tokens?: object, knownComponents?: Array<{name: string, kind: string}>,
+ *   spliceTargets?: Array<{name: string, bbox: {x:number,y:number,w:number,h:number}}> }} [options]
+ *   `spliceTargets`-bbox ist NORMIERT AUF DEN ELTERNTEIL (0..1) — Spec §1. Leer/undefiniert →
+ *   identisches Verhalten zum bisherigen Nicht-Splice-Pfad.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
-export function htmlToPlan(html, { tokens = {}, knownComponents = [] } = {}) {
+export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [] } = {}) {
   const warnings = new Set();
   let container = null;
   try {
@@ -762,7 +903,23 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [] } = {}) {
       return { plan: null, warnings: Array.from(warnings) };
     }
 
-    const ctx = { tokens, knownComponents, warnings };
+    // Composition-Splice (Spec §1): Referenzrahmen = Rect der (einzigen) Wurzel bzw. umschließendes
+    // Rect aller Wurzeln bei mehreren Roots, dann global gegen alle Elemente auflösen (s.
+    // computeSpliceAssignment). Leere/undefinierte spliceTargets → assignment bleibt leer, ctx.
+    // spliceAssignment bleibt `null` → Verhalten 1:1 wie vorher (kein neuer Zweig greift in
+    // convertElement).
+    let spliceAssignment = null;
+    if (Array.isArray(spliceTargets) && spliceTargets.length) {
+      const refRect = roots.length === 1 ? roots[0].getBoundingClientRect() : unionRect(roots.map((r) => r.getBoundingClientRect()));
+      const resolved = computeSpliceAssignment(roots, spliceTargets, refRect);
+      spliceAssignment = resolved.assignment;
+      const unmatched = spliceTargets.filter((t) => t?.name && !resolved.usedNames.has(t.name)).map((t) => t.name);
+      if (unmatched.length) {
+        warnings.add(`Composition-Splice: kein räumlich passendes Element gefunden für: ${unmatched.join(', ')} (IoU < ${SPLICE_MIN_IOU}) — Inhalt bleibt Teil der Eltern-Interpretation.`);
+      }
+    }
+
+    const ctx = { tokens, knownComponents, warnings, spliceAssignment };
     // Wurzel-Breiten-Freeze je Wurzel-ELEMENT (nicht auf dem synthetischen Mehrfach-Root-Wrapper,
     // der kein Element zum Messen hat) — Begründung s. freezeRootWidth.
     let plan;

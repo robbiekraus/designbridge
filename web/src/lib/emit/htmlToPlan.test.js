@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { htmlToPlan } from './htmlToPlan.js';
+import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU } from './htmlToPlan.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
 // ---------------------------------------------------------------------------
@@ -1369,5 +1369,174 @@ describe('htmlToPlan — stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Gro
     const { plan } = htmlToPlan('<div><div>Kind</div></div>');
     expect(plan.children[0].stretch).toBe(true);
     expect(plan.width).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composition-Splice (Spec: docs/superpowers/specs/2026-07-18-composition-splice-parent-fidelity-
+// design.md, Plan: docs/superpowers/plans/2026-07-18-composition-splice.md, Task 1). `iou`/
+// `bestSpliceMatch` sind reine Funktionen (kein DOM nötig) — direkt mit Plain-Objects testbar,
+// unabhängig von jsdoms 0-Rect-Grenze (s. Kopf-Kommentar dieser Datei).
+// ---------------------------------------------------------------------------
+describe('iou (reine Rechteck-Überlappung, normiert 0..1)', () => {
+  it('identische Rechtecke → IoU 1', () => {
+    const r = { x: 0.1, y: 0.1, w: 0.2, h: 0.2 };
+    expect(iou(r, r)).toBeCloseTo(1);
+  });
+
+  it('disjunkte Rechtecke → IoU 0', () => {
+    expect(iou({ x: 0, y: 0, w: 0.1, h: 0.1 }, { x: 0.5, y: 0.5, w: 0.1, h: 0.1 })).toBe(0);
+  });
+
+  it('Teilüberlappung → IoU zwischen 0 und 1, korrekt berechnet', () => {
+    // a: [0,0.4]x[0,0.4] (Fläche 0.16), b: [0.2,0.6]x[0.2,0.6] (Fläche 0.16)
+    // Schnitt: [0.2,0.4]x[0.2,0.4] = 0.2*0.2 = 0.04, Vereinigung = 0.16+0.16-0.04 = 0.28
+    const a = { x: 0, y: 0, w: 0.4, h: 0.4 };
+    const b = { x: 0.2, y: 0.2, w: 0.4, h: 0.4 };
+    expect(iou(a, b)).toBeCloseTo(0.04 / 0.28);
+  });
+
+  it('SPLICE_MIN_IOU ist 0.35', () => {
+    expect(SPLICE_MIN_IOU).toBe(0.35);
+  });
+});
+
+describe('bestSpliceMatch (reine Zuordnungslogik, kein DOM)', () => {
+  const targets = [
+    { name: 'Widget A', bbox: { x: 0, y: 0, w: 0.3, h: 0.3 } },
+    { name: 'Widget B', bbox: { x: 0.6, y: 0.6, w: 0.3, h: 0.3 } },
+  ];
+
+  it('Überlappungs-Treffer (IoU ≥ 0.35) → { name }', () => {
+    const elRect = { x: 0, y: 0, w: 0.3, h: 0.3 }; // identisch zu Widget A
+    expect(bestSpliceMatch(elRect, targets, new Set())).toEqual({ name: 'Widget A' });
+  });
+
+  it('kein Treffer (IoU < 0.35 überall) → null', () => {
+    const elRect = { x: 0.3, y: 0.3, w: 0.05, h: 0.05 }; // trifft keins der beiden Ziele nennenswert
+    expect(bestSpliceMatch(elRect, targets, new Set())).toBeNull();
+  });
+
+  it('Konkurrenz — ein Element, zwei mögliche Ziele → das mit höherem IoU gewinnt', () => {
+    const closeToA = [
+      { name: 'Widget A', bbox: { x: 0, y: 0, w: 0.32, h: 0.32 } }, // fast identisch → hohe IoU
+      { name: 'Widget B', bbox: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } }, // grob überlappend → niedrigere IoU
+    ];
+    const elRect = { x: 0, y: 0, w: 0.3, h: 0.3 };
+    expect(bestSpliceMatch(elRect, closeToA, new Set())).toEqual({ name: 'Widget A' });
+  });
+
+  it('jedes Ziel höchstens einmal — bereits verbrauchter Name (usedNames) wird übersprungen', () => {
+    const elRect = { x: 0, y: 0, w: 0.3, h: 0.3 };
+    const used = new Set(['Widget A']);
+    expect(bestSpliceMatch(elRect, targets, used)).toBeNull();
+  });
+
+  it('leere/undefinierte targets → null, wirft nicht', () => {
+    expect(bestSpliceMatch({ x: 0, y: 0, w: 1, h: 1 }, [], new Set())).toBeNull();
+    expect(() => bestSpliceMatch({ x: 0, y: 0, w: 1, h: 1 }, undefined, new Set())).not.toThrow();
+  });
+});
+
+describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)', () => {
+  // Gleicher Mock-Ansatz wie oben (Absolute-Positionierungs-Suite): Rects werden über
+  // `data-mock-rect` injiziert, weil convertElement() intern getBoundingClientRect() direkt auf
+  // den Live-Elementen aufruft.
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  const html = `
+    <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+      <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Alpha</div>
+      <div data-mock-rect='{"x":500,"y":300,"width":200,"height":150}'>Beta</div>
+    </div>
+  `;
+
+  it('Kind-Rect ≈ Ziel-bbox (IoU ≥ 0.35) → component-ref mit fallback, kein Abstieg in den Hauptbaum', () => {
+    const spliceTargets = [
+      { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
+    ];
+    const { plan } = htmlToPlan(html, { spliceTargets });
+    const alphaNode = plan.children[0];
+    expect(alphaNode.type).toBe('component-ref');
+    expect(alphaNode.name).toBe('Alpha Widget');
+    expect(alphaNode.variant).toBeNull();
+    expect(alphaNode.fallback.type).toBe('box');
+    expect(alphaNode.fallback.children[0]).toMatchObject({ type: 'text', content: 'Alpha' });
+    // unbeteiligtes zweites Kind bleibt normaler Nachbau (kein Ziel dafür, kein component-ref).
+    expect(plan.children[1]).toMatchObject({ type: 'text', content: 'Beta' });
+  });
+
+  it('zwei Ziele, zwei Elemente → beide korrekt zugeordnet, je einmal', () => {
+    const spliceTargets = [
+      { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } },
+      { name: 'Beta Widget', bbox: { x: 500 / 1000, y: 300 / 500, w: 200 / 1000, h: 150 / 500 } },
+    ];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(plan.children[0]).toMatchObject({ type: 'component-ref', name: 'Alpha Widget' });
+    expect(plan.children[1]).toMatchObject({ type: 'component-ref', name: 'Beta Widget' });
+    expect(warnings).toEqual([]);
+  });
+
+  it('Ziel ohne passendes Element (IoU < 0.35 überall) → kein component-ref, Warnung enthält Zielnamen, Rest unverändert', () => {
+    const spliceTargets = [{ name: 'Ghost Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 } }];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    // Beide Kinder sind reine Text-Divs ohne Box-Trigger (kein Padding/Radius/Fill/Border/Flex) →
+    // normaler Nachbau bleibt bei 'text' (Konvention dieser Datei, s. hasBoxTrigger). Wichtig ist
+    // NICHT 'box' vs. 'text', sondern dass KEIN component-ref entstanden ist.
+    expect(plan.children[0].type).not.toBe('component-ref');
+    expect(plan.children[1].type).not.toBe('component-ref');
+    expect(warnings.some((w) => w.includes('Ghost Widget'))).toBe(true);
+  });
+
+  it('Konkurrenz: zwei Elemente überlappen ein Ziel → das mit höherem IoU gewinnt, das andere wird normal gebaut', () => {
+    // Beide Kinder überlappen dasselbe Ziel; Beta passt (fast) exakt, Alpha nur grob.
+    const spliceTargets = [
+      { name: 'Contested Widget', bbox: { x: 500 / 1000, y: 300 / 500, w: 200 / 1000, h: 150 / 500 } },
+    ];
+    const html2 = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":300,"y":250,"width":450,"height":250}'>Alpha</div>
+        <div data-mock-rect='{"x":500,"y":300,"width":200,"height":150}'>Beta</div>
+      </div>
+    `;
+    const { plan } = htmlToPlan(html2, { spliceTargets });
+    expect(plan.children[0].type).not.toBe('component-ref'); // Alpha verliert
+    expect(plan.children[1]).toMatchObject({ type: 'component-ref', name: 'Contested Widget' }); // Beta gewinnt
+  });
+
+  it('spliceTargets leer/undefiniert → Plan identisch zum Nicht-Splice-Pfad (Regression)', () => {
+    const withoutOption = htmlToPlan(html);
+    const withEmptyArray = htmlToPlan(html, { spliceTargets: [] });
+    const withUndefined = htmlToPlan(html, { spliceTargets: undefined });
+    expect(withEmptyArray.plan).toEqual(withoutOption.plan);
+    expect(withUndefined.plan).toEqual(withoutOption.plan);
   });
 });
