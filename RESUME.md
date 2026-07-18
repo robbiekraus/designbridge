@@ -1,6 +1,23 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **18.07.2026 spätnachts (SPLICE-SLOT-SIZING FIX FERTIG, LIVE & FIGMA-VERIFIZIERT — `de2d4fc`)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **481/481** · Plugin **93/93**.
+Stand: **19.07.2026 (ARCHITEKTUR-FORK ERREICHT — Overflow gefixt, aber Absolut-Ansatz bricht Flow-Layout; v3 nötig)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **481/481** · Plugin **98/98**.
+
+## 🛑 ARCHITEKTUR-FORK (19.07., systematic-debugging Phase 4.5) — ROBS ENTSCHEIDUNG NÖTIG
+
+Zwei verifizierte Fixes diese Session, aber der zweite legte eine tiefere Kopplung offen → Ansatz hinterfragen statt weiterpatchen.
+
+- **`de2d4fc` (LIVE): Splice-Slot-Sizing** — gesplicte Instanzen bekommen `absolute`=gemessenes Slot-Rect. **Fixte das Karten-Overflow** (rechte Spalten ragten über den Rand), Figma-bewiesen (`Testdaten/figma-e2e-1807-splice-fix/dashboard-template-NACH-splice-fix.png`).
+- **`c5283b8` (LIVE): Fidelity v2 shrink-only** — `applyAbsolute` resized component-ref jetzt nur `min(natürlich, slot)`, nie strecken. Plugin 93→**98**. Figma-verifiziert: Sidebar-Höhe nicht mehr gestreckt (260×940 statt 260×1553, `justify-between` intakt).
+- **🔴 NEUE REGRESSION durch den Absolut-Ansatz (Root Cause per get_design_context belegt):** In der Template-Interpretation ist die Sidebar ein **Flow-Kind** einer Flex-Row `[Sidebar | Hauptinhalt]`. `de2d4fc` macht sie `absolute` → aus dem Fluss → Hauptinhalt (Topbar, KPI-Grid) rutscht auf `left-0` und **überlagert die Sidebar** (Screenshot `…/dashboard-template-v2-shrink-only-OVERLAP-bug.png`; Carbon-KPI + Search Bar liegen bei `left-0 top-0` auf der Sidebar). In test12 (Sidebar im Fluss) gab es das NICHT. → **Absolut fixt Grid-Overflow, bricht aber flow-abhängige Layouts.**
+
+### Empfehlung: Composition-Fidelity v3 (Flow-Box-Wrapping) — löst BEIDES sauber
+Splice ersetzt ein Element NICHT durch eine bare absolute Instanz, sondern durch eine **Flow-Box mit gemessener Größe**, die die Instanz als Kind mit `stretch+grow` (Füllen) enthält. Vorteile: (1) Box bleibt im Fluss → Sidebar positioniert Hauptinhalt korrekt → KEIN Overlap; (2) Box hat feste Slot-Größe → Karten kacheln, KEIN Hug-Overflow; (3) Instanz füllt die Box (Plugin `applyStretchGrow` kann component-ref schon → evtl. KEIN Plugin-Change); v2-shrink-only cappt weiterhin auf natürlich → kein Stretch. **⚠️ Subtile Interaktionen (Flow-Box × stretch × shrink-cap) → braucht eigene Spec + TDD + Figma-Verifikation, kein Blind-Blitz.** Ersetzt den Absolut-Ansatz von `de2d4fc` weitgehend.
+
+### Robs Optionen (dein Call — Rob war weg, autonom bis zum Fork gefahren)
+1. **v3 bauen** (empfohlen) — Flow-Box-Wrapping, löst Overflow + Overlap; eigene Scheibe.
+2. **de2d4fc/v2 zurücknehmen** → test12-Stand (Karten-Overflow, aber KEIN Overlap) als Zwischenstand, dann v3.
+3. **Aktuellen Stand akzeptieren** (Overlap live) und andere Baustelle priorisieren.
+Ungelöst bleiben ohnehin: SVG-Skalierung (harte Figma-Grenze), Donut-Clip, Sidebar-Logo/Avatar-Design-Frage (s. u.).
 
 ## ✅ SPLICE-SLOT-SIZING FIX (18.07. spätnachts, `de2d4fc`) — test12 Rest-Issue 1 BEHOBEN & LIVE FIGMA-BEWIESEN (autonom, Claude solo)
 
