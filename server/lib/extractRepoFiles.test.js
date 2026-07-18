@@ -43,8 +43,20 @@ test('selectRepoFiles loads content only where needed', async () => {
   assert.match(byPath['components/ui/button.tsx'].content, /Button/);
   // Komponenten-Dateien werden jetzt mitgelesen (Repo-Decompose hebt ihren Code).
   assert.match(byPath['components/Header.tsx'].content, /Header/);
-  // Seiten/Layouts bleiben pfad-only.
-  assert.equal(byPath['app/layout.tsx'].content, '');
+  // Seiten/Layouts werden jetzt ebenfalls mitgelesen — der Kompositions-Graph
+  // (docs/superpowers/specs/2026-07-18-repo-composition-extraction-design.md)
+  // braucht ihren Quelltext, um JSX-Kanten (Layout→Organism) zu erkennen.
+  assert.match(byPath['app/layout.tsx'].content, /Layout/);
+  assert.match(byPath['app/dashboard/page.tsx'].content, /Dashboard/);
+});
+
+test('selectRepoFiles lifts page/layout content for composition edges (spec 2026-07-18)', async () => {
+  const files = await selectRepoFiles(FIXTURE);
+  const byPath = Object.fromEntries(files.map((f) => [f.path, f]));
+  // Ohne Inhalt kann extractComposition() keine Layout→Organism-JSX-Kanten
+  // finden — das war der Bug: echte GitHub-Imports bekamen 0 Kanten aus Pages/Layouts.
+  assert.notEqual(byPath['app/layout.tsx'].content, '');
+  assert.notEqual(byPath['app/dashboard/page.tsx'].content, '');
 });
 
 test('extractRepoFiles unpacks a github-style tarball and cleans up its temp dir', async () => {

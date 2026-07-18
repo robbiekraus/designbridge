@@ -66,7 +66,10 @@ export async function selectRepoFiles(rootDir, caps = CAPS) {
       files.push({ path: p, content: await read(p, caps.uiBytes) });
       counts.other++;
     } else if ((isPageFile(p) || isLayoutFile(p)) && counts.other < caps.other) {
-      files.push({ path: p, content: '' }); // Seiten/Layouts werden nicht gehoben — nur der Pfad zählt
+      // Seiten/Layouts werden mitgehoben (gleicher Cap wie andere Komponenten-Dateien):
+      // der Kompositions-Graph (docs/superpowers/specs/2026-07-18-repo-composition-extraction-design.md)
+      // liest ihren JSX-Quelltext, um Layout→Organism-Kanten zu erkennen.
+      files.push({ path: p, content: await read(p, caps.uiBytes) });
       counts.other++;
     }
   }
