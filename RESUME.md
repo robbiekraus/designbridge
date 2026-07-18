@@ -1,8 +1,24 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 (ARCHITEKTUR-FORK ERREICHT — Overflow gefixt, aber Absolut-Ansatz bricht Flow-Layout; v3 nötig)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **481/481** · Plugin **98/98**.
+Stand: **19.07.2026 (COMPOSITION-FIDELITY v3 FERTIG, LIVE & FIGMA-BEWIESEN — `35f4937`; Overflow + Overlap BEIDE behoben, Layout kohärent)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **482/482** · Plugin **98/98**.
 
-## 🛑 ARCHITEKTUR-FORK (19.07., systematic-debugging Phase 4.5) — ROBS ENTSCHEIDUNG NÖTIG
+## ✅ COMPOSITION-FIDELITY v3 (19.07., `35f4937`) — FORK AUFGELÖST, autonom gebaut & Figma-bewiesen
+
+Rob deferte die Architektur-Entscheidung an Claude („keine Ahnung" + „entscheide selbst"). Claude wählte **v3 Flow-Box-Wrapping** (risikoarme Variante, die die unsicheren Figma-stretch/grow-Semantiken vermeidet). Spec `docs/superpowers/specs/2026-07-19-composition-fidelity-v3-flow-box-wrap-design.md`, TDD via Sonnet, Web 481→**482**.
+
+**Fix:** Splice ersetzt ein Flow-Element durch eine **Flow-Box in Slot-Größe** mit der Instanz als absolut positioniertem Kind (0,0). Box hält den Flow-Platz (Geschwister korrekt positioniert → kein Overlap), Instanz wird von `applyAbsolute` shrink-only (v2) auf min(natürlich, Slot) resized (kein Stretch), Slot-Größe verhindert Hug-Overflow. CSS-absolute Elemente bleiben bare absolute. **Kein Plugin-Change.**
+
+**LIVE FIGMA-BEWIESEN** (Datei `Z4pIw3Ey0gw3Cqljco15og`, Screenshot `Testdaten/figma-e2e-1807-splice-fix/dashboard-template-v3-FLOW-BOX-overlap-behoben.png`): **Sidebar heil als eigene Spalte** (EcoMetrics oben, Nav komplett, Jane Smith+Avatar unten — space-between korrekt, KEIN Stretch/Cram); **Hauptinhalt korrekt rechts daneben, KEIN Overlap**; KPI-Cards gekachelt; Layout kohärent wie ein echtes Dashboard. Payload-Beweis: alle 13 Instanzen als `box{width×height=slot, children:[component-ref{absolute:0,0,slot}]}`.
+
+**Fix-Kette dieser Session (alle live):** `de2d4fc` Slot-Sizing (Overflow) → `c5283b8` v2 shrink-only (kein Stretch, Plugin 93→98) → `35f4937` v3 Flow-Box (Overlap behoben). de2d4fc's Bare-Absolute-Ansatz für Flow-Elemente ist durch v3 ersetzt; die v2-shrink-only-Maschinerie bleibt zentral (Instanz absolut IN der Box).
+
+### Verbleibende Rest-Issues (unverändert, nächste Scheiben)
+1. **SVG skaliert nicht mit** (Trend-Linie kollabiert) — harte Figma-Grenze (Vektor-Node skaliert nicht beim Frame-Resize). Eigene Scheibe.
+2. **KPI-Cards/Content leicht rechts geclippt** (Inhalt für ~480px designt, auf 217er-Slot geschrumpft → „O2"/Prozent-Enden abgeschnitten) — Fidelity-Tradeoff des Shrink-to-fit. Polish/eigene Scheibe.
+3. **Sidebar-Logo & Avatar = leere weiße Boxen** (Gemini malt Marken-Mark/Avatar als leere Divs) — **DESIGN-ENTSCHEIDUNG offen (Robs Call, s.u.)**, KI-Fidelity, kein Hierarchie-Bug. Empfehlung: Konverter-Heuristik „kleine leere Box mit Fill, keine Kinder → Bild-Glyph", konservativ auf Avatare/Logos begrenzt.
+4. **v3-Nebenwirkung (dokumentiert):** `buildBoxNode`-Absolut-Freeze greift für Wrapper-Kinder nicht mehr (Wrapper-Box ist selbst normaler Flow-Teilnehmer). Korrekt, aber Tradeoff falls ein Flow-Parent visuell größer als sein einziges gesplictes Kind ist (Zentrierung/Padding). Bei Befund anfassen.
+
+## (historisch) 🛑 ARCHITEKTUR-FORK (19.07., systematic-debugging Phase 4.5) — von v3 aufgelöst
 
 Zwei verifizierte Fixes diese Session, aber der zweite legte eine tiefere Kopplung offen → Ansatz hinterfragen statt weiterpatchen.
 
