@@ -196,6 +196,135 @@ test('analyzeScreenshot: Enthaltungs-Guard hebt Card→organism und korrigiert S
   assert.equal(result.templates.length, 1);
 });
 
+function fakeSleep() {
+  const calls = [];
+  const sleep = async (ms) => { calls.push(ms); };
+  sleep.calls = calls;
+  return sleep;
+}
+
+test('analyzeScreenshot: Retry bei unparsebarer Antwort — 1. Versuch kaputt, 2. Versuch valide → Erfolg ohne Throw', async () => {
+  const imgPath = tmpImage();
+  let callCount = 0;
+  const fakeClient = {
+    messages: {
+      create: async () => {
+        callCount++;
+        if (callCount === 1) {
+          return { content: [{ text: 'nicht json {kaputt' }], stop_reason: 'end_turn' };
+        }
+        return { content: [{ text: JSON.stringify({
+          summary: {}, tokens: {}, atoms: [], molecules: [], organisms: [], templates: [], warnings: [],
+        }) }], stop_reason: 'end_turn' };
+      },
+    },
+  };
+  const sleep = fakeSleep();
+  const result = await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient, sleep });
+  fs.unlinkSync(imgPath);
+
+  assert.equal(callCount, 2, 'sollte beim 2. Versuch erfolgreich sein');
+  assert.deepEqual(result.atoms, []);
+  assert.equal(sleep.calls.length, 1, 'genau ein Backoff zwischen Versuch 1 und 2');
+});
+
+test('analyzeScreenshot: dauerhaft unparsebare Antwort → wirft nach maxRetries die bestehende ehrliche Fehlermeldung', async () => {
+  const imgPath = tmpImage();
+  let callCount = 0;
+  const fakeClient = {
+    messages: {
+      create: async () => {
+        callCount++;
+        return { content: [{ text: 'immer kaputt {{{' }], stop_reason: 'end_turn' };
+      },
+    },
+  };
+  const sleep = fakeSleep();
+  await assert.rejects(
+    () => analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient, sleep, maxRetries: 3 }),
+    /kein gültiges JSON/
+  );
+  fs.unlinkSync(imgPath);
+
+  assert.equal(callCount, 3, 'sollte genau maxRetries-mal versuchen');
+  assert.equal(sleep.calls.length, 2, 'Backoff zwischen den Versuchen, aber nicht nach dem letzten');
+});
+
+test('analyzeScreenshot: Provider-Fehler (isDailyQuota) wird sofort durchgereicht — kein Retry', async () => {
+  const imgPath = tmpImage();
+  let callCount = 0;
+  const quotaErr = new Error('Gemini-Tages-Kontingent erschöpft');
+  quotaErr.isDailyQuota = true;
+  const fakeClient = {
+    messages: {
+      create: async () => {
+        callCount++;
+        throw quotaErr;
+      },
+    },
+  };
+  const sleep = fakeSleep();
+  await assert.rejects(
+    () => analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient, sleep }),
+    (err) => err.isDailyQuota === true
+  );
+  fs.unlinkSync(imgPath);
+
+  assert.equal(callCount, 1, 'darf bei Provider-Fehlern nicht retryen');
+  assert.equal(sleep.calls.length, 0, 'kein Backoff bei Provider-Fehlern');
+});
+
+test('analyzeScreenshot: großes Bild wird vor dem Vision-Call downgescaled (in-memory, injizierbares maxEdge)', async () => {
+  const imgPath = path.join(os.tmpdir(), `db-scan-large-${Math.random().toString(36).slice(2)}.png`);
+  const Jimp = (await import('jimp')).default;
+  const bigImg = new Jimp(400, 200, 0x336699ff);
+  await bigImg.writeAsync(imgPath);
+  const originalBuffer = fs.readFileSync(imgPath);
+
+  let captured;
+  const fakeClient = {
+    messages: {
+      create: async (args) => {
+        captured = args;
+        return { content: [{ text: JSON.stringify({
+          summary: {}, tokens: {}, atoms: [], molecules: [], organisms: [], templates: [], warnings: [],
+        }) }] };
+      },
+    },
+  };
+  await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient, maxEdge: 100 });
+  fs.unlinkSync(imgPath);
+
+  const imageBlock = captured.messages[0].content.find((b) => b.type === 'image');
+  const sentBuffer = Buffer.from(imageBlock.source.data, 'base64');
+  assert.notEqual(sentBuffer.length, originalBuffer.length, 'das gesendete Bild sollte kleiner/anders sein als das Original');
+
+  const sentImg = await Jimp.read(sentBuffer);
+  assert.equal(sentImg.getWidth(), 100, 'Langkante sollte auf maxEdge skaliert sein');
+});
+
+test('analyzeScreenshot: kleines Bild bleibt beim Downscale unangetastet (resized:false-Pfad, Standardverhalten)', async () => {
+  const imgPath = tmpImage();
+  let captured;
+  const fakeClient = {
+    messages: {
+      create: async (args) => {
+        captured = args;
+        return { content: [{ text: JSON.stringify({
+          summary: {}, tokens: {}, atoms: [], molecules: [], organisms: [], templates: [], warnings: [],
+        }) }] };
+      },
+    },
+  };
+  const originalBuffer = fs.readFileSync(imgPath);
+  await analyzeScreenshot(imgPath, 'image/png', {}, { client: fakeClient });
+  const imageBlock = captured.messages[0].content.find((b) => b.type === 'image');
+  const sentBuffer = Buffer.from(imageBlock.source.data, 'base64');
+  fs.unlinkSync(imgPath);
+
+  assert.ok(sentBuffer.equals(originalBuffer), 'kleines Bild (1x1) sollte unverändert gesendet werden');
+});
+
 test('applyContainmentGuard returns composition with direct edges', () => {
   const template = { name: 'Dashboard', bbox: { x: 0, y: 0, w: 1, h: 1 } };
   const organism = { name: 'Sidebar', bbox: { x: 0, y: 0, w: 0.25, h: 1 } };

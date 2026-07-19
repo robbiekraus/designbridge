@@ -2,6 +2,7 @@ import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
 import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO } from './taxonomy.js';
+import { downscaleForVision } from './imageResize.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -141,10 +142,39 @@ export function mergeByName(items) {
   return [...byName.values()];
 }
 
-export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client } = {}) {
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Backoff-Schedule zwischen Retry-Versuchen (Index = Versuchsnummer, 0-basiert).
+// z.B. 400ms nach Versuch 1, 800ms nach Versuch 2, ...
+const backoffMs = (attempt) => 400 * Math.pow(2, attempt);
+
+// Wirft die bestehenden ehrlichen deutschen Fehlermeldungen — unverändert
+// gegenüber dem Vor-Retry-Verhalten. Wird pro Versuch aufgerufen; nur ein
+// Parse-/Extraktionsfehler landet hier, Provider-Fehler (z.B. isDailyQuota)
+// werfen bereits beim `c.messages.create`-Call selbst und laufen NIE hier durch.
+function parseResponseOrThrow(response) {
+  const text = response.content.map(b => b.text || '').join('');
+  try {
+    return extractJson(text);
+  } catch (e) {
+    // Volltext-Diagnose in die Server-Logs — ohne sie ist die Ursache nicht auffindbar.
+    console.error(`[scan] KI-Antwort unparsebar (stop_reason=${response.stop_reason}, model=${response.model}, ${text.length} Zeichen). Ende der Antwort: …${text.slice(-300)}`);
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen, ggf. mit einem kleineren Bildausschnitt.');
+    }
+    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
+  }
+}
+
+export async function analyzeScreenshot(imagePath, mimeType, extractTargets, { client, maxRetries = 3, sleep, maxEdge = 1500 } = {}) {
   const c = client ?? getAiClient();
+  const doSleep = sleep ?? defaultSleep;
   const imageData = fs.readFileSync(imagePath);
-  const base64 = imageData.toString('base64');
+  // Nur in-memory verkleinern — die Datei auf Platte bleibt unangetastet,
+  // scan.js braucht die Originalmaße separat für die Komposition (Befund 2,
+  // docs/2026-07-20-breiten-test-eingabetypen-ergebnis.md).
+  const { buffer: visionBuffer, mime: visionMime } = await downscaleForVision(imageData, mimeType, { maxEdge });
+  const base64 = visionBuffer.toString('base64');
 
   const targetSummary = Object.entries(extractTargets)
     .filter(([, items]) => items.length > 0)
@@ -157,35 +187,44 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
 
   const t0 = Date.now();
 
-  const response = await c.messages.create({
-    model: 'claude-sonnet-5',
-    max_tokens: 16384,
-    messages: [{
-      role: 'user',
-      content: [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: mimeType, data: base64 }
-        },
-        { type: 'text', text: prompt }
-      ]
-    }]
-  });
+  // Bild-Scan ist nicht-deterministisch — ~50% JSON-Parse-Fehler bei komplexen
+  // Dashboards, ein Retry hilft meist (Befund 3, docs/2026-07-20-…). Nur
+  // Parse-/Extraktionsfehler werden retried; wirft `c.messages.create` selbst
+  // (Provider-/Netz-/Quota-Fehler, insb. isDailyQuota), reicht das sofort
+  // ungefangen nach oben durch — kein Retry, kein Wegschlucken.
+  let response;
+  let parsed;
+  let lastErr;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    response = await c.messages.create({
+      model: 'claude-sonnet-5',
+      max_tokens: 16384,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: { type: 'base64', media_type: visionMime, data: base64 }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    });
+
+    try {
+      parsed = parseResponseOrThrow(response);
+      lastErr = null;
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (attempt < maxRetries - 1) {
+        await doSleep(backoffMs(attempt));
+      }
+    }
+  }
+  if (lastErr) throw lastErr;
 
   const elapsed = Date.now() - t0;
-  const text = response.content.map(b => b.text || '').join('');
-
-  let parsed;
-  try {
-    parsed = extractJson(text);
-  } catch (e) {
-    // Volltext-Diagnose in die Server-Logs — ohne sie ist die Ursache nicht auffindbar.
-    console.error(`[scan] KI-Antwort unparsebar (stop_reason=${response.stop_reason}, model=${response.model}, ${text.length} Zeichen). Ende der Antwort: …${text.slice(-300)}`);
-    if (response.stop_reason === 'max_tokens') {
-      throw new Error('Die KI-Antwort wurde am Token-Limit abgeschnitten — bitte erneut versuchen, ggf. mit einem kleineren Bildausschnitt.');
-    }
-    throw new Error(`Die KI-Antwort war kein gültiges JSON. Anfang der Antwort: ${text.slice(0, 300)}`);
-  }
 
   const merged = {
     atoms: mergeByName(parsed.atoms),
