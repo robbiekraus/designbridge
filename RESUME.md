@@ -1,6 +1,20 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping FERTIG, autonom gebaut+gepusht)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **552/552** · Plugin **98/98**.
+Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping + ✅ SCHEIBE 3 Figma-1:1-Skalierung FERTIG & FIGMA-BEWIESEN, autonom)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **566/566** · Plugin **98/98**.
+
+## ✅ SCHEIBE 3 FIGMA-EMIT-SKALIERUNG 1:1 FERTIG & FIGMA-E2E-BEWIESEN (19.07. nachts, autonom, Sonnet-TDD) — Robs Größen-Fix gelandet
+
+Der Figma-Emitter gibt Bausteine + Templates in **Original-Screenshot-Auflösung** aus (1:1) statt auf 1024 gestaucht. **Root Cause (belegt):** Canvas fix 1024 + Interpretationen bei ~Vollauflösungs-px → Faktor `image_width/1024` (2296/1024=2,24×) Mismatch. **Fix (zwei Teile, Figma-Pfad, Tailwind-Emitter UNBERÜHRT):** (A) `canvas = raw.meta.image_width/height` statt fix 1024 (Fallback 1024 wenn kein Bild); (B) neue reine Funktion `scalePlan(plan, factor)` skaliert jede interpretations-abgeleitete Baustein-Variante mit bbox auf ihre wahre Bild-Pixelgröße (`factor = bbox.w·image_width/naturalWidth`, breitengetrieben, Aspekt erhalten); `htmlToPlan` gibt `naturalWidth` additiv (nur Erfolgspfad). `composed` (composePlan) unverändert (canvas trägt schon die wahre Größe). Kein Plugin-Change. Spec `docs/superpowers/specs/2026-07-19-figma-emit-scaling-design.md`, Plan `docs/superpowers/plans/2026-07-19-figma-emit-scaling.md`, neue Datei `web/src/lib/emit/scalePlan.js`.
+
+**Verifiziert:** Web **552→566** (+14: scalePlan/scaleFactor/naturalWidth/canvas/Glue-Tests) · Build sauber · **Real-Browser-Payload-Beweis** (Template `plan.width=2296`, KPI 556/Trend 1148/Tabelle 1740/Sidebar 404, alle 15 Template-Slots proportional zur Standalone-Größe → KEIN Doppel-Scaling) · **FIGMA-E2E-BEWIESEN** (`/figma-e2e-test`, Datei `nyMkB9hDesRmVLewQ6FrbF`, EcoMetrics-Import `59c4365128f19efb` 2296×2408, Screenshot `Testdaten/figma-e2e-scheibe3/dashboard-template-1zu1-2296.png`): **Dashboard Template 2296×3482** (Metadata), kohärentes proportionsgetreues Dashboard, Sidebar volle Höhe, KPI-Cards gekachelt, Reports-Tabelle komplett, **Sidebar-#4 Profil-Overlap WEG** (kein Shrink mehr, wie vorhergesagt). Gepusht auf main.
+
+**Grenzen v1 (dokumentiert):** Tailwind-Emitter unberührt (Code aufs Token-Raster); kein Plugin-Change; Nicht-Bild-Importe (URL/Repo ohne meta.image_width) → Faktor 1; breitengetrieben (kein Höhen-Sonderfall); viewBox nie skaliert. **Bekannte Rest-Issues (KEIN Scheibe-3-Regress, dokumentierte Grenzen):** SVG-Trend-Linie skaliert nicht mit (Figma-Vektor-Grenze); leere Logo/Avatar-Kästen in der Sidebar (pre-existierende Gemini-Artefakte).
+
+### ⏭️ NÄCHSTER SCHRITT — Architektur-Pivot (Scheibe 1–3) KOMPLETT. Kandidaten aus der Roadmap:
+- **Server-Prompt: Geminis `jsx`-Erzeugung abschalten** (Mini-Schritt, spart Gemini-Tokens — der Web-Emitter nutzt `interp.jsx` seit Scheibe 1 nicht mehr; NUR `interp.html` wird gebraucht).
+- **Breiten-Test der Eingabetypen** (Bild vs. URL vs. Repo, Robs Wunsch 17.07. — jetzt sinnvoll, da Fidelity-Scheiben durch).
+- **Figma-Reverse-Import** (Figma-Ingester-Spec liegt seit 03.07.) / **Developer-Empfangsseite** (Storybook/shadcn).
+- Chart-Trend-Linie Breiten-Determinismus (eigene delikate Scheibe, s. u.).
 
 ## ✅ SCHEIBE 2 TOKEN-SNAPPING FERTIG (19.07. nachts, autonom, Sonnet-TDD) — Tailwind-Output ist jetzt design-system-treu
 
