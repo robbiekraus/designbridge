@@ -1,6 +1,12 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 (COMPOSITION-FIDELITY v3 FERTIG, LIVE & FIGMA-BEWIESEN — `35f4937`; Overflow + Overlap BEIDE behoben, Layout kohärent)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **482/482** · Plugin **98/98**.
+Stand: **19.07.2026 (v3 Flow-Box + BILD-GLYPH FERTIG, LIVE & FIGMA-BEWIESEN — `ef14c3a`; Overflow+Overlap+leere Logo/Avatar-Boxen behoben)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **488/488** · Plugin **98/98**.
+
+## ✅ BILD-PLATZHALTER-GLYPH (19.07., `ef14c3a`) — Robs „ungefüllte Platzhalter" (Logo/Avatar) behoben & Figma-bewiesen
+
+Robs Freigabe („wie empfohlen"). Gemini malt Logos/Marken als leere gestylte Divs (kein `<img>`) → leere Boxen in Figma. Fix (Spec `docs/superpowers/specs/2026-07-19-image-placeholder-glyph-design.md`, Web-only, TDD Sonnet, 482→**488**): zentrierter grauer Bild-Glyph (svg) für `<img>`-Elemente + leere gefüllte ~quadratische Boxen ≥24px. **Grenzen an echten Daten trennscharf** (Fehlalarm-Test über alle Bausteine): trifft NUR den Logo (32×32) + Avatar-imgs, NICHT Dots (6-10px)/Legenden-Chips (32×14, Ratio 2.3)/Icon-BGs (haben Kinder)/Badges (haben Text). **Figma-bewiesen** (`Testdaten/figma-e2e-1807-splice-fix/sidebar-logo-avatar-glyph.png`): EcoMetrics-Logo + Jane-Smith-Avatar zeigen jetzt das Bild-Icon.
+
+**⚠️ NEU beobachtet (dein Call, NICHT autonom gefixt):** Im Sidebar-Render bleiben ZWEI große umrandete leere Boxen (unter Logo, über Profil) — pre-existierende Gemini-Artefakte OHNE Fill/Border-im-HTML (Rendering-Effekt leerer Regionen), mehrdeutig (kein klares Bild). Bewusst NICHT auto-geglypht (leere umrandete Container sind oft legitime UI → Fehlalarm-Risiko). Falls stören: erst klären was Gemini da meint.
 
 ## ✅ COMPOSITION-FIDELITY v3 (19.07., `35f4937`) — FORK AUFGELÖST, autonom gebaut & Figma-bewiesen
 
