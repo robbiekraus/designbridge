@@ -417,4 +417,52 @@ describe('emitFigmaComponents — composed-spliced (Composition-Splice, Task 2)'
     expect(kpi.source).not.toBe('composed-spliced');
     expect(kpi.source).not.toBe('composed');
   });
+
+  // -------------------------------------------------------------------------
+  // Composition-Splice v2 — Text-Anker-Matching (Spec: docs/superpowers/specs/2026-07-19-splice-
+  // text-anchor-matching-design.md §1 + Task-Liste §10): spliceTargets tragen jetzt zusätzlich
+  // anchorTokens, aus result.interpretations[childName].html gezogen.
+  // -------------------------------------------------------------------------
+  it('spliceTargets tragen anchorTokens aus der Kind-Interpretation → Text-Match rettet Splice trotz absichtlich falscher Kind-bbox', () => {
+    const parentHtml =
+      '<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\'>' +
+      '<h2>Dashboard-Titel</h2>' +
+      '<div data-mock-rect=\'{"x":300,"y":100,"width":300,"height":100}\'>3.4 GB of 15 GB used</div>' +
+      '</div>';
+    const result = baseResult(parentHtml);
+    // Kind-bbox absichtlich weit weg von der tatsächlichen Position im Eltern-HTML → normierte
+    // IoU ≈ 0. Nur der Text-Anker aus der Kind-Interpretation kann den Splice noch retten.
+    result.raw.organisms[0] = {
+      name: 'KPI Chart',
+      bbox: { x: 0.95, y: 0.95, w: 0.04, h: 0.04 },
+      confidence: 'high',
+      source: 'ai',
+      notes: null,
+    };
+    result.interpretations['KPI Chart'] = { html: '<div>3.4 GB of 15 GB used</div>', jsx: '<div />' };
+    const out = emitFigmaComponents(result);
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed-spliced');
+    const plan = dashboard.variants[0].plan;
+    const wrapperNode = plan.children.find((c) => c.type === 'box' && c.children?.[0]?.type === 'component-ref');
+    expect(wrapperNode).toBeDefined();
+    expect(wrapperNode.children[0].name).toBe('KPI Chart');
+  });
+
+  it('Kind ohne eigene Interpretation → anchorTokens: [] (Fallback bleibt IoU, Bestandsverhalten unverändert)', () => {
+    // Deckt sich mit dem allerersten Test dieser Suite (Kind "KPI Chart" hat dort KEINEN Eintrag
+    // in result.interpretations) — bestätigt hier explizit, dass ein fehlender Interpretations-
+    // Eintrag nicht bricht und die räumliche Zuordnung unverändert per IoU funktioniert.
+    const html =
+      '<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\'>' +
+      '<div data-mock-rect=\'{"x":300,"y":100,"width":300,"height":100}\'>Chart-Platzhalter</div>' +
+      '</div>';
+    const out = emitFigmaComponents(baseResult(html));
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed-spliced');
+    const plan = dashboard.variants[0].plan;
+    const wrapperNode = plan.children.find((c) => c.type === 'box' && c.children?.[0]?.type === 'component-ref');
+    expect(wrapperNode).toBeDefined();
+    expect(wrapperNode.children[0].name).toBe('KPI Chart');
+  });
 });

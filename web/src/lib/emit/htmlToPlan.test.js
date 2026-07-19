@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU } from './htmlToPlan.js';
+import {
+  htmlToPlan,
+  iou,
+  bestSpliceMatch,
+  SPLICE_MIN_IOU,
+  tokenizeAnchorText,
+  textJaccard,
+  bestTextMatch,
+  SPLICE_MIN_TEXT,
+} from './htmlToPlan.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
 // ---------------------------------------------------------------------------
@@ -1576,6 +1585,90 @@ describe('bestSpliceMatch (reine Zuordnungslogik, kein DOM)', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Composition-Splice v2 — Text-Anker-Matching (Spec: docs/superpowers/specs/2026-07-19-splice-
+// text-anchor-matching-design.md). `tokenizeAnchorText`/`textJaccard`/`bestTextMatch` sind reine
+// Funktionen (kein DOM nötig) — direkt mit Plain-Objects/Sets testbar, analog zu `iou`/
+// `bestSpliceMatch` oben (Spec §Tests 1–3).
+// ---------------------------------------------------------------------------
+describe('tokenizeAnchorText (reine Tokenisierung, Spec §1)', () => {
+  it('lowercase, Satzzeichen raus, Zahlen mit Punkt/Prozent bleiben', () => {
+    const tokens = tokenizeAnchorText('Storage / Upgrade — 3.4 GB of 15 GB!');
+    expect(tokens).toEqual(new Set(['storage', 'upgrade', '3.4', 'gb', 'of', '15']));
+  });
+
+  it('Prozentzeichen bleibt Teil des Tokens', () => {
+    expect(tokenizeAnchorText('80% Fertig')).toEqual(new Set(['80%', 'fertig']));
+  });
+
+  it('Tokens mit Länge 1 fliegen raus', () => {
+    expect(tokenizeAnchorText('a bb c d ab')).toEqual(new Set(['bb', 'ab']));
+  });
+
+  it('leerer/nicht-String → leeres Set, wirft nie', () => {
+    expect(tokenizeAnchorText('')).toEqual(new Set());
+    expect(tokenizeAnchorText(undefined)).toEqual(new Set());
+    expect(() => tokenizeAnchorText(null)).not.toThrow();
+  });
+});
+
+describe('textJaccard (reiner Jaccard-Score, Spec §2)', () => {
+  it('identische Sets → 1', () => {
+    expect(textJaccard(new Set(['jane', 'smith']), new Set(['jane', 'smith']))).toBe(1);
+  });
+
+  it('disjunkte Sets → 0', () => {
+    expect(textJaccard(new Set(['a', 'b']), new Set(['c', 'd']))).toBe(0);
+  });
+
+  it('leeres Set (eine oder beide Seiten) → 0, nie NaN/throw', () => {
+    expect(textJaccard(new Set(), new Set(['a']))).toBe(0);
+    expect(textJaccard(new Set(['a']), new Set())).toBe(0);
+    expect(textJaccard(new Set(), new Set())).toBe(0);
+    expect(() => textJaccard(undefined, undefined)).not.toThrow();
+    expect(textJaccard(undefined, undefined)).toBe(0);
+  });
+
+  it('Teilüberlappung → korrekt berechneter Wert zwischen 0 und 1', () => {
+    // A: {a,b,c} B: {b,c,d} → Schnitt 2, Vereinigung 4 → 0.5
+    expect(textJaccard(new Set(['a', 'b', 'c']), new Set(['b', 'c', 'd']))).toBeCloseTo(0.5);
+  });
+});
+
+describe('SPLICE_MIN_TEXT ist 0.5', () => {
+  it('Konstante', () => {
+    expect(SPLICE_MIN_TEXT).toBe(0.5);
+  });
+});
+
+describe('bestTextMatch (reine Zuordnungslogik, kein DOM, Spec §2)', () => {
+  const targets = [
+    { name: 'Widget A', anchorTokens: new Set(['jane', 'smith']) },
+    { name: 'Widget B', anchorTokens: new Set(['storage', 'upgrade']) },
+  ];
+
+  it('höchster Score gewinnt', () => {
+    const elTokens = new Set(['jane', 'smith']);
+    expect(bestTextMatch(elTokens, targets, new Set())).toEqual({ name: 'Widget A' });
+  });
+
+  it('< Schwelle (0.5) → null', () => {
+    const elTokens = new Set(['jane', 'other', 'stuff', 'here']); // ∩{jane}=1, ∪=5 → 0.2 < 0.5
+    expect(bestTextMatch(elTokens, targets, new Set())).toBeNull();
+  });
+
+  it('usedNames respektiert — bereits verbrauchter Name wird übersprungen', () => {
+    const elTokens = new Set(['jane', 'smith']);
+    const used = new Set(['Widget A']);
+    expect(bestTextMatch(elTokens, targets, used)).toBeNull();
+  });
+
+  it('leere/undefinierte targets → null, wirft nicht', () => {
+    expect(bestTextMatch(new Set(['a']), [], new Set())).toBeNull();
+    expect(() => bestTextMatch(new Set(['a']), undefined, new Set())).not.toThrow();
+  });
+});
+
 describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)', () => {
   // Gleicher Mock-Ansatz wie oben (Absolute-Positionierungs-Suite): Rects werden über
   // `data-mock-rect` injiziert, weil convertElement() intern getBoundingClientRect() direkt auf
@@ -1686,6 +1779,182 @@ describe('htmlToPlan — spliceTargets (Composition-Splice, Task 1 Integration)'
     const withUndefined = htmlToPlan(html, { spliceTargets: undefined });
     expect(withEmptyArray.plan).toEqual(withoutOption.plan);
     expect(withUndefined.plan).toEqual(withoutOption.plan);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Composition-Splice v2 — Text-Anker-Matching Integration (Spec: docs/superpowers/specs/
+// 2026-07-19-splice-text-anchor-matching-design.md §Tests 6–8). Gleicher Mock-Ansatz wie die
+// spliceTargets-Suite oben: Rects über `data-mock-rect` injiziert, weil Phase 1 (Text) die
+// Plausibilitäts-Prüfung ebenfalls über echte gemessene Rects fährt (Spec §2).
+// ---------------------------------------------------------------------------
+describe('htmlToPlan — Text-Anker-Matching (Composition-Splice v2, Spec 2026-07-19)', () => {
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  it('Sidebar-Szenario (vereinfachtes echtes Fixture): 3 Ziele mit Anker-Tokens und ABSICHTLICH falschen bboxes (IoU ≈ 0) → alle 3 werden per Text gesplict', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":300,"height":800}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":100,"height":40}'>EcoMetrics</div>
+        <div data-mock-rect='{"x":10,"y":600,"width":280,"height":80}'>Storage / Upgrade / 3.4 GB of 15 GB</div>
+        <div data-mock-rect='{"x":10,"y":700,"width":280,"height":40}'>Jane Smith</div>
+      </div>
+    `;
+    // Alle bboxes zeigen (absichtlich falsch) in dieselbe ferne Ecke — räumlich IoU ≈ 0 gegen die
+    // tatsächlichen Positionen oben. Nur der Text-Anker kann diese Ziele noch matchen.
+    const wrongBbox = { x: 0.95, y: 0.95, w: 0.04, h: 0.04 };
+    const spliceTargets = [
+      { name: 'Sidebar Logo', bbox: wrongBbox, anchorTokens: ['ecometrics'] },
+      { name: 'Storage Progress Widget', bbox: wrongBbox, anchorTokens: ['storage', 'upgrade', '3.4', 'gb', 'of', '15'] },
+      { name: 'User Profile Widget', bbox: wrongBbox, anchorTokens: ['jane', 'smith'] },
+    ];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    const names = plan.children.map((wrapper) => wrapper.children?.[0]?.name);
+    expect(names).toEqual(['Sidebar Logo', 'Storage Progress Widget', 'User Profile Widget']);
+    for (const wrapper of plan.children) {
+      expect(wrapper.type).toBe('box');
+      expect(wrapper.children[0].type).toBe('component-ref');
+    }
+  });
+
+  it('Tie-Break: Vorfahre schlägt Nachfahre bei gleichem Score (jsdom-DOM)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":300,"height":60}'>
+          <div data-mock-rect='{"x":10,"y":10,"width":300,"height":60}'>
+            <span data-mock-rect='{"x":20,"y":20,"width":80,"height":20}'>Jane Smith</span>
+          </div>
+        </div>
+      </div>
+    `;
+    // Row, Wrapper und Span tragen ALLE denselben Text ("Jane Smith" ist der einzige Text im
+    // gesamten Baum) → identischer Score (1.0) für alle drei. Die Wurzel selbst scheitert an der
+    // Plausibilität (Fläche = 100% des Referenzrahmens). Gewinnen muss die ÄUSSERSTE Box (Row).
+    const spliceTargets = [{ name: 'Profile Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 }, anchorTokens: ['jane', 'smith'] }];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    // Die ROW (erstes/einziges Kind der Wurzel) wurde ersetzt — nicht Wrapper oder Span darunter.
+    const wrapperNode = plan.children[0];
+    expect(wrapperNode.type).toBe('box');
+    const refNode = wrapperNode.children[0];
+    expect(refNode.type).toBe('component-ref');
+    expect(refNode.name).toBe('Profile Widget');
+    // Fallback des ersetzten Knotens ist der REBUILD der ROW — enthält also noch Wrapper+Span
+    // als verschachtelte Struktur (Beleg, dass die Row und nicht schon der Span ersetzt wurde).
+    expect(JSON.stringify(refNode.fallback)).toContain('Jane Smith');
+  });
+
+  it('Plausibilität (a): Element ohne messbares Rect wird übersprungen, ein plausibles Element mit gleichem Score gewinnt', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div>Jane Smith</div>
+        <div data-mock-rect='{"x":10,"y":10,"width":80,"height":20}'>Jane Smith</div>
+      </div>
+    `;
+    const spliceTargets = [{ name: 'Profile Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 }, anchorTokens: ['jane', 'smith'] }];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    // Erstes Kind (kein Rect, degeneriert 0×0) bleibt normaler Nachbau.
+    expect(plan.children[0].type).not.toBe('component-ref');
+    // Zweites Kind (echtes, plausibles Rect) gewinnt den Splice.
+    const wrapperNode = plan.children[1];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.children[0]).toMatchObject({ type: 'component-ref', name: 'Profile Widget' });
+  });
+
+  it('Plausibilität (b): Element > 80% der Referenzrahmen-Fläche wird übersprungen, ein kleineres Element mit gleichem Score gewinnt', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":0,"y":0,"width":950,"height":480}'>
+          <span data-mock-rect='{"x":20,"y":20,"width":80,"height":20}'>Jane Smith</span>
+        </div>
+      </div>
+    `;
+    // Der äußere Div hat 950×480 = 91.2% der 1000×500-Referenzfläche → Plausibilitäts-Deckel (b)
+    // greift, obwohl er (als Vorfahre) laut Tie-Break sonst gewinnen würde. Der Span darunter
+    // (klein genug) gewinnt stattdessen.
+    const spliceTargets = [{ name: 'Profile Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 }, anchorTokens: ['jane', 'smith'] }];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    const outerNode = plan.children[0];
+    expect(outerNode.type).not.toBe('component-ref'); // äußerer Div bleibt normaler Nachbau
+    const wrapperNode = outerNode.children[0];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.children[0]).toMatchObject({ type: 'component-ref', name: 'Profile Widget' });
+  });
+
+  it('Ziel ohne anchorTokens + passender bbox → IoU-Fallback greift (Bestandsverhalten, Spec §3)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Alpha</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Alpha Widget', bbox: { x: 10 / 1000, y: 10 / 500, w: 300 / 1000, h: 100 / 500 } }, // kein anchorTokens
+    ];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    const wrapperNode = plan.children[0];
+    expect(wrapperNode.type).toBe('box');
+    expect(wrapperNode.children[0]).toMatchObject({ type: 'component-ref', name: 'Alpha Widget' });
+  });
+
+  it('gemischt: ein Ziel mit anchorTokens (Text-Match) + ein Ziel ohne anchorTokens (IoU-Fallback) → beide korrekt zugeordnet', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":300,"height":100}'>Jane Smith</div>
+        <div data-mock-rect='{"x":500,"y":300,"width":200,"height":150}'>Beta</div>
+      </div>
+    `;
+    const spliceTargets = [
+      { name: 'Profile Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 }, anchorTokens: ['jane', 'smith'] }, // Text
+      { name: 'Beta Widget', bbox: { x: 500 / 1000, y: 300 / 500, w: 200 / 1000, h: 150 / 500 } }, // IoU
+    ];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    expect(plan.children[0].children[0]).toMatchObject({ type: 'component-ref', name: 'Profile Widget' });
+    expect(plan.children[1].children[0]).toMatchObject({ type: 'component-ref', name: 'Beta Widget' });
+  });
+
+  it('Ziel ohne Text-Match und ohne IoU-Match → Warnung mit neuem Wortlaut (Spec §4)', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+        <div data-mock-rect='{"x":10,"y":10,"width":100,"height":40}'>Something Else</div>
+      </div>
+    `;
+    const spliceTargets = [{ name: 'Ghost Widget', bbox: { x: 0.9, y: 0.9, w: 0.05, h: 0.05 }, anchorTokens: ['nomatch', 'here'] }];
+    const { warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([
+      'Composition-Splice: kein passendes Element gefunden für: Ghost Widget (weder Text-Anker noch IoU ≥ 0.35) — Inhalt bleibt Teil der Eltern-Interpretation.',
+    ]);
   });
 });
 

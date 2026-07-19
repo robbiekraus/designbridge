@@ -5,7 +5,7 @@
 import { matchTemplate } from '../components/templates/registry.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokenRefs } from './pickTokenRefs.js';
-import { htmlToPlan } from './htmlToPlan.js';
+import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 
@@ -95,15 +95,29 @@ export function emitFigmaComponents(result) {
         const canSplice = !!parentInterp?.html && !!parentBbox && childItems.length > 0 && childItems.every((c) => c?.bbox);
         if (canSplice) {
           // Kind-bbox (absolute Bildkoordinaten 0..1) → auf den Elternteil normiert (Spec §2).
-          const spliceTargets = childItems.map((c) => ({
-            name: c.name,
-            bbox: {
-              x: (c.bbox.x - parentBbox.x) / parentBbox.w,
-              y: (c.bbox.y - parentBbox.y) / parentBbox.h,
-              w: c.bbox.w / parentBbox.w,
-              h: c.bbox.h / parentBbox.h,
-            },
-          }));
+          // anchorTokens (Spec 2026-07-19-splice-text-anchor-matching-design.md §1): aus der
+          // Kind-INTERPRETATION (nicht dem bbox-Item) per Detached-Div-Parse gezogen — kein
+          // Layout nötig, nur textContent. Kind ohne Interpretation/Tokens → [] (Fallback greift
+          // dann auf reines IoU-Matching, Spec §3).
+          const spliceTargets = childItems.map((c) => {
+            const childHtml = result?.interpretations?.[c.name]?.html;
+            let anchorTokens = [];
+            if (childHtml) {
+              const detached = document.createElement('div');
+              detached.innerHTML = childHtml;
+              anchorTokens = Array.from(tokenizeAnchorText(detached.textContent || ''));
+            }
+            return {
+              name: c.name,
+              bbox: {
+                x: (c.bbox.x - parentBbox.x) / parentBbox.w,
+                y: (c.bbox.y - parentBbox.y) / parentBbox.h,
+                w: c.bbox.w / parentBbox.w,
+                h: c.bbox.h / parentBbox.h,
+              },
+              anchorTokens,
+            };
+          });
           const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {

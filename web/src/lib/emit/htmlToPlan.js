@@ -17,6 +17,14 @@ import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.j
 // Grenzen).
 export const SPLICE_MIN_IOU = 0.35;
 
+// Composition-Splice v2 — Text-Anker-Matching (Spec: docs/superpowers/specs/2026-07-19-splice-
+// text-anchor-matching-design.md §2): Schwelle für Token-Jaccard zwischen den Anker-Tokens eines
+// Splice-Ziels und den Subtree-Tokens eines Kandidaten-Elements. Läuft als Phase 1 VOR dem
+// IoU-Matching (s. computeSpliceAssignment). Beleg (Spec-Kopf): echte Treffer 1.0, echtes
+// Rauschen ≤ 0.1 — 0.5 lässt Puffer für leicht abweichende Zahlen/Formatierungen zwischen zwei
+// Gemini-Läufen, ohne echtes Rauschen durchzulassen.
+export const SPLICE_MIN_TEXT = 0.5;
+
 const SVG_MAX_CHARS = 20000;
 const DATA_URI_RE = /^data:/i;
 const HREF_LIKE_ATTRS = ['href', 'xlink:href', 'src'];
@@ -753,6 +761,55 @@ export function bestSpliceMatch(elRectNorm, targets, usedNames) {
   return { name: best.name };
 }
 
+/** Text → Token-Set (Spec §1: „lowercase → alles außer Buchstaben/Ziffern/./% durch Space
+ *  ersetzen → Tokens mit Länge ≥ 2 behalten"). Single Source of Truth für BEIDE Seiten des
+ *  Vergleichs (Anker-Tokens aus der Kind-Interpretation UND Subtree-Text eines Kandidaten-
+ *  Elements müssen mit derselben Regel tokenisiert werden, sonst wäre der Jaccard-Score
+ *  bedeutungslos). Nicht-String/leer → leeres Set, wirft nie. */
+export function tokenizeAnchorText(text) {
+  if (typeof text !== 'string' || !text) return new Set();
+  const normalized = text.toLowerCase().replace(/[^a-z0-9.%]+/g, ' ');
+  const tokens = normalized.split(/\s+/).filter((t) => t.length >= 2);
+  return new Set(tokens);
+}
+
+/** Jaccard-Ähnlichkeit zweier Token-Sets (Spec §2: „Score = Token-Jaccard"). Reine Funktion —
+ *  identische Sets → 1, disjunkte → 0, leeres Set auf einer oder beiden Seiten → 0 (nie
+ *  NaN/Division durch 0 nach außen). */
+export function textJaccard(setA, setB) {
+  if (!(setA instanceof Set) || !(setB instanceof Set) || setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const token of setA) {
+    if (setB.has(token)) intersection += 1;
+  }
+  const union = setA.size + setB.size - intersection;
+  if (union <= 0) return 0;
+  return intersection / union;
+}
+
+/** Bestes noch nicht verbrauchtes Splice-Ziel für die Tokens EINES Kandidaten-Elements (Spec §2:
+ *  „Score = Token-Jaccard … Schwelle SPLICE_MIN_TEXT"). Analog zu `bestSpliceMatch`, nur mit
+ *  Text-Ankern statt Rects: `targets` sind Objekte `{ name, anchorTokens: Set<string> }`. Reine
+ *  Funktion (kein DOM) — `usedNames` wird vom Aufrufer geführt. Liefert `null`, wenn kein Ziel
+ *  die Schwelle erreicht (auch bei leeren/undefinierten `targets` — wirft nie). */
+export function bestTextMatch(elTokens, targets, usedNames) {
+  if (!(elTokens instanceof Set) || elTokens.size === 0) return null;
+  if (!Array.isArray(targets) || targets.length === 0) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const target of targets) {
+    if (!target?.name || !(target.anchorTokens instanceof Set) || target.anchorTokens.size === 0) continue;
+    if (usedNames?.has(target.name)) continue;
+    const score = textJaccard(elTokens, target.anchorTokens);
+    if (score > bestScore) {
+      bestScore = score;
+      best = target;
+    }
+  }
+  if (!best || bestScore < SPLICE_MIN_TEXT) return null;
+  return { name: best.name };
+}
+
 /** Alle Element-Knoten (Wurzeln + jeder Nachfahre) in Dokumentreihenfolge — Kandidatenliste für die
  *  globale Splice-Zuordnung (s. computeSpliceAssignment). */
 function collectCandidateElements(roots) {
@@ -788,17 +845,34 @@ function unionRect(rects) {
   return { left, top, width: right - left, height: bottom - top };
 }
 
-/** Löst `spliceTargets` global gegen alle Elemente im gemounteten Baum auf (Spec §1: „jedes Ziel
- *  höchstens einmal; jedes Element höchstens einem Ziel — bestes IoU gewinnt bei Konkurrenz").
+/** Plausibilitäts-Deckel für Phase 1 (Text-Anker, Spec 2026-07-19-splice-text-anchor-matching-
+ *  design.md §2): (a) Element hat ein messbares Rect (Breite UND Höhe > 0) UND (b) Element-Fläche
+ *  ≤ 80% der Referenzrahmen-Fläche (verhindert Wurzel-/Fast-Wurzel-Match, wenn ein Kind fast den
+ *  gesamten Eltern-Text trägt). Die Ziel-bbox wird in Phase 1 bewusst NICHT geprüft (Spec §Bewusste
+ *  Grenzen — sie ist das nachweislich unzuverlässige Signal, das Phase 1 gerade umgehen soll). */
+const SPLICE_TEXT_MAX_AREA_RATIO = 0.8;
+
+function isPlausibleTextCandidate(el, refArea) {
+  if (typeof el.getBoundingClientRect !== 'function') return false;
+  const rect = el.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) return false;
+  if (refArea <= 0) return false;
+  return rect.width * rect.height <= refArea * SPLICE_TEXT_MAX_AREA_RATIO;
+}
+
+/** Löst `spliceTargets` global gegen alle Elemente im gemounteten Baum auf. Zwei Phasen (Spec
+ *  2026-07-19-splice-text-anchor-matching-design.md §Vertrag):
  *
- *  Bewusste Abweichung von einer rein SEQUENTIELLEN Zuordnung während des normalen Baum-Durchlaufs
- *  (Dokumentreihenfolge, ein Element nach dem anderen): das würde bei zwei konkurrierenden
- *  GESCHWISTER-Elementen fälschlich das ZUERST besuchte gewinnen lassen, nicht das mit dem höheren
- *  IoU (Spec-Vertrag). Deshalb hier VORAB einmal über alle Elemente scoren, alle (Element, Ziel)-
- *  Kandidaten mit IoU ≥ SPLICE_MIN_IOU nach IoU absteigend sortieren und gierig zuordnen (Standard-
- *  Greedy-Matching — kein global optimales Bipartite-Matching, aber deterministisch und erfüllt den
- *  Vertrag für den in der Praxis relevanten Fall klar unterschiedlicher IoU-Werte). `bestSpliceMatch`
- *  bleibt die reine, direkt unit-testbare Kernfunktion; hier nur die Reihenfolge drumherum.
+ *  Phase 1 (Text-Anker, §2): für jedes Kandidaten-Element werden die Subtree-Text-Tokens gegen die
+ *  `anchorTokens` ALLER Ziele mit nicht-leeren Ankern gescort (`bestTextMatch`), plausible Treffer
+ *  (s. `isPlausibleTextCandidate`) ≥ SPLICE_MIN_TEXT gesammelt, dann global nach Score absteigend
+ *  sortiert — bei GLEICHEM Score gewinnt das ÄUSSERSTE Element (Vorfahre schlägt Nachfahre über
+ *  `Node.contains`; ohne Vorfahren-Beziehung entscheidet die Dokumentreihenfolge, die die stabile
+ *  Sortierung hier bewahrt) — und gierig eindeutig zugeordnet (jedes Element/Ziel höchstens einmal).
+ *
+ *  Phase 2 (IoU-Fallback, §3, UNVERÄNDERTE Semantik): Ziele ohne anchorTokens ODER ohne Text-Match
+ *  laufen exakt wie bisher gegen die in Phase 1 noch NICHT verbrauchten Elemente/Ziele —
+ *  `usedNames`/`usedEls` werden über BEIDE Phasen hinweg geteilt.
  *
  *  Liefert `{ assignment: Map<Element,string>, usedNames: Set<string> }`. Bei degeneriertem
  *  Referenzrahmen (Breite/Höhe 0 — jsdom ohne gemocktes Rect) bleiben beide leer, kein Splice. */
@@ -807,19 +881,55 @@ function computeSpliceAssignment(roots, spliceTargets, refRect) {
   const assignment = new Map();
   if (!refRect || refRect.width <= 0 || refRect.height <= 0) return { assignment, usedNames };
 
+  const usedEls = new Set();
+  const refArea = refRect.width * refRect.height;
+
+  // Phase 1: Text-Anker-Matching (Spec §2) — nur Ziele mit nicht-leeren anchorTokens nehmen teil.
+  const textTargets = spliceTargets.filter((t) => t?.name && t.anchorTokens instanceof Set && t.anchorTokens.size > 0);
+  if (textTargets.length) {
+    const textCandidates = [];
+    for (const el of collectCandidateElements(roots)) {
+      if (!isPlausibleTextCandidate(el, refArea)) continue;
+      const elTokens = tokenizeAnchorText(el.textContent || '');
+      const match = bestTextMatch(elTokens, textTargets, new Set());
+      if (!match) continue;
+      const target = textTargets.find((t) => t.name === match.name);
+      textCandidates.push({ el, name: match.name, score: textJaccard(elTokens, target.anchorTokens) });
+    }
+    // Sortierung: Score absteigend; bei Gleichstand Vorfahre vor Nachfahre (Tie-Break, Spec §2);
+    // ohne Vorfahren-Beziehung bleibt die Dokumentreihenfolge erhalten (stabiler Sort).
+    textCandidates.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.el !== b.el) {
+        if (a.el.contains(b.el)) return -1;
+        if (b.el.contains(a.el)) return 1;
+      }
+      return 0;
+    });
+    for (const cand of textCandidates) {
+      if (usedEls.has(cand.el) || usedNames.has(cand.name)) continue;
+      assignment.set(cand.el, cand.name);
+      usedEls.add(cand.el);
+      usedNames.add(cand.name);
+    }
+  }
+
+  // Phase 2: IoU-Fallback (Spec §3, unverändert) — nur Ziele, die Phase 1 nicht verbraucht hat,
+  // gegen Elemente, die Phase 1 nicht verbraucht hat.
+  const remainingTargets = spliceTargets.filter((t) => t?.name && !usedNames.has(t.name));
   const candidates = [];
   for (const el of collectCandidateElements(roots)) {
+    if (usedEls.has(el)) continue;
     if (typeof el.getBoundingClientRect !== 'function') continue;
     const rectNorm = normalizeRectTo(el.getBoundingClientRect(), refRect);
     if (!rectNorm) continue;
-    const match = bestSpliceMatch(rectNorm, spliceTargets, new Set());
+    const match = bestSpliceMatch(rectNorm, remainingTargets, new Set());
     if (!match) continue;
-    const target = spliceTargets.find((t) => t.name === match.name);
+    const target = remainingTargets.find((t) => t.name === match.name);
     candidates.push({ el, name: match.name, score: iou(rectNorm, target.bbox) });
   }
   candidates.sort((a, b) => b.score - a.score);
 
-  const usedEls = new Set();
   for (const cand of candidates) {
     if (usedEls.has(cand.el) || usedNames.has(cand.name)) continue;
     assignment.set(cand.el, cand.name);
@@ -980,9 +1090,13 @@ function freezeRootWidth(node, el) {
 /**
  * @param {string} html Sanitisiertes KI-HTML.
  * @param {{ tokens?: object, knownComponents?: Array<{name: string, kind: string}>,
- *   spliceTargets?: Array<{name: string, bbox: {x:number,y:number,w:number,h:number}}> }} [options]
- *   `spliceTargets`-bbox ist NORMIERT AUF DEN ELTERNTEIL (0..1) — Spec §1. Leer/undefiniert →
- *   identisches Verhalten zum bisherigen Nicht-Splice-Pfad.
+ *   spliceTargets?: Array<{name: string, bbox: {x:number,y:number,w:number,h:number},
+ *   anchorTokens?: string[]}> }} [options]
+ *   `spliceTargets`-bbox ist NORMIERT AUF DEN ELTERNTEIL (0..1) — Spec §1. `anchorTokens` (Spec
+ *   2026-07-19-splice-text-anchor-matching-design.md §1) ist ein Array im Payload (JSON-
+ *   kompatibel) — wird intern zu einem Set gemacht; fehlend/leer bedeutet: dieses Ziel läuft nur
+ *   durch das IoU-Matching (Phase 2). Leer/undefinierte spliceTargets → identisches Verhalten zum
+ *   bisherigen Nicht-Splice-Pfad.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
 export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [] } = {}) {
@@ -1031,12 +1145,21 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     // convertElement).
     let spliceAssignment = null;
     if (Array.isArray(spliceTargets) && spliceTargets.length) {
+      // anchorTokens kommen als Array im Payload (JSON-kompatibel) an — intern zu Set normiert,
+      // damit textJaccard/bestTextMatch direkt darauf arbeiten können (Spec §1). Fehlend/kein
+      // Array → leeres Set, das Ziel läuft dann nur durch Phase 2 (IoU).
+      const normalizedSpliceTargets = spliceTargets.map((t) => ({
+        ...t,
+        anchorTokens: Array.isArray(t?.anchorTokens)
+          ? new Set(t.anchorTokens.filter((tok) => typeof tok === 'string' && tok))
+          : new Set(),
+      }));
       const refRect = roots.length === 1 ? roots[0].getBoundingClientRect() : unionRect(roots.map((r) => r.getBoundingClientRect()));
-      const resolved = computeSpliceAssignment(roots, spliceTargets, refRect);
+      const resolved = computeSpliceAssignment(roots, normalizedSpliceTargets, refRect);
       spliceAssignment = resolved.assignment;
       const unmatched = spliceTargets.filter((t) => t?.name && !resolved.usedNames.has(t.name)).map((t) => t.name);
       if (unmatched.length) {
-        warnings.add(`Composition-Splice: kein räumlich passendes Element gefunden für: ${unmatched.join(', ')} (IoU < ${SPLICE_MIN_IOU}) — Inhalt bleibt Teil der Eltern-Interpretation.`);
+        warnings.add(`Composition-Splice: kein passendes Element gefunden für: ${unmatched.join(', ')} (weder Text-Anker noch IoU ≥ ${SPLICE_MIN_IOU}) — Inhalt bleibt Teil der Eltern-Interpretation.`);
       }
     }
 
