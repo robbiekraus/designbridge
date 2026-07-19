@@ -13,6 +13,9 @@ import { parseRepoUrl } from '../lib/repoUrl.js';
 import { downloadRepoTarball } from '../lib/fetchRepoTarball.js';
 import { extractRepoFiles } from '../lib/extractRepoFiles.js';
 import { ingestRepoFiles } from '../lib/ingestRepoFiles.js';
+import { parseFigmaUrl } from '../lib/figmaUrl.js';
+import { fetchFigmaFile } from '../lib/fetchFigmaFile.js';
+import { ingestFigmaFile } from '../lib/ingestFigmaFile.js';
 import { deepenRepoWithAi } from '../lib/deepenRepoWithAi.js';
 import { putImage } from '../lib/imageStore.js';
 import { putPage } from '../lib/pageStore.js';
@@ -276,4 +279,44 @@ router.post('/repo/ai', async (req, res) => {
   }
 });
 
+function statusForFigmaError(err) {
+  const m = err?.message || '';
+  if (/Token ungültig/i.test(m)) return 403;
+  if (/nicht gefunden/i.test(m)) return 404;
+  if (/Rate-Limit/i.test(m)) return 429;
+  return 502;
+}
+
+// POST /api/scan/figma — Tokens & Inventar aus einer Figma-Datei (REST API, kein Plugin nötig)
+router.post('/figma', async (req, res) => {
+  let parsed;
+  try {
+    parsed = parseFigmaUrl(req.body?.url);
+  } catch {
+    return res.status(400).json({ error: 'Bitte eine gültige Figma-Datei-URL angeben (figma.com/design/…).' });
+  }
+  const token = req.body?.token || process.env.FIGMA_TOKEN;
+  if (!token) {
+    return res.status(400).json({ error: 'Kein Figma-Token — in .env als FIGMA_TOKEN setzen oder im Feld eingeben.' });
+  }
+  try {
+    console.log(`[scan/figma] Loading ${parsed.fileKey}`);
+    const file = await fetchFigmaFile({ fileKey: parsed.fileKey, token });
+    const result = ingestFigmaFile(file, { sourceUrl: req.body.url });
+    res.json(result);
+  } catch (err) {
+    console.error('[scan/figma] Error:', err.message);
+    res.status(statusForFigmaError(err)).json({ error: err.message });
+  }
+});
+
 export default router;
+
+// GET /api/figma/status — sagt der Web-UI, ob ein serverseitiges FIGMA_TOKEN
+// konfiguriert ist (dann kein Token-Feld im Import-Modal nötig). Als eigener
+// Handler exportiert und in index.js unter /api/figma/status montiert, statt
+// den ganzen scanRouter ein zweites Mal zu mounten (das würde alle Scan-Routen
+// doppelt exponieren).
+export function figmaStatusHandler(req, res) {
+  res.json({ tokenConfigured: !!process.env.FIGMA_TOKEN });
+}

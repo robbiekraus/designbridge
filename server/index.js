@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import scanRouter from './routes/scan.js';
+import scanRouter, { figmaStatusHandler } from './routes/scan.js';
 import figmaExportRouter from './routes/figmaExport.js';
 import interpretRouter from './routes/interpret.js';
 import { aiKeyConfigured, aiProviderName } from './lib/aiClient.js';
@@ -29,6 +29,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/scan', scanRouter);
+// POST /api/scan/figma ist der Haupt-Import-Pfad (Teil des scanRouter).
+// GET /api/figma/status als eigener Handler, damit nicht der ganze scanRouter
+// ein zweites Mal unter /api/figma landet (das würde alle Scan-Routen doppeln).
+app.get('/api/figma/status', figmaStatusHandler);
 app.use('/api/figma-export', figmaExportRouter);
 app.use('/api/interpret', interpretRouter);
 
