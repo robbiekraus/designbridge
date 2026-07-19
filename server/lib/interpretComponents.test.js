@@ -45,6 +45,33 @@ test('Prompt verlangt Daten-Treue: Zahlen, Achsen/Legende, Tooltip, aktive Zust�
   assert.match(prompt, /NEVER with stroke-dasharray/i);
 });
 
+// Token-Sparmaßnahme (Plan 2026-07-19): das separate "jsx"-Feld hat keinen
+// echten Konsumenten mehr (Code-Export läuft über den kanonischen plan,
+// siehe web/src/lib/emit/planToJsx.js) — wir bitten Gemini nicht mehr darum
+// und geben es auch nicht mehr zurück, selbst wenn die KI trotzdem eins schickt.
+test('Prompt fragt kein "jsx"-Feld mehr an; zurückgegebene Interpretationen tragen keinen jsx-Key', async () => {
+  const client = fakeClient({
+    interpretations: [
+      // Simuliert eine KI, die (trotz Prompt-Änderung) noch ein jsx mitschickt —
+      // beweist, dass die EXTRAKTION es aktiv weglässt, nicht nur die Anfrage.
+      { name: 'Stat Card', html: '<div style="color:#111">Umsatz</div>', jsx: 'export function StatCard(){return null}' },
+      { name: 'Data Table', html: '<table style="width:100%"><tr><td>Zeile</td></tr></table>', jsx: 'export function DataTable(){return null}' },
+    ],
+  });
+  const res = await interpretComponents(tmpImage(), 'image/png', SEGMENTS, { client });
+
+  const prompt = client.calls[0].messages[0].content
+    .filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  assert.doesNotMatch(prompt, /"jsx"/);
+  assert.doesNotMatch(prompt, /\bjsx\b/i);
+
+  assert.equal(res.interpretations.length, 2);
+  for (const it of res.interpretations) {
+    assert.equal('jsx' in it, false, `${it.name}: darf keinen jsx-Key mehr tragen`);
+    assert.deepEqual(Object.keys(it).sort(), ['html', 'model', 'name']);
+  }
+});
+
 test('liefert Interpretationen für angefragte Bausteine', async () => {
   const client = fakeClient({
     interpretations: [

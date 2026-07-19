@@ -14,13 +14,13 @@ test('Fixture existiert, ist valides JSON-Array', () => {
   assert.ok(all.length >= 12);
 });
 
-test('jeder Eintrag hat name/html/jsx, html ist script-frei', () => {
+test('jeder Eintrag hat name/html, KEIN jsx mehr (Token-Sparmaßnahme 19.07.), html ist script-frei', () => {
   const all = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
   for (const e of all) {
     assert.equal(typeof e.name, 'string');
     assert.ok(e.name.length > 0);
     assert.ok(e.html.trim().length > 0, `${e.name}: html leer`);
-    assert.equal(typeof e.jsx, 'string');
+    assert.equal('jsx' in e, false, `${e.name}: jsx-Feld ist totes Feld, darf nicht mehr existieren`);
     assert.doesNotMatch(e.html, /<script/i, `${e.name}: script im html`);
     assert.doesNotMatch(e.html, /\son\w+=/i, `${e.name}: on*-Handler im html`);
   }

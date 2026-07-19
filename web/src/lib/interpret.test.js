@@ -142,7 +142,7 @@ describe('attachInterpretations', () => {
       { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: 'x' }], failed: ['Data Table'] }
     );
     expect(next.interpretations.Old).toBeTruthy();
-    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: 'x', model: null, demo: false });
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', model: null, demo: false });
     expect(next.interpretFailed).toEqual(['Data Table']);
     expect(next.interpretPending).toBe(false);
     expect(next.interpretError).toBeNull();
@@ -571,7 +571,7 @@ describe('applyRetryOutcome', () => {
   it('Erfolg: entfernt nur den einen Namen aus interpretFailed, andere bleiben', () => {
     const outcome = { name: 'Avatar', data: { interpretations: [{ name: 'Avatar', html: '<div/>', jsx: '' }], failed: [] } };
     const next = applyRetryOutcome(FAILED_RESULT, 'Avatar', outcome);
-    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', jsx: '', model: null, demo: false });
+    expect(next.interpretations.Avatar).toEqual({ html: '<div/>', model: null, demo: false });
     expect(next.interpretFailed).toEqual(['Stat Card']);
     expect(next.interpretError).toBeNull();
   });

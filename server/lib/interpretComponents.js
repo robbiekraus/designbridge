@@ -1,6 +1,6 @@
 // KI-Interpretation pro Import in Chunks à max 4 Bausteinen (sequenziell):
-// je Baustein eine möglichst originalgetreue shadcn/Tailwind-Umsetzung
-// { html, jsx, model }. Das Vollbild (Fallback für Segmente ohne eigenen Crop)
+// je Baustein eine möglichst originalgetreue Umsetzung { html, model }.
+// Das Vollbild (Fallback für Segmente ohne eigenen Crop)
 // wird einmal von Platte gelesen und nur an Chunks gesendet, die es brauchen.
 // Injizierbarer Client wie recognizeWithAi.js.
 import fs from 'fs';
@@ -54,12 +54,12 @@ For EACH component, reconstruct it as faithfully as possible to how it appears i
 Return ONLY valid JSON, no markdown, no preamble, in this shape:
 {
   "interpretations": [
-    { "name": "<exact component name>", "html": "<self-contained HTML styled with INLINE style attributes and real CSS values>", "jsx": "<the same component as a React function component in shadcn/Tailwind style, exported with a PascalCase name>" }
+    { "name": "<exact component name>", "html": "<self-contained HTML styled with INLINE style attributes and real CSS values>" }
   ]
 }
 
 Rules:
-- The "html" field MUST style every element with inline style="..." attributes using concrete CSS values only — hex colors (e.g. style="background:#4263EB;color:#ffffff"), px padding/gap/border-radius, px font-size, font-weight, and flex layout (display:flex;flex-direction;align-items;justify-content). Do NOT use CSS class names or Tailwind utilities in "html": there is no stylesheet, so only inline styles render. (The separate "jsx" field DOES use shadcn/Tailwind — keep that.)
+- The "html" field MUST style every element with inline style="..." attributes using concrete CSS values only — hex colors (e.g. style="background:#4263EB;color:#ffffff"), px padding/gap/border-radius, px font-size, font-weight, and flex layout (display:flex;flex-direction;align-items;justify-content). Do NOT use CSS class names or Tailwind utilities in "html": there is no stylesheet, so only inline styles render.
 - Stay as close to the original as possible: copy the visible colors, spacing, radii, typography and REAL text content.
 - Reproduce ALL text and NUMBERS visible in the crop verbatim — headings, labels, values, percentages, currency, units, dates. Do not invent placeholders and do not omit numbers.
 - html must be fully self-contained: inline styles only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
@@ -67,7 +67,7 @@ Rules:
 - For charts, reconstruct a recognizable static SVG (bars/line/donut) AND include the data details visible in the crop: axis tick labels, value/data labels on points or segments, the legend, and any center or total value. Not a live chart library, but not a bare shape either.
 - Draw donut/ring/pie segments as real SVG arc paths (<path d="M… A…" fill="none" stroke="…" stroke-width="…">), one path per segment — NEVER with stroke-dasharray/stroke-dashoffset tricks on a circle: design-tool SVG import renders dasharray as a repeating dash pattern and the ring looks striped.
 - Icons (social icons, UI glyphs): draw each one as a simplified inline SVG that resembles the ACTUAL icon visible in the crop — recognizable shape or monogram (e.g. a rounded square with "in" for LinkedIn, a camera outline, a play triangle). NEVER render plain gray or placeholder boxes where the original shows an icon.
-- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element). Draw tooltip/callout pointer tails as a small inline SVG triangle (<svg><polygon .../></svg>) — NEVER with CSS border tricks or transform:rotate, those do not survive the design-tool export.${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into inline-styled html (and shadcn/Tailwind jsx) — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}${hasCode ? '\n- For components given as SOURCE CODE (React/shadcn/Tailwind): read the real component source and render a faithful DEFAULT state — preserve the real class names, cva variants, structure and any literal text; express the resulting look as inline-styled html (and keep the original shadcn/Tailwind flavour in jsx). Do not invent content the source does not imply.' : ''}
+- Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element). Draw tooltip/callout pointer tails as a small inline SVG triangle (<svg><polygon .../></svg>) — NEVER with CSS border tricks or transform:rotate, those do not survive the design-tool export.${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into inline-styled html — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}${hasCode ? '\n- For components given as SOURCE CODE (React/shadcn/Tailwind): read the real component source and render a faithful DEFAULT state — preserve the real class names, cva variants, structure and any literal text; express the resulting look as inline-styled html. Do not invent content the source does not imply.' : ''}
 - Keep each html snippet compact (one component).
 - Produce one entry per component, using its EXACT name.
 
@@ -164,9 +164,12 @@ async function interpretChunk(c, fullImage, segments) {
   const response = await c.messages.create({
     model: MODEL,
     // 32768 statt 16384 (Live-Befund 17.07.): Interpretationen mit langen
-    // SVG-Pfaden (Linien-Charts) tragen HTML UND JSX in einer Antwort —
+    // SVG-Pfaden (Linien-Charts) können allein schon ein großes html liefern —
     // 16k wurde reproduzierbar am MAX_TOKENS-Limit abgeschnitten, der Parse
-    // scheiterte deterministisch bei jedem Retry (~57s × 2 pro Klick).
+    // scheiterte deterministisch bei jedem Retry (~57s × 2 pro Klick). Das
+    // separate "jsx"-Feld wird seit 19.07. nicht mehr angefragt (Token-
+    // Sparmaßnahme, kein echter Konsument mehr), das Ceiling bleibt trotzdem —
+    // es kostet nichts, nur echte Ausgabe-Tokens werden bezahlt.
     max_tokens: 32768,
     messages: [{ role: 'user', content }],
   });
@@ -191,7 +194,6 @@ async function interpretChunk(c, fullImage, segments) {
     interpretations.push({
       name: s.label,
       html,
-      jsx: typeof it.jsx === 'string' && it.jsx.trim() ? it.jsx : '',
       model: response.model ?? null,
     });
   }
