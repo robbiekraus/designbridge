@@ -34,7 +34,7 @@ export default function ImageTab({ onSubmit, disabled }) {
       <div className="flex justify-end">
         <button onClick={handleSubmit} disabled={!file || disabled}
           className={`text-xs px-3 py-1.5 rounded text-white transition-colors
-            ${!file || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-zinc-900 hover:bg-zinc-700'}`}>
+            ${!file || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}`}>
           Import
         </button>
       </div>

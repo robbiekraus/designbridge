@@ -9,7 +9,7 @@
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-zinc-900 text-white text-sm font-medium
+    @apply inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-primary text-white text-sm font-medium
            shadow-sm transition-opacity hover:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed;
   }
   .btn-outline {

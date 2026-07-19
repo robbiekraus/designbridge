@@ -6,7 +6,7 @@ export default function EmptyState({ onNewImport }) {
       <div className="text-sm font-medium text-zinc-900">Noch nichts importiert</div>
       <p className="text-xs max-w-xs">Starte einen Import, um Tokens und UI-Inventar hier in der Library zu sehen.</p>
       <button onClick={onNewImport}
-        className="text-xs px-3 py-1.5 bg-zinc-900 text-white rounded font-medium hover:bg-zinc-700 transition-colors">
+        className="text-xs px-3 py-1.5 bg-primary text-white rounded font-medium hover:bg-primary-hover transition-colors">
         Neuer Import
       </button>
     </div>

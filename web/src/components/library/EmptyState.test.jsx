@@ -15,4 +15,11 @@ describe('EmptyState', () => {
     await userEvent.click(screen.getByRole('button', { name: /neuer import/i }));
     expect(onNewImport).toHaveBeenCalledOnce();
   });
+
+  it('renders the primary action button with the UIPrism primary color, not black', () => {
+    render(<EmptyState onNewImport={() => {}} />);
+    const button = screen.getByRole('button', { name: /neuer import/i });
+    expect(button.className).toContain('bg-primary');
+    expect(button.className).not.toContain('bg-zinc-900');
+  });
 });

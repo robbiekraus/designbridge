@@ -83,7 +83,7 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretE
                   key={v}
                   onClick={() => setVariant(v)}
                   className={`text-[11px] px-2 py-0.5 rounded ${
-                    variant === v ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                    variant === v ? 'bg-primary text-white' : 'bg-zinc-100 text-zinc-600'
                   }`}
                 >
                   {v}
@@ -170,7 +170,7 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretE
             </button>
             <button
               onClick={() => downloadFile(item.filename, item.code, 'text/javascript')}
-              className="text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700"
+              className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover"
             >
               Herunterladen
             </button>

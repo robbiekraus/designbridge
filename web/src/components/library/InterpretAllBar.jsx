@@ -32,7 +32,7 @@ export default function InterpretAllBar({ result, onInterpretAll, retryBusy }) {
         // (Fail-Fast kostet zwar nur 1 Call statt 6, aber 0 ist besser).
         disabled={pending || retryBusy || quotaExhausted}
         title={quotaExhausted ? QUOTA_MESSAGE : undefined}
-        className="ml-auto text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 disabled:opacity-50"
+        className="ml-auto text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover disabled:opacity-50"
       >
         Alle interpretieren
       </button>

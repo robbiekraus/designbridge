@@ -66,7 +66,7 @@ export default function FigmaTab({ onSubmit, disabled }) {
       <div className="flex justify-end">
         <button onClick={handleSubmit} disabled={!canSubmit}
           className={`text-xs px-3 py-1.5 rounded text-white transition-colors
-            ${!canSubmit ? 'bg-zinc-300 cursor-not-allowed' : 'bg-zinc-900 hover:bg-zinc-700'}`}>
+            ${!canSubmit ? 'bg-zinc-300 cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}`}>
           Import
         </button>
       </div>

@@ -75,7 +75,7 @@ export default function ImportSuccess({ result, onNewImport, onOpenLibrary }) {
           New import
         </button>
         <button onClick={onOpenLibrary}
-          className="text-xs px-3 py-1.5 bg-zinc-900 text-white rounded hover:bg-zinc-700 transition-colors">
+          className="text-xs px-3 py-1.5 bg-primary text-white rounded hover:bg-primary-hover transition-colors">
           Open library
         </button>
       </div>

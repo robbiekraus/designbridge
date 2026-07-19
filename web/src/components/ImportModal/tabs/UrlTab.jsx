@@ -52,7 +52,7 @@ export default function UrlTab({ onSubmit, disabled, onSwitchToRepo }) {
         <button onClick={() => onSubmit({ source: 'url', payload: { url } })}
           disabled={!valid || disabled}
           className={`text-xs px-3 py-1.5 rounded text-white transition-colors
-            ${!valid || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-zinc-900 hover:bg-zinc-700'}`}>
+            ${!valid || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}`}>
           Import
         </button>
       </div>

@@ -94,7 +94,7 @@ export default function Export({ result }) {
         <div className="flex flex-col gap-2">
           <button
             onClick={handleSendToFigma}
-            className="w-full text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+            className="w-full text-xs px-2.5 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
           >
             An Figma senden
           </button>
@@ -140,7 +140,7 @@ export default function Export({ result }) {
                   </button>
                   <button
                     onClick={() => downloadFile(FIGMA_FORMAT.filename, exports.figma, FIGMA_FORMAT.mime)}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
                   >
                     Herunterladen
                   </button>
@@ -171,7 +171,7 @@ export default function Export({ result }) {
               onClick={() => setActiveId(f.id)}
               className={`px-2 py-1.5 rounded text-sm text-left transition-colors ${
                 activeId === f.id
-                  ? 'bg-zinc-100 text-zinc-900 font-medium'
+                  ? 'bg-primary-soft text-primary-ink font-medium'
                   : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'
               }`}
             >
@@ -187,7 +187,7 @@ export default function Export({ result }) {
         </button>
         <button
           onClick={handleExportLibrary}
-          className="mt-2 w-full text-xs px-2.5 py-1.5 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+          className="mt-2 w-full text-xs px-2.5 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
         >
           Ganze Library exportieren
         </button>
@@ -207,7 +207,7 @@ export default function Export({ result }) {
             </button>
             <button
               onClick={() => downloadFile(current.filename, code, current.mime)}
-              className="text-xs px-2.5 py-1 rounded bg-zinc-900 text-white font-medium hover:bg-zinc-700 transition-colors"
+              className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
             >
               Herunterladen
             </button>

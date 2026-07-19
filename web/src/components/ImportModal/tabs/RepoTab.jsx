@@ -26,7 +26,7 @@ export default function RepoTab({ onSubmit, disabled }) {
         <button onClick={() => onSubmit({ source: 'repo', payload: { url, branch } })}
           disabled={!valid || disabled}
           className={`text-xs px-3 py-1.5 rounded text-white transition-colors
-            ${!valid || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-zinc-900 hover:bg-zinc-700'}`}>
+            ${!valid || disabled ? 'bg-zinc-300 cursor-not-allowed' : 'bg-primary hover:bg-primary-hover'}`}>
           Import
         </button>
       </div>
