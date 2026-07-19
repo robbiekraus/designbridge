@@ -666,17 +666,93 @@ function injectMissingSvgSize(clone, el) {
   if (!clone.hasAttribute('height')) clone.setAttribute('height', `${h}`);
 }
 
+// currentColor-Auflösung (Spec: docs/superpowers/specs/2026-07-19-svg-currentcolor-resolution-
+// design.md). Präsentationsattribute, in denen `currentColor` als Farbwert auftreten kann — plus
+// `color` selbst (ein Nachfahre könnte `color="currentColor"` setzen; per Spec §Grenzen wird das
+// trotzdem gegen die WURZELfarbe aufgelöst, keine verschachtelte currentColor-Kette). Nur `fill`/
+// `stroke` bekommen bei Alpha<1 eine synthetisierte `-opacity`-Ergänzung (Spec §Verhalten Punkt 3) —
+// die reale Gemini-Ikonografie nutzt ausschließlich diese Attribut-Form.
+const CURRENT_COLOR_ATTRS = ['fill', 'stroke', 'stop-color', 'flood-color', 'lighting-color', 'color'];
+const OPACITY_ATTR_BY_COLOR_ATTR = { fill: 'fill-opacity', stroke: 'stroke-opacity' };
+// Nicht-globales Test-Regexp für sichere Existenzprüfungen (kein lastIndex-Zustand über mehrere
+// .test()-Aufrufe hinweg zu teilen); das globale Replace-Regexp wird ausschließlich mit .replace()
+// verwendet, das den internen lastIndex-Zustand bei jedem Aufruf selbst zurücksetzt (ECMA-262
+// RegExp.prototype[Symbol.replace]) — beide Konstanten sind daher gefahrlos modulweit teilbar.
+const CURRENT_COLOR_TEST_RE = /currentcolor/i;
+const CURRENT_COLOR_REPLACE_RE = /currentColor/gi;
+
+/** "rgb(r, g, b)" / "rgba(r, g, b, a)" (wie getComputedStyle(...).color sie liefert) → {r,g,b,a}.
+ *  Alles andere (leer, undefiniert, nicht parsbar — z. B. jsdom ohne Mock in Testfall 6) → null.
+ *  Bewusst kein Hex/Named-Color-Support: `color` kommt aus getComputedStyle() immer normalisiert
+ *  als rgb()/rgba(), genau wie normalizeColor() das an anderer Stelle in dieser Datei voraussetzt. */
+function parseComputedColor(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  const match = trimmed.match(/^rgba?\(([^)]+)\)$/i);
+  if (!match) return null;
+  const parts = match[1].split(',').map((p) => parseFloat(p.trim()));
+  const [r, g, b, a = 1] = parts;
+  if (![r, g, b].every(Number.isFinite)) return null;
+  return { r, g, b, a: Number.isFinite(a) ? a : 1 };
+}
+
+/** Ersetzt `currentColor` im geklonten SVG-Subtree durch die real berechnete Textfarbe der SVG-
+ *  WURZEL (Spec §Verhalten). Browser lösen `currentColor` gegen den geerbten `color`-Wert auf;
+ *  Figma hat beim SVG-Import keinen CSS-color-Kontext und fällt auf den SVG-Default Schwarz zurück
+ *  (Root Cause, belegt am Figma-E2E-Test 19.07.). `computed` ist das bereits vom Aufrufer geholte
+ *  getComputedStyle(el) des LIVE-Elements — Ersetzung läuft über einen Walk des KLON-Subtrees
+ *  (Attribute + Inline-style), NIE per String-Replace auf dem seriealisierten Markup (träfe auch
+ *  Textinhalte/IDs, s. Spec §Verhalten Punkt 2). Degenerierter/fehlender `color`-Wert → keine
+ *  Ersetzung, Klon bleibt unverändert (Markup bleibt verbatim, keine Regression, wirft nie —
+ *  parseComputedColor liefert bei jeder Degeneration einfach `null`). Eine Farbe pro `<svg>`
+ *  (Spec §Grenzen): alle Vorkommen werden gegen die WURZELfarbe aufgelöst, nicht gegen ggf.
+ *  abweichende Nachfahren-`color`-Werte. */
+function resolveCurrentColor(clone, computed) {
+  const parsed = parseComputedColor(computed?.color);
+  if (!parsed) return;
+
+  const { r, g, b, a } = parsed;
+  const rgb = `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+  const hasAlpha = a < 1;
+
+  const elements = [clone, ...(clone.querySelectorAll ? Array.from(clone.querySelectorAll('*')) : [])];
+  for (const node of elements) {
+    for (const attr of CURRENT_COLOR_ATTRS) {
+      if (!node.hasAttribute?.(attr)) continue;
+      const value = node.getAttribute(attr);
+      if (!CURRENT_COLOR_TEST_RE.test(value)) continue;
+      node.setAttribute(attr, value.replace(CURRENT_COLOR_REPLACE_RE, rgb));
+      const opacityAttr = OPACITY_ATTR_BY_COLOR_ATTR[attr];
+      if (hasAlpha && opacityAttr && !node.hasAttribute(opacityAttr)) {
+        node.setAttribute(opacityAttr, String(a));
+      }
+    }
+    if (node.hasAttribute?.('style')) {
+      const style = node.getAttribute('style');
+      if (CURRENT_COLOR_TEST_RE.test(style)) {
+        // Style-Form bekommt bewusst KEINE *-opacity-Synthese (Spec §Verhalten Punkt 3, letzter
+        // Absatz) — nur die Attribut-Form (fill/stroke) tut das.
+        node.setAttribute('style', style.replace(CURRENT_COLOR_REPLACE_RE, rgb));
+      }
+    }
+  }
+}
+
 /** SVG-Subtree → PlanSvg. Markup verbatim (inkl. eigener Tags/Attribute), `<foreignObject>` vorher
- *  entfernt (kann beliebiges HTML/CSS enthalten, das Figma nicht rendert), externe Ressourcen-Refs
- *  entfernt (Defense-in-Depth — der Live-Baum wurde bereits vor dem Mounten gestrippt, s.
- *  htmlToPlan(); hier zusätzlich auf dem Klon, falls der Knoten nachträglich verändert wurde),
- *  fehlende Größen-Attribute aus dem gemessenen Rect injiziert (s. injectMissingSvgSize), >20000
- *  Zeichen gekappt + Warnung statt fatal. */
+ *  entfernt (kann beliebiges HTML/CSS enthalten, das Figma nicht rendert), `currentColor` gegen die
+ *  real berechnete Wurzelfarbe aufgelöst (s. resolveCurrentColor), externe Ressourcen-Refs entfernt
+ *  (Defense-in-Depth — der Live-Baum wurde bereits vor dem Mounten gestrippt, s. htmlToPlan(); hier
+ *  zusätzlich auf dem Klon, falls der Knoten nachträglich verändert wurde), fehlende Größen-
+ *  Attribute aus dem gemessenen Rect injiziert (s. injectMissingSvgSize), >20000 Zeichen gekappt +
+ *  Warnung statt fatal. */
 function convertSvgElement(el, ctx) {
   const clone = el.cloneNode(true);
   for (const fo of Array.from(clone.querySelectorAll?.('foreignObject') || [])) {
     fo.remove();
   }
+  const computed = getComputedStyle(el);
+  resolveCurrentColor(clone, computed);
   stripExternalRefs(clone, ctx);
   injectMissingSvgSize(clone, el);
   let markup = clone.outerHTML;
@@ -684,7 +760,7 @@ function convertSvgElement(el, ctx) {
     markup = markup.slice(0, SVG_MAX_CHARS);
     ctx.warnings.add(`SVG-Markup > ${SVG_MAX_CHARS} Zeichen — gekappt.`);
   }
-  return withAbsolute({ type: 'svg', markup }, el, getComputedStyle(el));
+  return withAbsolute({ type: 'svg', markup }, el, computed);
 }
 
 /**

@@ -862,6 +862,97 @@ describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix v1 + v2: ke
   });
 });
 
+// Spec: docs/superpowers/specs/2026-07-19-svg-currentcolor-resolution-design.md. Browser lösen
+// `currentColor` gegen den geerbten/berechneten `color`-Wert auf; Figma hat beim SVG-Import
+// keinen CSS-color-Kontext und fällt auf den SVG-Default Schwarz zurück (Root Cause, belegt am
+// Figma-E2E-Test 19.07.: Sidebar-Nav-Icons/Profil-Zahnrad rendern schwarz statt weiß/transluzent).
+// Fix: currentColor VOR der outerHTML-Serialisierung im Klon-Subtree durch die real berechnete
+// Farbe der SVG-WURZEL ersetzen (getComputedStyle(el).color des LIVE-Elements).
+describe('htmlToPlan — SVG currentColor-Auflösung (Spec 2026-07-19)', () => {
+  it('1. fill="currentColor" mit geerbtem color:rgb(...) → aufgelöste rgb()-Farbe, kein currentColor mehr', () => {
+    const html = '<div style="color:rgb(255,255,255)"><svg><path fill="currentColor"></path></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('fill="rgb(255, 255, 255)"');
+    expect(markup.toLowerCase()).not.toContain('currentcolor');
+  });
+
+  it('2. stroke="currentColor" mit geerbtem color → aufgelöste rgb()-Farbe', () => {
+    const html = '<div style="color:rgb(66,99,235)"><svg><circle stroke="currentColor"></circle></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('stroke="rgb(66, 99, 235)"');
+    expect(markup.toLowerCase()).not.toContain('currentcolor');
+  });
+
+  it('3. Alpha: geerbtes color:rgba(255,255,255,0.7), fill="currentColor" → rgb()-Farbe + fill-opacity="0.7"', () => {
+    const html = '<div style="color:rgba(255,255,255,0.7)"><svg><path fill="currentColor"></path></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('fill="rgb(255, 255, 255)"');
+    expect(markup).toContain('fill-opacity="0.7"');
+  });
+
+  it('4. Inline-Style-Form style="fill:currentColor" → aufgelöst', () => {
+    const html = '<div style="color:rgb(255,255,255)"><svg><path style="fill:currentColor"></path></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('fill:rgb(255, 255, 255)');
+    expect(markup.toLowerCase()).not.toContain('currentcolor');
+  });
+
+  it('5. SVG ohne currentColor bleibt byte-identisch zu heute (keine Kollateral-Änderung)', () => {
+    const html =
+      '<div style="color:rgb(255,255,255)"><svg><rect fill="#ff0000" width="5" height="5"></rect></svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toBe('<svg><rect fill="#ff0000" width="5" height="5"></rect></svg>');
+  });
+
+  it('6. Degenerierter/leerer Farbwert (jsdom ohne Mock) → Markup verbatim, kein Wurf', () => {
+    // jsdom liefert für getComputedStyle(...).color nativ immer einen konkreten Default
+    // ("rgb(0, 0, 0)"), nie "" — der degenerierte Fall wird darum wie bei den anderen
+    // Rect-Mocks dieser Datei per gezieltem Override simuliert (hier: window.getComputedStyle,
+    // nur für das <svg>-Element, alle anderen Elemente laufen unverändert durch den echten jsdom-Weg).
+    const original = window.getComputedStyle;
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+      const real = original.call(window, el, pseudo);
+      if ((el?.tagName || '').toLowerCase() === 'svg') {
+        return new Proxy(real, {
+          get(target, prop) {
+            if (prop === 'color') return '';
+            const value = Reflect.get(target, prop, target);
+            return typeof value === 'function' ? value.bind(target) : value;
+          },
+        });
+      }
+      return real;
+    });
+    try {
+      const html = '<svg><path fill="currentColor"></path></svg>';
+      let result;
+      expect(() => {
+        result = htmlToPlan(html);
+      }).not.toThrow();
+      const markup = result.plan.children[0].markup;
+      expect(markup).toBe('<svg><path fill="currentColor"></path></svg>');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('7. Interner Ref-Fill (fill="url(#grad)") bleibt unangetastet (nur currentColor wird ersetzt)', () => {
+    const html =
+      '<div style="color:rgb(255,255,255)"><svg>' +
+      '<defs><linearGradient id="grad"></linearGradient></defs>' +
+      '<rect fill="url(#grad)" width="5" height="5"></rect>' +
+      '</svg></div>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('fill="url(#grad)"');
+  });
+});
+
 describe('htmlToPlan — component-ref-Erkennung (Struktur-Heuristik, unverändert klassenbasiert)', () => {
   it('Button in einer Card → component-ref MIT Variante und Fallback, Card steigt NICHT weiter in den Button ab', () => {
     // text-align:left explizit gesetzt, um den Test unabhängig von jsdoms UA-Default für
