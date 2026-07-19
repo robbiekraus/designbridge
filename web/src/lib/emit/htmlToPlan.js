@@ -394,6 +394,46 @@ function attachStretchGrow(node, stretchGrow) {
   return result;
 }
 
+// Bild-Platzhalter-Glyph (Spec: docs/superpowers/specs/2026-07-19-image-placeholder-glyph-design.md
+// §Heuristik): Grenzwerte für Kriterium (B) — „Box mit Hintergrund-Fill, OHNE Element-Kinder, OHNE
+// nicht-leeren Text". An v3-Payload verifiziert (trennt den 32×32-Logo-Fall sauber von Notification-
+// Dots, Legenden-Chips und KPI-Icon-Kreisen, s. Spec §Heuristik).
+const IMAGE_GLYPH_MIN_SIZE = 24;
+const IMAGE_GLYPH_MIN_RATIO = 0.7;
+const IMAGE_GLYPH_MAX_RATIO = 1.43;
+
+/** Standard-„Bild"-Icon-Markup (Spec §Glyph), Größe = round(min(w,h)*0.6), min 12. Trägt bewusst
+ *  KEIN stretch/grow/absolute (Spec: „skaliert nicht mit, konsistent mit svg-Regel"). */
+function buildImageGlyphNode(minSide) {
+  const size = Math.max(12, Math.round(minSide * 0.6));
+  return {
+    type: 'svg',
+    markup: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`,
+  };
+}
+
+/** Injiziert den Bild-Platzhalter-Glyph als einziges Kind einer sonst leeren Box (Spec §Integration):
+ *  `<img>` (A) immer, sonst (B) nur wenn die Box ein Fill hat UND das gemessene Rect min(w,h)≥24 UND
+ *  ~quadratisch (0.7..1.43) ist. Greift NUR bei echten Leafs — `node.children.length !== 0` (Text
+ *  oder Element-Kind bereits gebaut) lässt den Node unverändert (Spec Tests 3–5). Box behält Fill/
+ *  Radius/Größe, nur `children`/`primaryAlign`/`counterAlign` werden überschrieben (Spec §Glyph). */
+function maybeInjectImageGlyph(node, el, isImg) {
+  if (!node || node.type !== 'box' || node.children.length !== 0) return node;
+  const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : { width: 0, height: 0 };
+  let minSide;
+  if (isImg) {
+    minSide = Math.min(rect.width, rect.height);
+  } else {
+    if (node.fill == null) return node;
+    const minS = Math.min(rect.width, rect.height);
+    if (minS < IMAGE_GLYPH_MIN_SIZE) return node;
+    const ratio = rect.width / rect.height;
+    if (!Number.isFinite(ratio) || ratio < IMAGE_GLYPH_MIN_RATIO || ratio > IMAGE_GLYPH_MAX_RATIO) return node;
+    minSide = minS;
+  }
+  return { ...node, children: [buildImageGlyphNode(minSide)], primaryAlign: 'CENTER', counterAlign: 'CENTER' };
+}
+
 function buildTextNode(text, computed, ctx) {
   return {
     type: 'text',
@@ -785,15 +825,17 @@ function buildNormalNode(el, ctx, parent) {
   const elementChildren = Array.from(el.children || []);
   const isRoot = parent === null;
   const isBox = elementChildren.length > 0 || hasBoxTrigger(el, computed);
+  const isImg = (el.tagName || '').toLowerCase() === 'img';
 
   const absolute = readAbsolute(el, computed);
   const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
 
   if (!isBox) {
     const text = (el.textContent || '').trim();
-    const baseNode = text
+    let baseNode = text
       ? buildTextNode(text, computed, ctx)
       : buildBoxNode(el, computed, [], ctx, parent, isRoot, stretchGrow);
+    if (!text) baseNode = maybeInjectImageGlyph(baseNode, el, isImg);
     return absolute ? { ...baseNode, absolute } : attachStretchGrow(baseNode, stretchGrow);
   }
 
@@ -812,7 +854,8 @@ function buildNormalNode(el, ctx, parent) {
       if (text) children.push(buildTextNode(text, computed, ctx));
     }
   }
-  const boxNode = buildBoxNode(el, computed, children, ctx, parent, isRoot, stretchGrow);
+  let boxNode = buildBoxNode(el, computed, children, ctx, parent, isRoot, stretchGrow);
+  boxNode = maybeInjectImageGlyph(boxNode, el, isImg);
   return absolute ? { ...boxNode, absolute } : attachStretchGrow(boxNode, stretchGrow);
 }
 

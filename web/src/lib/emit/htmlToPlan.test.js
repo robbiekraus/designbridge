@@ -1776,3 +1776,109 @@ describe('htmlToPlan — Splice-Instanz-Slot-Sizing (Spec 2026-07-18-splice-inst
     expect(epsilonNode.absolute).toEqual({ x: 0, y: 0, width: 150, height: 90 });
   });
 });
+
+describe('htmlToPlan — Bild-Platzhalter-Glyph (Spec 2026-07-19-image-placeholder-glyph-design.md)', () => {
+  // Gleicher Mock-Ansatz wie die Absolute-Suite oben: Rects werden per `data-mock-rect`-JSON-Attribut
+  // injiziert, weil convertElement()/buildNormalNode() getBoundingClientRect() direkt auf den Live-
+  // Elementen aufrufen (kein eigener Rect-Parameter).
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  const glyphMarkup = (size) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+
+  function expectGlyphChild(node, size) {
+    expect(node.type).toBe('svg');
+    expect(node.markup).toBe(glyphMarkup(size));
+    expect(node.stretch).toBeUndefined();
+    expect(node.grow).toBeUndefined();
+    expect(node.absolute).toBeUndefined();
+  }
+
+  it('1) <img>-Element → Box mit Glyph-svg-Kind, CENTER', () => {
+    const html = `<img src="x.png" data-mock-rect='{"x":0,"y":0,"width":40,"height":40}' />`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.type).toBe('box');
+    expect(plan.children).toHaveLength(1);
+    expectGlyphChild(plan.children[0], 24); // round(40*0.6) = 24
+    expect(plan.primaryAlign).toBe('CENTER');
+    expect(plan.counterAlign).toBe('CENTER');
+  });
+
+  it('2) leere Box, Fill, 32×32 (quadratisch, ≥24) → Glyph-Kind', () => {
+    const html = `<div style="background-color:#ffffff" data-mock-rect='{"x":0,"y":0,"width":32,"height":32}'></div>`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.type).toBe('box');
+    expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+    expect(plan.children).toHaveLength(1);
+    expectGlyphChild(plan.children[0], 19); // round(32*0.6) = 19.2 -> 19
+    expect(plan.primaryAlign).toBe('CENTER');
+    expect(plan.counterAlign).toBe('CENTER');
+  });
+
+  it('3) leere Box, Fill, 10×10 (< 24) → KEIN Glyph', () => {
+    const html = `<div style="background-color:#ffffff" data-mock-rect='{"x":0,"y":0,"width":10,"height":10}'></div>`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.type).toBe('box');
+    expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+    expect(plan.children).toEqual([]);
+  });
+
+  it('4) leere Box, Fill, 32×14 (Ratio 2.3) → KEIN Glyph', () => {
+    const html = `<div style="background-color:#ffffff" data-mock-rect='{"x":0,"y":0,"width":32,"height":14}'></div>`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.type).toBe('box');
+    expect(plan.children).toEqual([]);
+  });
+
+  it('5) Box mit Text ("5") oder mit Element-Kind (Icon-svg) → KEIN Glyph', () => {
+    const withText = htmlToPlan(
+      `<div style="background-color:#ffffff" data-mock-rect='{"x":0,"y":0,"width":32,"height":32}'>5</div>`
+    ).plan;
+    expect(withText.children).toHaveLength(1);
+    expect(withText.children[0].type).toBe('text');
+    expect(withText.children[0].content).toBe('5');
+
+    const withElementChild = htmlToPlan(
+      `<div style="background-color:#ffffff" data-mock-rect='{"x":0,"y":0,"width":32,"height":32}'><svg viewBox="0 0 10 10"></svg></div>`
+    ).plan;
+    expect(withElementChild.children).toHaveLength(1);
+    expect(withElementChild.children[0].type).toBe('svg');
+    expect(withElementChild.children[0].markup).not.toContain('9ca3af'); // Original-svg, kein Glyph
+  });
+
+  it('6) Glyph-Größe = round(min(w,h)*0.6); Box behält Fill/Radius', () => {
+    const html = `<div style="background-color:#ffffff;border-top-left-radius:16px" data-mock-rect='{"x":0,"y":0,"width":32,"height":32}'></div>`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+    expect(plan.radius).toBe(16);
+    expectGlyphChild(plan.children[0], 19);
+  });
+});
