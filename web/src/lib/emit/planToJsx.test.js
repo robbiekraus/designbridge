@@ -76,3 +76,90 @@ describe('planToJsx — box Layout/Sizing/Spacing/Visual', () => {
     expect(code).not.toContain('flex'); // column ohne gap/align/row → kein Flex-Trigger
   });
 });
+
+describe('planToJsx — text', () => {
+  it('fontSize/weight-Name/color/align/leading', () => {
+    const code = planToJsx(text({
+      content: 'Hallo', fontSize: 14, fontWeight: 600,
+      color: { hex: '#111827', token: null }, align: 'center', lineHeight: 20,
+    }), { name: 'X' });
+    expect(code).toContain('text-[14px]');
+    expect(code).toContain('font-semibold');
+    expect(code).toContain('text-[#111827]');
+    expect(code).toContain('text-center');
+    expect(code).toContain('leading-[20px]');
+    expect(code).toContain('>Hallo<');
+  });
+
+  it('weight 400 → font-normal, 700 → font-bold, exotisch → font-[N]', () => {
+    expect(planToJsx(text({ content: 'a', fontWeight: 400 }), { name: 'X' })).toContain('font-normal');
+    expect(planToJsx(text({ content: 'a', fontWeight: 700 }), { name: 'X' })).toContain('font-bold');
+    expect(planToJsx(text({ content: 'a', fontWeight: 350 }), { name: 'X' })).toContain('font-[350]');
+  });
+
+  it('align left (Default) + lineHeight null erzeugen keine Klasse', () => {
+    const code = planToJsx(text({ content: 'a', align: 'left', lineHeight: null }), { name: 'X' });
+    expect(code).not.toContain('text-left');
+    expect(code).not.toContain('leading-');
+  });
+
+  it('JSX-escaped den Textinhalt (< > { } &)', () => {
+    const code = planToJsx(text({ content: 'a < b & {x}' }), { name: 'X' });
+    expect(code).toContain('&lt;');
+    expect(code).toContain('&amp;');
+    expect(code).toContain('&#123;');
+    expect(code).toContain('&#125;');
+    expect(code).not.toMatch(/[^&]#\{x\}/);
+  });
+
+  it('stretch → self-stretch, grow → flex-1 (auch auf text)', () => {
+    const code = planToJsx(text({ content: 'a', stretch: true, grow: true }), { name: 'X' });
+    expect(code).toContain('self-stretch');
+    expect(code).toContain('flex-1');
+  });
+});
+
+describe('planToJsx — Wrapper + Verschachtelung', () => {
+  it('voller Wrapper mit className-Passthrough und {...props}', () => {
+    const code = planToJsx(box({ layout: 'row', gap: 8 }), { name: 'PremiumBadge' });
+    expect(code).toContain('export function PremiumBadge({ className = "", ...props }) {');
+    expect(code).toContain('return (');
+    expect(code).toMatch(/className=\{`[^`]*\$\{className\}`\}/);
+    expect(code).toContain('{...props}');
+  });
+
+  it('verschachtelte Kinder werden eingebettet & eingerückt', () => {
+    const code = planToJsx(
+      box({ layout: 'column', gap: 4, children: [
+        text({ content: 'Titel', fontWeight: 700 }),
+        box({ layout: 'row', gap: 8, children: [text({ content: 'A' }), text({ content: 'B' })] }),
+      ] }),
+      { name: 'Card' },
+    );
+    expect(code).toContain('Titel');
+    expect(code).toContain('>A<');
+    expect(code).toContain('>B<');
+    // Innerer row-Container existiert
+    expect(code).toMatch(/<div className="[^"]*flex[^"]*">/);
+  });
+
+  it('realistischer Mini-Baustein „Premium Badge"', () => {
+    const plan = box({
+      layout: 'row', gap: 6, padding: [4, 10, 4, 10], radius: 9999,
+      fill: { hex: '#022d2c', token: 'primary' }, primaryAlign: 'CENTER', counterAlign: 'CENTER',
+      children: [text({ content: 'Premium', fontSize: 12, fontWeight: 600, color: { hex: '#ffffff', token: null } })],
+    });
+    const code = planToJsx(plan, { name: 'PremiumBadge' });
+    expect(code).toContain('bg-[#022d2c]');
+    expect(code).toContain('rounded-[9999px]');
+    expect(code).toContain('items-center');
+    expect(code).toContain('justify-center');
+    expect(code).toContain('gap-[6px]');
+    expect(code).toContain('px-[10px]');
+    expect(code).toContain('py-[4px]');
+    expect(code).toContain('text-[12px]');
+    expect(code).toContain('font-semibold');
+    expect(code).toContain('text-[#ffffff]');
+    expect(code).toContain('>Premium<');
+  });
+});

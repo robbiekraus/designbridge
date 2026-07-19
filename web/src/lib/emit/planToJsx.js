@@ -82,8 +82,38 @@ function walk(node, depth) {
   return `${pad}<div${classAttr}>\n${kids.join('\n')}\n${pad}</div>`;
 }
 
-// Platzhalter — in Task 2/3 ersetzt.
-function walkText() { return ''; }
+const FONT_WEIGHT_NAME = { 400: 'font-normal', 500: 'font-medium', 600: 'font-semibold', 700: 'font-bold' };
+
+/** Textinhalt JSX-sicher machen: & zuerst, dann < > { }. In JSX-Text dekodieren HTML-Entities;
+ *  { und } müssen escaped werden, da sie sonst einen JS-Ausdruck öffnen. */
+function escapeJsxText(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\{/g, '&#123;')
+    .replace(/\}/g, '&#125;');
+}
+
+function textClasses(node) {
+  const out = [`text-[${Math.round(node.fontSize)}px]`];
+  out.push(FONT_WEIGHT_NAME[node.fontWeight] || `font-[${node.fontWeight}]`);
+  if (node.color?.hex) out.push(`text-[${node.color.hex}]`);
+  if (node.align === 'center') out.push('text-center');
+  else if (node.align === 'right') out.push('text-right');
+  if (node.lineHeight != null) out.push(`leading-[${Math.round(node.lineHeight)}px]`);
+  if (node.stretch) out.push('self-stretch');
+  if (node.grow) out.push('flex-1');
+  return out;
+}
+
+function walkText(node, depth) {
+  const pad = INDENT.repeat(depth);
+  const cls = textClasses(node).join(' ');
+  return `${pad}<span className="${cls}">${escapeJsxText(node.content)}</span>`;
+}
+
+// Platzhalter — in Task 3 ersetzt.
 function walkSvg() { return ''; }
 
 export function planToJsx(plan, { name } = {}) {
