@@ -1,6 +1,16 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachm. (SPLICE v2 TEXT-ANKER LIVE `8be9fbd` — Robs Sidebar-Befund gefixt; Chart-Trend-Linie NOCH OFFEN)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **514/514** · Plugin **98/98**.
+Stand: **19.07.2026 abends (SVG currentColor-FIX LIVE `bc8ce99` — Robs schwarze-Icons-Befund gefixt & Figma-bewiesen; Chart-Trend-Linie NOCH OFFEN)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **521/521** · Plugin **98/98**.
+
+## ✅ SVG currentColor-AUFLÖSUNG (19.07. abends, `bc8ce99`) — Robs schwarze-Nav-Icons-Befund gefixt, Figma-E2E-bewiesen
+
+Root Cause (Figma-E2E belegt): `convertSvgElement` übernahm SVG-Markup verbatim → `currentColor` blieb stehen → in Figma kein CSS-`color`-Kontext → Fallback auf **Schwarz**. Nav-Icons (erben `rgba(255,255,255,.7)`/`#fff`) + Profil-Zahnrad rendern schwarz. Fix (Spec `docs/superpowers/specs/2026-07-19-svg-currentcolor-resolution-design.md`, TDD Sonnet): currentColor vor Serialisierung im Klon-Subtree durch `getComputedStyle(el).color` ersetzen, Alpha<1 → rgb()+`fill-opacity`/`stroke-opacity` (Aktiv/Inaktiv-Abstufung erhalten). **Figma-E2E-bewiesen** (Datei `nXeYne63PmpFUeyfI2f2JW`, `scratchpad/sidebar_after_fix.png`): alle Icons weiß, inaktive leicht transparent. Web 514→**521**.
+
+### Robs Sidebar-Befunde 19.07. — Status (aus autonomem Figma-E2E `UZHMxRz9KdAvOa8evtLYj6` diagnostiziert)
+1. ✅ Schwarze Nav-Icons + Zahnrad → GEFIXT (currentColor, s.o.)
+2. ⏳ **Margins werden vom Konverter komplett ignoriert** → „Shortcut"-Abstände weg (Team/Tasks kleben), auch Wurzel der hr-Kästen-Abstände. NOCH OFFEN, eigene Scheibe (Margin→Figma-Auto-Layout ist nicht-trivial: itemSpacing/Spacer).
+3. ⏳ `<hr>`-Trenner = leere ~100px umrandete Boxen + Storage-Progress-Füllbalken = volle weiße Linie am Rand (height:100% kollabiert). **Läuft als Hintergrund-Task `task_9b25b9de`** (hr-Linie + Progress-Höhe).
+4. ⏳ User-Profil in der Sidebar oben/unten geclippt + Avatar/Zahnrad überlappen Namen — **nur beim Shrink** in die Sidebar (Standalone rendert korrekt). Gehört zur größeren Shrink-to-fit-Fidelity-Baustelle.
 
 ## ✅ COMPOSITION-SPLICE v2 — TEXT-ANKER-MATCHING (19.07. nachm., `8be9fbd`) — Robs Befund „leere Sidebar-Frames" gefixt, E2E-bewiesen
 
