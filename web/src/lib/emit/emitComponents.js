@@ -21,6 +21,16 @@ function toPascal(slug) {
     .join('');
 }
 
+/** Token-Wert → px-Zahl: number direkt, 'NNpx'/'NN' → NN, '50%'/nicht-parsbar → null. */
+function parsePx(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (s.endsWith('%')) return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 function genericStub(pascal, item) {
   const flag = item?.confidence === 'low' ? LOW_CONFIDENCE_COMMENT : '';
   return (
@@ -42,11 +52,11 @@ function genericStub(pascal, item) {
  *  Geminis separatem interp.jsx. Leeres/kaputtes html (plan === null) oder gar keine Interpretation
  *  → generischer Stub. knownComponents bewusst leer: der Code-Export braucht keine component-ref-
  *  Instanzen (die Datei ist eigenständig), planToJsx würde sie ohnehin nur als fallback rendern. */
-function codeFromInterp(interp, pascal, item, namedColors) {
+function codeFromInterp(interp, pascal, item, namedColors, tokenScales) {
   const html = interp?.html;
   if (html && html.trim()) {
     const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [] });
-    if (plan) return planToJsx(plan, { name: pascal });
+    if (plan) return planToJsx(plan, { name: pascal, tokens: tokenScales });
   }
   return genericStub(pascal, item);
 }
@@ -60,6 +70,11 @@ export function emitComponents(result, kind) {
   // reicht der Hex, die Namen sind fürs spätere Token-Snapping (Scheibe 2) schon korrekt gesetzt.
   const normalized = normalizeTokens(raw.tokens);
   const namedColors = normalized.filter((t) => t.group === 'color').map((t) => ({ hex: t.value, name: t.name }));
+  const tokenScales = {
+    spacing: normalized.filter((t) => t.group === 'spacing').map((t) => ({ px: parsePx(t.value), name: t.name })).filter((t) => t.px != null),
+    radius: normalized.filter((t) => t.group === 'radius').map((t) => ({ px: parsePx(t.value), name: t.name })).filter((t) => t.px != null),
+    fonts: normalized.filter((t) => t.group === 'font').map((t) => ({ px: parsePx(t.value?.fontSize), weight: parseInt(t.value?.fontWeight, 10), name: t.name })).filter((t) => t.px != null),
+  };
   const out = [];
   for (const [rawKey, itemKind] of KINDS) {
     if (kind && kind !== itemKind) continue;
@@ -84,7 +99,7 @@ export function emitComponents(result, kind) {
         variants: tpl?.variants ?? [],
         code: lifted
           ? item.sourceCode
-          : (tpl ? tpl.emit(picks, item) : codeFromInterp(interp, pascal, item, namedColors)),
+          : (tpl ? tpl.emit(picks, item) : codeFromInterp(interp, pascal, item, namedColors, tokenScales)),
         confidence: item.confidence ?? null,
         source: item.source ?? null,
         lifted,

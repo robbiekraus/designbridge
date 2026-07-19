@@ -100,7 +100,7 @@ describe('emitComponents + Interpretationen', () => {
     const [item] = emitComponents(result, 'atom');
     expect(item.interpretedHtml).toContain('background:#4263eb');
     expect(item.code).toContain('export function Avatar');
-    expect(item.code).toContain('bg-[#4263eb]'); // plan-abgeleiteter Tailwind
+    expect(item.code).toContain('bg-brand-primary'); // plan-abgeleiteter Tailwind
     expect(item.code).not.toContain('generischer Stub');
   });
 
@@ -216,5 +216,23 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.code).toContain('p-[16px]');
     expect(item.code).toContain('real');
     expect(item.code).not.toContain('<div>real jsx</div>'); // interp.jsx wird NICHT mehr genutzt
+  });
+
+  it('Snapping end-to-end: Spacing-Token + Farb-Token durch emitComponents', () => {
+    const result = {
+      raw: {
+        tokens: {
+          colors: [{ hex: '#4263EB', role: 'brand-primary', confidence: 'high' }],
+          spacing: [{ value: 8, usage: 'inline gap', confidence: 'high' }],
+          typography: [], border_radius: [], shadows: [],
+        },
+        atoms: [{ name: 'Avatar', variants: [], confidence: 'high' }], molecules: [], organisms: [], templates: [],
+      },
+      interpretations: { Avatar: { html: '<div style="background:#4263eb;padding:8px">A</div>' } },
+    };
+    const [item] = emitComponents(result, 'atom');
+    expect(item.code).toContain('p-inline-gap');   // 8px → Spacing-Token
+    expect(item.code).toContain('bg-brand-primary'); // Farbe → Token
+    expect(item.code).not.toContain('p-[8px]');
   });
 });
