@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planToJsx } from './planToJsx.js';
+import { planToJsx, snapToken } from './planToJsx.js';
 
 /** Box-Fabrik mit allen Pflichtfeldern des Vertrags — Tests überschreiben nur Relevantes. */
 function box(overrides = {}) {
@@ -151,7 +151,7 @@ describe('planToJsx — Wrapper + Verschachtelung', () => {
     });
     const code = planToJsx(plan, { name: 'PremiumBadge' });
     expect(code).toContain('bg-[#022d2c]');
-    expect(code).toContain('rounded-[9999px]');
+    expect(code).toContain('rounded-full');
     expect(code).toContain('items-center');
     expect(code).toContain('justify-center');
     expect(code).toContain('gap-[6px]');
@@ -197,5 +197,52 @@ describe('planToJsx — svg', () => {
     const code = planToJsx(b, { name: 'IconBox' });
     expect(code).toContain('<svg');
     expect(code).toContain('<circle');
+  });
+});
+
+const SCALE = { spacing: [{ px: 8, name: 'inline-gap' }, { px: 16, name: 'stack-gap' }, { px: 24, name: 'card-padding' }],
+                radius: [{ px: 8, name: 'button-control' }, { px: 16, name: 'card' }], fonts: [] };
+
+describe('planToJsx — snapToken (reine Funktion)', () => {
+  it('exakt/innerhalb Toleranz → Name, Gleichstand → erstes, außerhalb → null', () => {
+    expect(snapToken(16, SCALE.spacing)).toBe('stack-gap');
+    expect(snapToken(17, SCALE.spacing)).toBe('stack-gap'); // ±2
+    expect(snapToken(20, SCALE.spacing)).toBeNull();        // 4 weg von 16/24
+    expect(snapToken(12, [{ px: 10, name: 'a' }, { px: 14, name: 'b' }])).toBe('a'); // Gleichstand → erstes
+    expect(snapToken(16, [])).toBeNull();
+    expect(snapToken(16, undefined)).toBeNull();
+  });
+});
+
+describe('planToJsx — Spacing/Radius Snapping', () => {
+  it('gap + padding snappen auf Token, sonst arbitrary', () => {
+    const code = planToJsx(box({ layout: 'row', gap: 16, padding: [24, 24, 24, 24] }), { name: 'X', tokens: SCALE });
+    expect(code).toContain('gap-stack-gap');
+    expect(code).toContain('p-card-padding');
+    expect(code).not.toContain('gap-[16px]');
+  });
+
+  it('padding px/py-Kollaps mit Token-Symbol', () => {
+    const code = planToJsx(box({ layout: 'row', padding: [8, 24, 8, 24] }), { name: 'X', tokens: SCALE });
+    expect(code).toContain('px-card-padding');
+    expect(code).toContain('py-inline-gap');
+  });
+
+  it('kein passendes Token → arbitrary px (Fallback)', () => {
+    const code = planToJsx(box({ layout: 'row', gap: 40, padding: [40, 0, 0, 0] }), { name: 'X', tokens: SCALE });
+    expect(code).toContain('gap-[40px]');
+    expect(code).toContain('pt-[40px]');
+  });
+
+  it('radius snappt; 9999 → rounded-full; kein Token → arbitrary', () => {
+    expect(planToJsx(box({ radius: 16 }), { name: 'X', tokens: SCALE })).toContain('rounded-card');
+    expect(planToJsx(box({ radius: 9999 }), { name: 'X', tokens: SCALE })).toContain('rounded-full');
+    expect(planToJsx(box({ radius: 40 }), { name: 'X', tokens: SCALE })).toContain('rounded-[40px]');
+  });
+
+  it('ohne tokens-Argument bleibt Spacing/Radius arbitrary (Scheibe-1-Verhalten)', () => {
+    const code = planToJsx(box({ layout: 'row', gap: 16, radius: 16 }), { name: 'X' });
+    expect(code).toContain('gap-[16px]');
+    expect(code).toContain('rounded-[16px]');
   });
 });

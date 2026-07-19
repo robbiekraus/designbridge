@@ -14,30 +14,63 @@ function pxClass(prefix, n) {
   return Number.isFinite(n) && n > 0 ? `${prefix}-[${Math.round(n)}px]` : null;
 }
 
-/** padding [t,r,b,l] → minimale Tailwind-Klassenliste (all-equal → p-, t=b&l=r → px-/py-, sonst einzeln). */
-function paddingClasses([t, r, b, l]) {
+const SNAP_TOLERANCE_PX = 2;
+
+/** Nächstes Token in `scale` (Array {px,name}) zu `px`, nur wenn |diff| ≤ tol. Gleichstand → erstes
+ *  (Listen-Reihenfolge). Fehlende/leere Skala oder kein Treffer → null. Reine Funktion. */
+export function snapToken(px, scale, tol = SNAP_TOLERANCE_PX) {
+  if (!Array.isArray(scale) || !Number.isFinite(px)) return null;
+  let best = null;
+  let bestDiff = Infinity;
+  for (const t of scale) {
+    if (!t || !Number.isFinite(t.px)) continue;
+    const diff = Math.abs(t.px - px);
+    if (diff < bestDiff) { bestDiff = diff; best = t; }
+  }
+  return best && bestDiff <= tol ? best.name : null;
+}
+
+/** Spacing-Wert → `<prefix>-<token>` (gesnappt) oder `<prefix>-[Npx]`. px<=0 → null. */
+function spacingClass(prefix, px, scale) {
+  if (!(Number.isFinite(px) && px > 0)) return null;
+  const name = snapToken(px, scale);
+  return name ? `${prefix}-${name}` : `${prefix}-[${Math.round(px)}px]`;
+}
+
+/** radius → `rounded-full` (≥9999) / `rounded-<token>` (gesnappt) / `rounded-[Npx]`; ≤0 → null. */
+function radiusClass(radius, scale) {
+  if (!(Number.isFinite(radius) && radius > 0)) return null;
+  if (radius >= 9999) return 'rounded-full';
+  const name = snapToken(radius, scale);
+  return name ? `rounded-${name}` : `rounded-[${Math.round(radius)}px]`;
+}
+
+/** padding [t,r,b,l] → minimale Tailwind-Klassenliste (all-equal → p-, t=b&l=r → px-/py-, sonst
+ *  einzeln); jedes ausgegebene Symbol gesnappt oder arbitrary. Kollaps rein über px-Gleichheit. */
+function paddingClasses([t, r, b, l], scale) {
   if (!t && !r && !b && !l) return [];
-  if (t === r && r === b && b === l) return [`p-[${t}px]`];
+  if (t === r && r === b && b === l) return [spacingClass('p', t, scale)].filter(Boolean);
   const out = [];
   if (t === b && l === r) {
-    if (l > 0) out.push(`px-[${l}px]`);
-    if (t > 0) out.push(`py-[${t}px]`);
+    const px = spacingClass('px', l, scale);
+    const py = spacingClass('py', t, scale);
+    if (px) out.push(px);
+    if (py) out.push(py);
     return out;
   }
-  if (t > 0) out.push(`pt-[${t}px]`);
-  if (r > 0) out.push(`pr-[${r}px]`);
-  if (b > 0) out.push(`pb-[${b}px]`);
-  if (l > 0) out.push(`pl-[${l}px]`);
+  for (const [prefix, v] of [['pt', t], ['pr', r], ['pb', b], ['pl', l]]) {
+    const c = spacingClass(prefix, v, scale);
+    if (c) out.push(c);
+  }
   return out;
 }
 
 const JUSTIFY_CLASS = { CENTER: 'justify-center', MAX: 'justify-end', SPACE_BETWEEN: 'justify-between' };
 const ITEMS_CLASS = { CENTER: 'items-center', MAX: 'items-end', STRETCH: 'items-stretch' };
 
-function boxClasses(node) {
+function boxClasses(node, tokens) {
   const out = [];
   const isFlex = node.layout === 'row' || node.gap > 0 || node.primaryAlign !== 'MIN' || node.counterAlign !== 'MIN';
-  // Layout
   if (isFlex) {
     out.push('flex');
     if (node.layout === 'column') out.push('flex-col');
@@ -46,38 +79,38 @@ function boxClasses(node) {
   }
   if (node.stretch) out.push('self-stretch');
   if (node.grow) out.push('flex-1');
-  // Sizing
+  // Sizing (Element-Größen, keine Spacing-Tokens → bleibt arbitrary)
   const w = pxClass('w', node.width);
   const h = pxClass('h', node.height);
   if (w) out.push(w);
   if (h) out.push(h);
-  // Spacing
-  const gap = pxClass('gap', node.gap);
+  // Spacing (gesnappt)
+  const gap = spacingClass('gap', node.gap, tokens?.spacing);
   if (gap) out.push(gap);
-  out.push(...paddingClasses(node.padding));
+  out.push(...paddingClasses(node.padding, tokens?.spacing));
   // Visual
   if (node.fill?.hex) out.push(`bg-[${node.fill.hex}]`);
   if (node.stroke?.hex) {
     out.push('border', `border-[${node.stroke.hex}]`);
     if (Number.isFinite(node.strokeWeight) && node.strokeWeight !== 1) out.push(`border-[${node.strokeWeight}px]`);
   }
-  const radius = pxClass('rounded', node.radius);
+  const radius = radiusClass(node.radius, tokens?.radius);
   if (radius) out.push(radius);
   return out;
 }
 
 /** Ein Plan-Knoten → JSX-String (mehrzeilig, mit `depth` eingerückt). */
-function walk(node, depth) {
+function walk(node, depth, tokens) {
   const pad = INDENT.repeat(depth);
   if (!node || typeof node !== 'object') return '';
-  if (node.type === 'text') return walkText(node, depth); // Task 2
-  if (node.type === 'svg') return walkSvg(node, depth);   // Task 3
-  if (node.type === 'component-ref') return walk(node.fallback, depth); // fallback-Box, defensiv
+  if (node.type === 'text') return walkText(node, depth, tokens);
+  if (node.type === 'svg') return walkSvg(node, depth);
+  if (node.type === 'component-ref') return walk(node.fallback, depth, tokens); // fallback-Box, defensiv
 
   // box
-  const cls = boxClasses(node).join(' ');
+  const cls = boxClasses(node, tokens).join(' ');
   const classAttr = cls ? ` className="${cls}"` : '';
-  const kids = (node.children || []).map((c) => walk(c, depth + 1)).filter(Boolean);
+  const kids = (node.children || []).map((c) => walk(c, depth + 1, tokens)).filter(Boolean);
   if (!kids.length) return `${pad}<div${classAttr} />`;
   return `${pad}<div${classAttr}>\n${kids.join('\n')}\n${pad}</div>`;
 }
@@ -140,9 +173,9 @@ function walkSvg(node, depth) {
   return pad + svgMarkupToJsx(node.markup);
 }
 
-export function planToJsx(plan, { name } = {}) {
+export function planToJsx(plan, { name, tokens } = {}) {
   const componentName = name || 'Component';
-  const body = walk(plan, 3); // 3 Ebenen Einrückung: export→return→( → Wurzel-Element
+  const body = walk(plan, 3, tokens); // 3 Ebenen Einrückung: export→return→( → Wurzel-Element
   // Wurzelklassen an den className-Passthrough hängen (Spec §Wrapper): das Wurzel-<div> trägt
   // seine eigenen Klassen + ${className}. Wir hängen den Passthrough in das gerenderte Wurzel-Tag.
   const rooted = injectClassNamePassthrough(body);
