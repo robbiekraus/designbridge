@@ -22,10 +22,10 @@ describe('ImportModal', () => {
     expect(screen.getByRole('button', { name: /^Figma/ })).toBeInTheDocument();
   });
 
-  it('disables the Figma tab', () => {
+  it('enables the Figma tab (real backend wired, no longer plugin-only)', () => {
     render(<ImportModal open={true} onClose={() => {}} />);
     const figma = screen.getByRole('button', { name: /^Figma/ });
-    expect(figma).toBeDisabled();
+    expect(figma).not.toBeDisabled();
   });
 
   it('switches to the Repo tab when the GitHub hint button is clicked in the URL tab', async () => {

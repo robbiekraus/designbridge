@@ -4,6 +4,7 @@ export default function ImportProgress({ source }) {
   const label = source === 'image' ? 'screenshot'
     : source === 'url' ? 'URL'
     : source === 'repo' ? 'repository'
+    : source === 'figma' ? 'Figma file'
     : 'source';
 
   return (

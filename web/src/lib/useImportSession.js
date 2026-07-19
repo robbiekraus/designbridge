@@ -43,6 +43,16 @@ async function submitRepo({ url, branch }) {
   return adaptScanResponse(data, 'repo');
 }
 
+async function submitFigma({ url, token }) {
+  const res = await fetch('/api/scan/figma', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, token }),
+  });
+  const data = await readScanJson(res, 'Figma-Scan fehlgeschlagen');
+  return adaptScanResponse(data, 'figma');
+}
+
 export function useImportSession() {
   const [stage, setStage] = useState('idle');
   const [result, setResult] = useState(null);
@@ -57,6 +67,7 @@ export function useImportSession() {
       if (source === 'image') next = await submitImage(payload.file);
       else if (source === 'url') next = await submitUrl(payload.url);
       else if (source === 'repo') next = await submitRepo(payload);
+      else if (source === 'figma') next = await submitFigma(payload);
       else throw new Error(`Unsupported source: ${source}`);
       setResult(next);
       setStage('success');

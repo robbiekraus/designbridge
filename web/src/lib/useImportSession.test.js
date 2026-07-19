@@ -99,6 +99,44 @@ describe('useImportSession', () => {
     expect(result.current.error).toMatch(/nicht gefunden/);
   });
 
+  it('resolves figma import to success via POST /api/scan/figma', async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        tokens: { colors: [{ hex: '#022d2c', confidence: 'high' }] },
+        atoms: [{ name: 'Button', confidence: 'high', source: 'figma' }],
+        molecules: [], organisms: [], templates: [],
+        meta: { model: 'figma-ingest', source_url: 'https://figma.com/design/abc/File', ai_deepened: false },
+      }),
+    });
+
+    const { result } = renderHook(() => useImportSession());
+    await act(async () => {
+      await result.current.submit({ source: 'figma', payload: { url: 'https://figma.com/design/abc/File', token: '' } });
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/scan/figma', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ url: 'https://figma.com/design/abc/File', token: '' }),
+    }));
+    expect(result.current.stage).toBe('success');
+    expect(result.current.result.source).toBe('figma');
+    expect(result.current.result.categories.find(c => c.key === 'colors').count).toBe(1);
+  });
+
+  it('surfaces the german server error for figma imports', async () => {
+    global.fetch.mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: 'Figma-Token ungültig oder kein Zugriff auf diese Datei.' }),
+    });
+    const { result } = renderHook(() => useImportSession());
+    await act(async () => {
+      await result.current.submit({ source: 'figma', payload: { url: 'https://figma.com/design/abc/File', token: 'bad' } });
+    });
+    expect(result.current.stage).toBe('error');
+    expect(result.current.error).toMatch(/Figma-Token ungültig/);
+  });
+
   it('zeigt lesbaren Fehler wenn der Server kein JSON antwortet (HTML-Fehlerseite)', async () => {
     // Safari wirft bei res.json() auf HTML „The string did not match the expected
     // pattern" — genau das darf nicht mehr als Fehlermeldung beim Nutzer landen.

@@ -12,7 +12,7 @@ const TABS = [
   { id: 'image', label: 'Image' },
   { id: 'url', label: 'URL' },
   { id: 'repo', label: 'Repo' },
-  { id: 'figma', label: 'Figma', disabled: true },
+  { id: 'figma', label: 'Figma' },
 ];
 
 export default function ImportModal({ open, onClose, onImported, onOpenLibrary }) {
@@ -65,7 +65,7 @@ export default function ImportModal({ open, onClose, onImported, onOpenLibrary }
   } else if (activeTab === 'repo') {
     body = <RepoTab onSubmit={submit} />;
   } else {
-    body = <FigmaTab />;
+    body = <FigmaTab onSubmit={submit} />;
   }
 
   const showTabs = stage !== 'submitting' && stage !== 'success' && stage !== 'error';
