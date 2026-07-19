@@ -1,6 +1,14 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 (v3 Flow-Box + BILD-GLYPH FERTIG, LIVE & FIGMA-BEWIESEN — `ef14c3a`; Overflow+Overlap+leere Logo/Avatar-Boxen behoben)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **488/488** · Plugin **98/98**.
+Stand: **19.07.2026 (v3 Flow-Box + BILD-GLYPH LIVE; Chart-Trend-Linie NOCH OFFEN — Ursache korrekt diagnostiziert)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **492/492** · Plugin **98/98**.
+
+## ⚠️ CHART-TREND-LINIE: viewBox-Fix (`682e8ca`) WAR DIE FALSCHE WURZEL — echte Ursache jetzt belegt
+
+Ehrliche Korrektur (systematic-debugging Phase 4, „Fix hat nicht gewirkt"): `682e8ca` injiziert fehlende `viewBox`/`width`/`height` in SVGs (reasonable Hygiene, 488→492, bleibt drin) — ABER die Trend-Linie kollabiert **weiterhin** (Figma-Re-Test: Linien nur Dez–Jan). **Echte Ursache per `get_design_context` belegt:** der Chart-Body-Flex-Container rendert nur **`w-[106px] overflow-clip`** (y-Achse 30px + Mindest-Inhalt), weil sein 670px-breiter Inhalt (Trend-`img`, Gridlines bis `left-[669px]`) **absolut positioniert** ist und die Flow-Breite nicht aufspannt → der Clip schneidet die Linie bei 106px ab. Die Card selbst ist `w-[750px]`, aber die Breiten-Determiniertheit propagiert nicht in den verschachtelten Flex-Body → er huggt auf Inhalt statt zu stretchen. **= Breiten-Determinismus-Problem (Familie stretch/grow + freezeRootWidth + test6/test-11-A), NICHT SVG-Sizing.**
+
+**Empfohlener echter Fix (eigene Scheibe, delikat → sauber speccen+TDD+Figma-verifizieren, NICHT blind):** Box mit `overflow:hidden/clip`, deren `scrollWidth` > gehuggte Breite (weite absolute Kinder), auf `scrollWidth` (Inhalts-Extent) einfrieren statt auf die kollabierte eigene Breite — analog zu test-11-A (`readSize` nahm für die WURZEL `max(computed.width, scrollWidth)`), hier auf verschachtelte geclippte Container ausgeweitet. Nebenwirkungs-Risiko (legitime Clips) → Grenzen sorgfältig. `682e8ca` bleibt (viewBox-Hygiene korrekt, nur unzureichend für DIESEN Bug).
+
+## ✅ v3 Flow-Box + BILD-GLYPH (19.07.) — LIVE & FIGMA-BEWIESEN (Overflow+Overlap+leere Logo/Avatar-Boxen behoben)
 
 ## ✅ BILD-PLATZHALTER-GLYPH (19.07., `ef14c3a`) — Robs „ungefüllte Platzhalter" (Logo/Avatar) behoben & Figma-bewiesen
 
