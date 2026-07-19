@@ -2325,3 +2325,21 @@ describe('htmlToPlan — Bild-Platzhalter-Glyph (Spec 2026-07-19-image-placehold
     expectGlyphChild(plan.children[0], 19);
   });
 });
+
+describe('htmlToPlan — naturalWidth', () => {
+  it('Erfolgspfad liefert naturalWidth aus der gemessenen Wurzel', () => {
+    const el = document.createElement('div');
+    el.innerHTML = '<div style="padding:8px">Hallo</div>';
+    // getBoundingClientRect in jsdom → 0; wir mocken die Messung der Wurzel.
+    const origAppend = document.body.appendChild.bind(document.body);
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 320, height: 40, left: 0, top: 0, right: 320, bottom: 40 });
+    const { plan, naturalWidth } = htmlToPlan('<div style="padding:8px">Hallo</div>');
+    expect(plan).not.toBeNull();
+    expect(naturalWidth).toBe(320);
+    spy.mockRestore();
+  });
+
+  it('null-Plan-Rückgaben bleiben zweifeldrig (kein naturalWidth-Bruch)', () => {
+    expect(htmlToPlan('')).toEqual({ plan: null, warnings: [] });
+  });
+});

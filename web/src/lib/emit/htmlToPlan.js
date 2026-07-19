@@ -1255,7 +1255,11 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
       plan = { ...emptyBoxNode(), children: [plan] };
     }
 
-    return { plan, warnings: Array.from(warnings) };
+    const naturalWidth = roots.length === 1
+      ? Math.round(roots[0].getBoundingClientRect().width)
+      : Math.round(unionRect(roots.map((r) => r.getBoundingClientRect()))?.width || 0);
+
+    return { plan, warnings: Array.from(warnings), naturalWidth };
   } catch (err) {
     return { plan: null, warnings: [`Konvertierung fehlgeschlagen: ${err?.message || String(err)}`] };
   } finally {
