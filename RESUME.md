@@ -1,6 +1,25 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 abends (SVG currentColor-FIX LIVE `bc8ce99` — Robs schwarze-Icons-Befund gefixt & Figma-bewiesen; Chart-Trend-Linie NOCH OFFEN)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **521/521** · Plugin **98/98**.
+Stand: **19.07.2026 spätabends (ARCHITEKTUR-PIVOT beschlossen: `plan` wird kanonisches Modell → Scheibe-1-Spec FERTIG & bereit für autonomen Bau)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **521/521** · Plugin **98/98**.
+
+## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Rob: „autonom abarbeiten") — Scheibe 1 bauen
+
+**Robs Auftrag:** neue Session, autonom durchziehen. **Erst lesen:**
+1. `docs/superpowers/specs/2026-07-19-canonical-plan-model-architecture.md` (die übergreifende Entscheidung)
+2. `docs/superpowers/specs/2026-07-19-plan-to-tailwind-emitter-design.md` (**Scheibe 1**, fertig spezifiziert)
+
+**Dann:** `superpowers:writing-plans` → subagent-driven Bau (Sonnet, TDD) von **Scheibe 1 = `plan → Tailwind`-Emitter** (`web/src/lib/emit/planToJsx.js` + Verdrahtung in `emitComponents.js`, ersetzt den `interp.jsx`-Zweig). Verifizieren: Web-Suite grün (Baseline 521 + neue Tests) + Browser-Smoke (Library-Code-Ansicht zeigt plan-abgeleiteten Tailwind). Danach committen+pushen (Robs Regel: kein PR, direkt main), RESUME/Memory nachziehen. Danach Scheibe 2 (Token-Snapping) → Scheibe 3 (Figma-1:1-Skalierung = Robs Größen-Fix).
+
+### Warum der Pivot (Kurzfassung)
+Rob deckte beim Größen-Thema einen These-Bruch auf: Figma-Weg nutzt `interp.html` (px), Code-Weg `interp.jsx` (Tailwind) — **zwei getrennte Wahrheiten**, Figma läuft an der Design-System-Schicht vorbei = Widerspruch zur Vision „model in the middle". **Entscheidung:** der `plan`-Baum wird DAS kanonische Modell; Figma UND Tailwind emittieren daraus; `interp.jsx` wird abgelöst. **Auflösung der „Tailwind-nicht-skalierbar"-Spannung:** Figma-Emitter skaliert auf 1:1 (visuell), Code-Emitter bleibt aufs Token-Raster — Skalieren ist Emitter-Transform, nicht im Modell. Robs Entscheidungen: kanonisch=plan · Figma-Größe 1:1 (2296) · Scheibe 1 zuerst · Scheibe 1 werktreu (arbitrary values).
+
+### 🔍 Größen-Root-Cause (belegt, für Scheibe 3) — NICHT verlieren
+Testimport 2296×2408, Canvas fix 1024 → alles auf 0,446× gestaucht. Interpretationen tragen ~Vollauflösungs-px, Canvas rechnet `bbox×1024` → Faktor `image_width/1024` = 2,24× Mismatch. Fix (Scheibe 3): `canvas = raw.meta.image_width/height` + `scalePlan(plan, slot/natural)` uniform pro Baustein als Figma-Emit-Transform. Auch #4 (Profil-Shrink-Overlap) fällt damit weitgehend weg.
+
+### Offene Nebenthreads
+- **`task_9b25b9de`** (hr-Trenner leere Boxen + Storage-Progress-Höhe): lief als separater Hintergrund-Task — Status beim Wiedereinstieg prüfen, ggf. mergen/verifizieren.
+- **#2 Margins** vom Konverter ignoriert (Shortcut-Abstände) — landet in der Token-/Layout-Arbeit ums kanonische Modell.
+- **Chart-Trend-Linie** (Breiten-Determinismus) — weiter offen, eigene Scheibe.
 
 ## ✅ SVG currentColor-AUFLÖSUNG (19.07. abends, `bc8ce99`) — Robs schwarze-Nav-Icons-Befund gefixt, Figma-E2E-bewiesen
 
