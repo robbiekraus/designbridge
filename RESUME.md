@@ -1,14 +1,22 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 spätabends (ARCHITEKTUR-PIVOT beschlossen: `plan` wird kanonisches Modell → Scheibe-1-Spec FERTIG & bereit für autonomen Bau)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **521/521** · Plugin **98/98**.
+Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` FERTIG, autonom gebaut+gepusht)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **540/540** · Plugin **98/98**.
 
-## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION (Rob: „autonom abarbeiten") — Scheibe 1 bauen
+## ✅ SCHEIBE 1 `plan→Tailwind`-EMITTER FERTIG (19.07. nachts, autonom, Sonnet-TDD) — „ein Modell → beide Ausgänge" bewiesen
 
-**Robs Auftrag:** neue Session, autonom durchziehen. **Erst lesen:**
-1. `docs/superpowers/specs/2026-07-19-canonical-plan-model-architecture.md` (die übergreifende Entscheidung)
-2. `docs/superpowers/specs/2026-07-19-plan-to-tailwind-emitter-design.md` (**Scheibe 1**, fertig spezifiziert)
+Robs Auftrag „autonom abarbeiten" umgesetzt. Neue reine Funktion `web/src/lib/emit/planToJsx.js` gießt den kanonischen `plan`-Baum (box/text/svg/component-ref) in eine shadcn/Tailwind-React-Komponente (werktreu, arbitrary values `gap-[12px]`/`bg-[#…]`). `emitComponents.js` verdrahtet: Code-Export kommt jetzt aus DEMSELBEN `plan` wie der Figma-Export (via `htmlToPlan(interp.html)` → `planToJsx`), Geminis separates `interp.jsx` wird web-seitig **nicht mehr genutzt** (Präzedenz `lifted > Template > plan-Emitter > Stub` unverändert). Plan: `docs/superpowers/plans/2026-07-19-plan-to-tailwind-emitter.md`.
 
-**Dann:** `superpowers:writing-plans` → subagent-driven Bau (Sonnet, TDD) von **Scheibe 1 = `plan → Tailwind`-Emitter** (`web/src/lib/emit/planToJsx.js` + Verdrahtung in `emitComponents.js`, ersetzt den `interp.jsx`-Zweig). Verifizieren: Web-Suite grün (Baseline 521 + neue Tests) + Browser-Smoke (Library-Code-Ansicht zeigt plan-abgeleiteten Tailwind). Danach committen+pushen (Robs Regel: kein PR, direkt main), RESUME/Memory nachziehen. Danach Scheibe 2 (Token-Snapping) → Scheibe 3 (Figma-1:1-Skalierung = Robs Größen-Fix).
+**Verifiziert:** Web **521→540** (+18 planToJsx-Tests, +1 emitComponents; 2 Bestandstests spec-konform auf planToJsx-Output umgestellt) · Build sauber · **Browser-Smoke bewiesen** (Library→Organisms→„Carbon Emissions KPI Card" Code-Ansicht zeigt plan-abgeleiteten Tailwind: `flex justify-between items-center w-[480px] p-[24px] bg-[#ffffff] rounded-[16px]` + className-Passthrough/`{...props}` + SVG camelCase-Attribute + aufgelöster currentColor `rgb(185,28,28)` — NICHT Geminis rohes jsx). Server/Plugin unberührt (kein Change). Gepusht auf main.
+
+**Bewusste Grenzen v1 (dokumentiert):** `absolute` ignoriert (Tailwind bleibt aufs Flow-Raster), component-ref → fallback-Box (entsteht in dieser Verdrahtung ohnehin nicht, `knownComponents:[]`), SVG-`style`-Attribute weggelassen. Token-Snapping = **Scheibe 2**.
+
+## ⏭️ WIEDEREINSTIEG NÄCHSTE SESSION — Scheibe 2 (`plan` token-komplett) bzw. Scheibe 3 (Figma-1:1-Skalierung)
+
+**Erst lesen:** `docs/superpowers/specs/2026-07-19-canonical-plan-model-architecture.md` (§Zerlegung, Scheiben 2+3).
+- **Scheibe 2 — `plan` token-komplett machen:** Spacing/Radius/Font aufs Token-Raster snappen (Farben schon getan) → Tailwind-Output idiomatisch (`px-6`, `bg-primary` statt arbitrary values). Braucht eigenen Spec→Plan→Bau. Betrifft `htmlToPlan` (Snapping) + `planToJsx` (Token-Klassen statt Hex).
+- **Scheibe 3 — Figma-Emit-Skalierung 1:1** (Robs ursprünglicher Größen-Fix als Emitter-Transform, Root Cause belegt s. u.): `canvas = raw.meta.image_width/height` statt fix 1024 + `scalePlan(plan, slot/natural)`. Spec-Details in der Architektur-Spec §Zerlegung Punkt 3.
+
+**Prozess (Robs Vorgabe):** `superpowers:writing-plans` → subagent-driven Bau (Sonnet, TDD), verifizieren (Suite grün + Browser/Figma-Smoke), **kein PR, direkt main**, RESUME/Memory nachziehen. ⚠️ Push auf main = Auto-Re-Deploy Railway.
 
 ### Warum der Pivot (Kurzfassung)
 Rob deckte beim Größen-Thema einen These-Bruch auf: Figma-Weg nutzt `interp.html` (px), Code-Weg `interp.jsx` (Tailwind) — **zwei getrennte Wahrheiten**, Figma läuft an der Design-System-Schicht vorbei = Widerspruch zur Vision „model in the middle". **Entscheidung:** der `plan`-Baum wird DAS kanonische Modell; Figma UND Tailwind emittieren daraus; `interp.jsx` wird abgelöst. **Auflösung der „Tailwind-nicht-skalierbar"-Spannung:** Figma-Emitter skaliert auf 1:1 (visuell), Code-Emitter bleibt aufs Token-Raster — Skalieren ist Emitter-Transform, nicht im Modell. Robs Entscheidungen: kanonisch=plan · Figma-Größe 1:1 (2296) · Scheibe 1 zuerst · Scheibe 1 werktreu (arbitrary values).
