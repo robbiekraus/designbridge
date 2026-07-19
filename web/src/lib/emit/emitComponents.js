@@ -3,6 +3,8 @@ import { LOW_CONFIDENCE_COMMENT } from '../components/templates/constants.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokens } from './pickTokens.js';
 import { slugify } from './slugify.js';
+import { htmlToPlan } from './htmlToPlan.js';
+import { planToJsx } from './planToJsx.js';
 
 const KINDS = [
   ['atoms', 'atom'],
@@ -34,10 +36,30 @@ function genericStub(pascal, item) {
   );
 }
 
+/** Code aus der KI-Interpretation ableiten (Scheibe 1, kanonischer plan → Tailwind): hat der
+ *  Baustein interp.html, wird der plan deterministisch daraus gebaut (htmlToPlan, wie im Figma-
+ *  Pfad) und via planToJsx zu Tailwind/JSX gegossen — DERSELBE plan wie der Figma-Export, statt
+ *  Geminis separatem interp.jsx. Leeres/kaputtes html (plan === null) oder gar keine Interpretation
+ *  → generischer Stub. knownComponents bewusst leer: der Code-Export braucht keine component-ref-
+ *  Instanzen (die Datei ist eigenständig), planToJsx würde sie ohnehin nur als fallback rendern. */
+function codeFromInterp(interp, pascal, item, namedColors) {
+  const html = interp?.html;
+  if (html && html.trim()) {
+    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [] });
+    if (plan) return planToJsx(plan, { name: pascal });
+  }
+  return genericStub(pascal, item);
+}
+
 export function emitComponents(result, kind) {
   const raw = result?.raw;
   if (!raw) return [];
   const picks = pickTokens(normalizeTokens(raw.tokens));
+  // Dieselbe disambiguierte Farbliste wie emitFigmaComponents — htmlToPlan.matchColorToken bindet
+  // per Hex und reicht .name durch (Token-Referenz im plan). Für Scheibe 1 (arbitrary values)
+  // reicht der Hex, die Namen sind fürs spätere Token-Snapping (Scheibe 2) schon korrekt gesetzt.
+  const normalized = normalizeTokens(raw.tokens);
+  const namedColors = normalized.filter((t) => t.group === 'color').map((t) => ({ hex: t.value, name: t.name }));
   const out = [];
   for (const [rawKey, itemKind] of KINDS) {
     if (kind && kind !== itemKind) continue;
@@ -62,7 +84,7 @@ export function emitComponents(result, kind) {
         variants: tpl?.variants ?? [],
         code: lifted
           ? item.sourceCode
-          : (tpl ? tpl.emit(picks, item) : (interp?.jsx?.trim() ? interp.jsx : genericStub(pascal, item))),
+          : (tpl ? tpl.emit(picks, item) : codeFromInterp(interp, pascal, item, namedColors)),
         confidence: item.confidence ?? null,
         source: item.source ?? null,
         lifted,

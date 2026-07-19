@@ -92,13 +92,20 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.interpretPending).toBe(false);
   });
 
-  it('Interpretation mit leerem jsx: html-Vorschau ja, Code fällt auf Stub zurück', () => {
+  it('Interpretation mit html (jsx leer): Code kommt aus planToJsx (nicht mehr aus jsx/Stub)', () => {
     const result = {
       raw: baseRaw,
-      interpretations: { Avatar: { html: '<div>A</div>', jsx: '' } },
+      interpretations: { Avatar: { html: '<div style="background:#4263eb;padding:8px">A</div>', jsx: '' } },
     };
     const [item] = emitComponents(result, 'atom');
-    expect(item.interpretedHtml).toBe('<div>A</div>');
+    expect(item.interpretedHtml).toContain('background:#4263eb');
+    expect(item.code).toContain('export function Avatar');
+    expect(item.code).toContain('bg-[#4263eb]'); // plan-abgeleiteter Tailwind
+    expect(item.code).not.toContain('generischer Stub');
+  });
+
+  it('ohne Interpretation (kein html) + kein Template → weiter genericStub', () => {
+    const [item] = emitComponents({ raw: baseRaw }, 'atom');
     expect(item.code).toContain('generischer Stub');
   });
 
@@ -191,7 +198,7 @@ describe('emitComponents + Interpretationen', () => {
     expect(item.filename).toBe('PricingCard.tsx');
   });
 
-  it('Card-Template retired: ein "…Card"-Organismus mit echter Interpretation nutzt interp.jsx statt Card-Stub', () => {
+  it('Card-Template retired: „…Card"-Organismus mit Interpretation → Code aus planToJsx (nicht interp.jsx)', () => {
     const result = {
       raw: {
         tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
@@ -199,12 +206,15 @@ describe('emitComponents + Interpretationen', () => {
         organisms: [{ name: 'Category of Emissions Card', confidence: 'high', variants: [] }],
       },
       interpretations: {
-        'Category of Emissions Card': { html: '<div>real</div>', jsx: '<div>real jsx</div>', model: 'gemini-3.5-flash' },
+        'Category of Emissions Card': { html: '<div style="padding:16px">real</div>', jsx: '<div>real jsx</div>', model: 'gemini-3.5-flash' },
       },
     };
     const [item] = emitComponents(result, 'organism');
     expect(item.templateKey).toBeNull();
     expect(item.hasPreview).toBe(false);
-    expect(item.code).toBe('<div>real jsx</div>');
+    expect(item.code).toContain('export function CategoryOfEmissionsCard');
+    expect(item.code).toContain('p-[16px]');
+    expect(item.code).toContain('real');
+    expect(item.code).not.toContain('<div>real jsx</div>'); // interp.jsx wird NICHT mehr genutzt
   });
 });
