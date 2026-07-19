@@ -1,6 +1,34 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT Scheibe 1–3 FERTIG & FIGMA-BEWIESEN · ✅ jsx-ABSCHALTUNG `9b9e761` · ✅ FIGMA-REVERSE-IMPORT v1 `ed5cd97`+`566d775`, autonom)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **279/279** · Web **579/579** · Plugin **98/98**.
+Stand: **20.07.2026 nachts (✅ UIPRISM-REBRAND-SKIN + BILD-ZUVERLÄSSIGKEIT LIVE `628d3ca`+`eb5ecbf` · davor: Breiten-Test · Architektur-Pivot Scheibe 1–3 · Figma-Reverse-Import v1)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**, jetzt **UIPrism-gebrandet** (version 0.1.1). Server **289/289** · Web **584/584** · Plugin **98/98**.
+
+## ✅ UIPRISM-REBRAND-SKIN + BILD-ZUVERLÄSSIGKEIT LIVE (20.07. nachts, autonom, Sonnet-TDD, `628d3ca`+`eb5ecbf`) — Robs Nacht-Auftrag
+
+Rob delegierte um 1 Uhr autonome Nachtarbeit (Decisions A/B/C freigegeben). Zwei Scheiben parallel gebaut (getrennte Ordner), verifiziert, gepusht, Prod-Deploy verifiziert.
+
+**Scheibe 1 — Rebrand-Skin (`628d3ca`, web-only, Web 579→584):** App von „Designbridge" → **UIPrism**. Header-Wortmarke UI(Ink `#141418`)/Prism(Indigo `#6366F1`) + Prisma-Mark-SVG (schwarzes Kästchen weg), Favicon + Title, Primärbuttons (`bg-zinc-900`→`bg-primary`) + aktive Nav (`bg-primary-soft text-primary-ink`) auf Indigo, **eine** Spektrum-Hairline unter dem Header, Inter-Font. Tokens als `theme.extend.colors` in `tailwind.config.js`. zinc/weiß-Look sonst unberührt. Assets in `web/public/`. Brand-Quelle: `../Designbridge_Webpage_Presentation/` (Tokens/Logos/Checkliste). **Browser + Prod-Screenshot bewiesen** (Title=UIPrism, Header/Hairline/Indigo live). *Bewusst offen (Follow-up):* ImportModalShell-interne Tabs nutzen noch altes Aktiv-Muster; „Aus DesignBridge übernehmen"-Copy benennt das echte Plugin (korrekt gelassen).
+
+**Scheibe 2 — Bild-Zuverlässigkeit (`eb5ecbf`, server-only, Server 279→289):** Befund 2+3 aus dem Breiten-Test. Neu `server/lib/imageResize.js` `downscaleForVision(buffer,mime,{maxEdge=1500})` (Jimp, in-memory, WebP/unlesbar→Original; Datei auf Platte unberührt → `image_width`/Crops/bboxes bleiben korrekt), eingehängt in `analyzeScreenshot` (claude.js). Retry/Backoff (3×, `400ms·2^n`, injizierbare `sleep`) NUR um Parse-/Extraktions-Fehler; **Provider-/Quota-Fehler (`isDailyQuota`) unangetastet** → 429-Fast-Fail bleibt. Signatur backward-compatible erweitert. *Rest-Smell:* die 2 alten max_tokens/JSON-Tests laufen jetzt durch echten Backoff (~2,4s langsamer, grün).
+
+**Verifiziert (selbst nachgefahren, nicht nur Subagent-Report):** Server 289/289, Web 584/584, `vite build` sauber (HMR-`index.css`-Fehler = exFAT-`getcwd`-Dev-Artefakt, KEIN Code-Defekt), Browser-Smoke + Prod-Health (`version 0.1.1`, `ai_provider:gemini`, `demo_fallback:false`). Push→Railway-Auto-Deploy in ~60s durch.
+
+**⏭️ NÄCHSTES (Robs Morgen):** Robs Real-Smoke per **`docs/2026-07-20-test-leitfaden-demo.md`** (orchestrierter Test, haarklein) — v.a. großer Screenshot verlässlich (Zuverlässigkeits-Fix real bestätigen) + beide Ausgänge (Figma + Code/Library). Dann: Präsentations-Leitfaden (Demo-Reihenfolge + Deck-Integration). Screenshots im Deck/One-Pager auf UIPrism-Stand erneuern. UI-Layout-Redesign bleibt Post-Präsentation. Umbenennung URL/Repo/Ordner ganz zuletzt (URL im Plugin hartkodiert).
+
+
+## ✅ BREITEN-TEST DER EINGABETYPEN FERTIG (20.07.) — Bild vs. URL vs. Repo, Robs Wunsch 17.07.
+
+Voll durchgeführt, Ergebnis-Doc: `docs/2026-07-20-breiten-test-eingabetypen-ergebnis.md`, Renderings + Roh-JSON: `Testdaten/breiten-test-2026-07/`. Kontrollquelle `demo-site/report.html` (Ground Truth `demo-site/report-ground-truth.md`); Bild+URL auf derselben gerenderten Seite (Prod self-served `…/demo/report.html`, byte-identisch lokal), Repo = `github.com/robbiekraus/rk-landing` (React 19 + TW4). Alles auf Prod-Gemini (lokaler Anthropic-Key leer).
+
+**Kernergebnis:** Wege sind komplementär. **URL = Token-Wahrheit** (11/11 Farben exakt + Tints, Spacing 4/4, deterministisch/gratis/sofort; aber Inventar generisch aus CSS-Klassen, eng gescoped). **Bild = Struktur-Wahrheit** (17 Bausteine semantisch, ganze Cards, akkurate Daten; aber Farben nur perzeptuell 2/11 exakt, flaky). **Repo = TW4-blinder-Fleck** (0 Tokens *und* 0 Komponenten). Interpretations-Renderings (KPI/Sidebar/Tabelle) beide hochwertig & self-contained.
+
+**5 Produkt-Befunde (alle machbar), empfohlene Reihenfolge:** ① Zuerst **Bild-Weg-Zuverlässigkeit** — Befund 2 (große Screenshots >~1500px brechen Scan → serverseitig downscalen) + Befund 3 (~50% JSON-Parse-Fehler → Retry/Backoff); kleiner Aufwand, größte Wirkung. ② **Tailwind-4-Fix** (Befund 1: `@theme`-CSS lesen + 0-Komponenten-Gap) zusammen mit „Developer-Empfangsseite". ③ Polish: Befund 4 (Interpretations-Token-Deckel bei schweren Bausteinen) + Befund 5 (URL-Scoping/Card-Chrome + Token-Über-Extraktion). Details im Doc.
+
+**NÄCHSTER SCHRITT:** Robs Call — empfohlen **Befund 2+3 (Bild-Zuverlässigkeit)** als nächste Scheibe (Spec→Plan→Sonnet-TDD): großes Bild serverseitig vor Vision downscalen (Langkante ~1500px) + Retry/Backoff bei JSON-Parse-Fehler. Rob (nicht-technisch) delegiert die Entscheidung; hat den Tipp gehört, Greenlight für den Bau stand am Session-Ende noch aus.
+
+**⚙️ Betriebsnotizen (aus dieser Session, WICHTIG für Wiedereinstieg):**
+- **Lokaler `ANTHROPIC_API_KEY` ist LEER** („credit balance too low"). Lokaler Bild-Scan/Interpretation braucht daher `GEMINI_API_KEY` in `.env` **plus** `AI_PROVIDER=gemini` (sonst wählt die Regel den toten Anthropic-Key). Für Tests, die Live-KI brauchen, ist der einfachste Weg: **alles auf Prod** (Railway, Gemini Paid) — Prod serviert `demo-site/` selbst unter `…/demo/report.html`, also auch URL-Scans möglich; Repo-Scans nehmen ohnehin GitHub.
+- **`.env`/TextEdit-Falle (exFAT-Volume):** `.env` ist versteckt (Finder Cmd+Shift+. oder `open -e`). TextEdit meldet fälschlich „beschädigt", wenn eine `._.env`-AppleDouble-Begleitdatei danebenliegt — **nicht in den Papierkorb legen**, sondern die `._`-Datei löschen (`find . -name '._*' -delete`). Robs `.env` ging in dieser Session einmal verloren (TextEdit-Save auf exFAT) und wurde neu angelegt — **Keys sind darin auskommentiert und müssen bei Bedarf neu eingetragen werden**. Rob soll `.env` NICHT mit TextEdit öffnen (VS Code o. ä.).
+- Keine Railway-CLI lokal installiert.
 
 ## ✅ FIGMA-REVERSE-IMPORT v1 FERTIG & BROWSER-BEWIESEN (19.07. nachts, autonom, Sonnet-TDD, `ed5cd97` Server + `566d775` Web) — Robs Roadmap-Punkt „aus dem Figma-File importieren"
 
