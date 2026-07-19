@@ -163,3 +163,39 @@ describe('planToJsx — Wrapper + Verschachtelung', () => {
     expect(code).toContain('>Premium<');
   });
 });
+
+describe('planToJsx — svg', () => {
+  const svg = (markup) => ({ type: 'svg', markup });
+
+  it('kebab-case-Attribute → camelCase, class → className', () => {
+    const code = planToJsx(svg(
+      '<svg viewBox="0 0 24 24" class="icon"><path stroke-width="2" stroke-linecap="round" fill-rule="evenodd" d="M1 1"/></svg>',
+    ), { name: 'X' });
+    expect(code).toContain('strokeWidth="2"');
+    expect(code).toContain('strokeLinecap="round"');
+    expect(code).toContain('fillRule="evenodd"');
+    // svg ist hier plan-ROOT: der Wrapper (Task 1/2) injiziert den className-Passthrough ins
+    // Wurzel-Tag genau wie bei einer Wurzel-Box — className="icon" wird dadurch zur Template-
+    // Literal-Form (className={`icon ${className}`}), nicht literal stehen gelassen.
+    expect(code).toMatch(/className=\{`icon \$\{className\}`\}/);
+    expect(code).toContain('viewBox="0 0 24 24"'); // bleibt unverändert
+    expect(code).not.toContain('stroke-width');
+    expect(code).not.toContain('class="icon"');
+  });
+
+  it('style-Attribut wird v1 weggelassen', () => {
+    const code = planToJsx(svg('<svg style="color:red"><rect x="0" y="0"/></svg>'), { name: 'X' });
+    expect(code).not.toContain('style=');
+  });
+
+  it('svg wird als Kind einer Box eingebettet', () => {
+    const b = {
+      type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: null, stroke: null,
+      strokeWeight: 1, gap: 0, width: null, height: null, primaryAlign: 'MIN', counterAlign: 'MIN',
+      children: [svg('<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg>')],
+    };
+    const code = planToJsx(b, { name: 'IconBox' });
+    expect(code).toContain('<svg');
+    expect(code).toContain('<circle');
+  });
+});

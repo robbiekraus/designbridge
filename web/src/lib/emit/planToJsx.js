@@ -113,8 +113,32 @@ function walkText(node, depth) {
   return `${pad}<span className="${cls}">${escapeJsxText(node.content)}</span>`;
 }
 
-// Platzhalter — in Task 3 ersetzt.
-function walkSvg() { return ''; }
+// Endliche kebab→camelCase-Map (Spec §svg). class→className separat behandelt; style entfällt v1.
+const SVG_ATTR_RENAME = {
+  'stroke-width': 'strokeWidth', 'stroke-linecap': 'strokeLinecap', 'stroke-linejoin': 'strokeLinejoin',
+  'fill-rule': 'fillRule', 'clip-rule': 'clipRule', 'stop-color': 'stopColor', 'stop-opacity': 'stopOpacity',
+  'fill-opacity': 'fillOpacity', 'stroke-opacity': 'strokeOpacity', 'stroke-dasharray': 'strokeDasharray',
+  'stroke-dashoffset': 'strokeDashoffset', 'text-anchor': 'textAnchor', 'stroke-miterlimit': 'strokeMiterlimit',
+  'clip-path': 'clipPath',
+};
+
+/** SVG-Markup-String JSX-sicher machen (Spec §svg): endliche Attribut-Umbenennung, class→className,
+ *  style- und xlink:href-Attribute entfernen. Reine String-Transformation, kein DOM. */
+function svgMarkupToJsx(markup) {
+  let out = String(markup);
+  for (const [kebab, camel] of Object.entries(SVG_ATTR_RENAME)) {
+    out = out.replace(new RegExp(`(\\s)${kebab}=`, 'g'), `$1${camel}=`);
+  }
+  out = out.replace(/(\s)class=/g, '$1className=');
+  // style="…" und xlink:href="…" (inkl. einfacher Anführungszeichen) entfernen.
+  out = out.replace(/\s(?:style|xlink:href)=("[^"]*"|'[^']*')/g, '');
+  return out;
+}
+
+function walkSvg(node, depth) {
+  const pad = INDENT.repeat(depth);
+  return pad + svgMarkupToJsx(node.markup);
+}
 
 export function planToJsx(plan, { name } = {}) {
   const componentName = name || 'Component';
