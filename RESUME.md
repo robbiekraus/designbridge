@@ -1,6 +1,18 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping + ✅ SCHEIBE 3 Figma-1:1-Skalierung FERTIG & FIGMA-BEWIESEN, autonom · ✅ jsx-ABSCHALTUNG `9b9e761`)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **247/247** · Web **566/566** · Plugin **98/98**.
+Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT Scheibe 1–3 FERTIG & FIGMA-BEWIESEN · ✅ jsx-ABSCHALTUNG `9b9e761` · ✅ FIGMA-REVERSE-IMPORT v1 `ed5cd97`+`566d775`, autonom)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **279/279** · Web **579/579** · Plugin **98/98**.
+
+## ✅ FIGMA-REVERSE-IMPORT v1 FERTIG & BROWSER-BEWIESEN (19.07. nachts, autonom, Sonnet-TDD, `ed5cd97` Server + `566d775` Web) — Robs Roadmap-Punkt „aus dem Figma-File importieren"
+
+Der Figma-Tab im Import-Modal ist von einem Plugin-Platzhalter zu einem echten Import-Weg geworden: eine **öffentliche/zugängliche Figma-Datei per REST-API** lesen (0 Credits, deterministisch, KEIN Plugin nötig) und in dieselbe kanonische Result-Shape wie URL/Repo gießen. Spec `docs/superpowers/specs/2026-07-03-figma-ingester-v1-design.md` (freigegeben) — **auf die aktuelle Atomic-Taxonomie korrigiert** (`atoms/molecules/organisms/templates` statt der veralteten Spec-Buckets `atomics/components/patterns`). Plan `docs/superpowers/plans/2026-07-19-figma-ingester-v1.md`.
+
+**Scheibe A (Server, `ed5cd97`, +32 Tests → 279):** `figmaUrl.js` (parse `/design/`+`/file/`, node-id ignoriert) · `fetchFigmaFile.js` (GET `/v1/files/:key` + best-effort `variables/local` → bei 403/Fehler `variables:null`, injizierbares fetch, deutsche Fehler 403/404/429/sonst) · `ingestFigmaFile.js` (reiner Kern: Farben/Typo/Schatten aus benannten Styles `high`, `border_radius` aus `cornerRadius` `low`, spacing v1 leer + Warnung, Inventar-Split per Namens-Heuristik + COMPONENT_SET/COMPONENT/Top-FRAME, optionaler Variables-Zweig) · Fixture deckt jeden Bucket/Token-Typ/Radius/Variables ab · `POST /api/scan/figma` + `statusForFigmaError` + `GET /api/figma/status` (eigener Handler, KEIN Doppel-Mount des Routers). **Vertrag:** Body `{url, token?}` (Feld-Token schlägt `process.env.FIGMA_TOKEN`) → kanonische Shape; Status → `{tokenConfigured}`.
+
+**Scheibe B (Web, `566d775`, +13 Tests → 579):** `submitFigma` in useImportSession · `FigmaTab.jsx` (Mount-Fetch `/api/figma/status`, URL-Feld, Token-Feld nur wenn kein Server-Token — password, nie localStorage — + „Token hier erstellen"-Link + Privacy-Hinweis, Disabled-Logik) · Tab aktiviert · `ImportProgress` figma-Copy. **Browser-bewiesen (dev-demo lokal):** Tab aktiv, Status-Fetch ok (lokal kein Token → Token-Feld sichtbar), Import-Button aktiviert sich bei valider URL+Token, 0 Konsolenfehler.
+
+**⏭️ ROBS FINALER REAL-SMOKE (nicht autonom fahrbar — Figma-REST braucht auch für öffentliche Files ein Token):** `FIGMA_TOKEN` in die lokale `.env` (oder direkt ins Feld) → Figma-Datei-URL → Import → erwartet: Token-Kacheln (Farben/Typo/Schatten aus Styles), Radius-Kacheln low-confidence, Inventar-Accordion (atoms/molecules/organisms/templates), Spacing-Warnung. **Grenzen v1 (Spec §Out of Scope):** volle Variables/Enterprise, Spacing aus Auto-Layout, per-Ecke-Radius, Branches/Multi-Page/node-id-Teilimport, KI-Vertiefung, Zurückschreiben nach Figma, Perf-Kappung großer Dateien.
+
+## ✅ GEMINI-`jsx`-ERZEUGUNG ABGESCHALTET (19.07. nachts, autonom, Sonnet-TDD, `9b9e761`) — Token-Sparmaßnahme, KEIN Verhaltens-Change
 
 ## ✅ GEMINI-`jsx`-ERZEUGUNG ABGESCHALTET (19.07. nachts, autonom, Sonnet-TDD, `9b9e761`) — Token-Sparmaßnahme, KEIN Verhaltens-Change
 
@@ -17,7 +29,8 @@ Der Figma-Emitter gibt Bausteine + Templates in **Original-Screenshot-Auflösung
 ### ⏭️ NÄCHSTER SCHRITT — Architektur-Pivot (Scheibe 1–3) KOMPLETT + jsx-Abschaltung erledigt. Kandidaten aus der Roadmap:
 - ~~**Server-Prompt: Geminis `jsx`-Erzeugung abschalten**~~ ✅ ERLEDIGT 19.07. (`9b9e761`, s.o.).
 - **Breiten-Test der Eingabetypen** (Bild vs. URL vs. Repo, Robs Wunsch 17.07. — jetzt sinnvoll, da Fidelity-Scheiben durch). ⚠️ braucht Live-API/Gemini-Quota.
-- **Figma-Reverse-Import** (Figma-Ingester-Spec liegt seit 03.07.) / **Developer-Empfangsseite** (Storybook/shadcn).
+- ~~**Figma-Reverse-Import**~~ ✅ v1 ERLEDIGT 19.07. (`ed5cd97`+`566d775`, s.o.) — offen: Robs Real-Smoke mit `FIGMA_TOKEN` + v1-Folgepunkte (Variables/Spacing/Perf).
+- **Developer-Empfangsseite** (Storybook/shadcn) — braucht Brainstorm/Spec mit Rob.
 - Chart-Trend-Linie Breiten-Determinismus (eigene delikate Scheibe, s. u.).
 
 ## ✅ SCHEIBE 2 TOKEN-SNAPPING FERTIG (19.07. nachts, autonom, Sonnet-TDD) — Tailwind-Output ist jetzt design-system-treu
