@@ -1,6 +1,10 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping + ✅ SCHEIBE 3 Figma-1:1-Skalierung FERTIG & FIGMA-BEWIESEN, autonom)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **566/566** · Plugin **98/98**.
+Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping + ✅ SCHEIBE 3 Figma-1:1-Skalierung FERTIG & FIGMA-BEWIESEN, autonom · ✅ jsx-ABSCHALTUNG `9b9e761`)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **247/247** · Web **566/566** · Plugin **98/98**.
+
+## ✅ GEMINI-`jsx`-ERZEUGUNG ABGESCHALTET (19.07. nachts, autonom, Sonnet-TDD, `9b9e761`) — Token-Sparmaßnahme, KEIN Verhaltens-Change
+
+Roadmap-Kandidat #1 nach dem Pivot erledigt. Seit Scheibe 1 kommt der Code-Export aus dem kanonischen `plan` (`interp.html`→`htmlToPlan`→`planToJsx`); Geminis separates `jsx`-Feld hatte **keinen echten Konsumenten mehr** (Server/Web/Plugin per Explore-Agent verifiziert) und verdoppelte grob die Ausgabelänge JEDES Scans → verbrannte Paid-Tier-Tokens ohne Nutzen. **Fix:** Prompt fragt kein `"jsx"` mehr an (`interpretComponents.js` Schema Z.57 + Regel-Zusätze 62/70), Extraktion lässt das Feld weg (Z.194), `interpret.js:82`-Map ohne `jsx`, Demo-Fixtures (12/8/6 Einträge) + Schema-Tests auf `{name,html,model}` angeglichen. `max_tokens:32768` bleibt als Ceiling (langes SVG-`html` allein). **Verifiziert (selbst nachgefahren):** Server 246→**247** (+1 Guard-Test: Prompt ohne jsx & Rückgabe ohne jsx-Key, bewiesen mit Mock der trotzdem jsx sendet) · Web **566/566** (2 `toEqual` angepasst) · Regressionstest `emitComponents.test.js` (Code aus planToJsx, nicht interp.jsx) unverändert grün. Plan `docs/superpowers/plans/2026-07-19-disable-jsx-generation.md`. Rein statisch — kein Plugin-Change, kein Dev-Plugin-Reload, keine Figma-/Quota-Runde nötig. Gepusht auf main (Auto-Deploy).
 
 ## ✅ SCHEIBE 3 FIGMA-EMIT-SKALIERUNG 1:1 FERTIG & FIGMA-E2E-BEWIESEN (19.07. nachts, autonom, Sonnet-TDD) — Robs Größen-Fix gelandet
 
@@ -10,9 +14,9 @@ Der Figma-Emitter gibt Bausteine + Templates in **Original-Screenshot-Auflösung
 
 **Grenzen v1 (dokumentiert):** Tailwind-Emitter unberührt (Code aufs Token-Raster); kein Plugin-Change; Nicht-Bild-Importe (URL/Repo ohne meta.image_width) → Faktor 1; breitengetrieben (kein Höhen-Sonderfall); viewBox nie skaliert. **Bekannte Rest-Issues (KEIN Scheibe-3-Regress, dokumentierte Grenzen):** SVG-Trend-Linie skaliert nicht mit (Figma-Vektor-Grenze); leere Logo/Avatar-Kästen in der Sidebar (pre-existierende Gemini-Artefakte).
 
-### ⏭️ NÄCHSTER SCHRITT — Architektur-Pivot (Scheibe 1–3) KOMPLETT. Kandidaten aus der Roadmap:
-- **Server-Prompt: Geminis `jsx`-Erzeugung abschalten** (Mini-Schritt, spart Gemini-Tokens — der Web-Emitter nutzt `interp.jsx` seit Scheibe 1 nicht mehr; NUR `interp.html` wird gebraucht).
-- **Breiten-Test der Eingabetypen** (Bild vs. URL vs. Repo, Robs Wunsch 17.07. — jetzt sinnvoll, da Fidelity-Scheiben durch).
+### ⏭️ NÄCHSTER SCHRITT — Architektur-Pivot (Scheibe 1–3) KOMPLETT + jsx-Abschaltung erledigt. Kandidaten aus der Roadmap:
+- ~~**Server-Prompt: Geminis `jsx`-Erzeugung abschalten**~~ ✅ ERLEDIGT 19.07. (`9b9e761`, s.o.).
+- **Breiten-Test der Eingabetypen** (Bild vs. URL vs. Repo, Robs Wunsch 17.07. — jetzt sinnvoll, da Fidelity-Scheiben durch). ⚠️ braucht Live-API/Gemini-Quota.
 - **Figma-Reverse-Import** (Figma-Ingester-Spec liegt seit 03.07.) / **Developer-Empfangsseite** (Storybook/shadcn).
 - Chart-Trend-Linie Breiten-Determinismus (eigene delikate Scheibe, s. u.).
 
