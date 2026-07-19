@@ -50,7 +50,7 @@ describe('planToJsx — box Layout/Sizing/Spacing/Visual', () => {
       fill: { hex: '#022d2c', token: 'primary' }, stroke: { hex: '#e5e7eb', token: null },
       strokeWeight: 2, radius: 8, width: 240, height: 120,
     }), { name: 'X' });
-    expect(code).toContain('bg-[#022d2c]');
+    expect(code).toContain('bg-primary');
     expect(code).toContain('border border-[#e5e7eb]');
     expect(code).toContain('border-[2px]');
     expect(code).toContain('rounded-[8px]');
@@ -150,7 +150,7 @@ describe('planToJsx — Wrapper + Verschachtelung', () => {
       children: [text({ content: 'Premium', fontSize: 12, fontWeight: 600, color: { hex: '#ffffff', token: null } })],
     });
     const code = planToJsx(plan, { name: 'PremiumBadge' });
-    expect(code).toContain('bg-[#022d2c]');
+    expect(code).toContain('bg-primary');
     expect(code).toContain('rounded-full');
     expect(code).toContain('items-center');
     expect(code).toContain('justify-center');
@@ -244,5 +244,46 @@ describe('planToJsx — Spacing/Radius Snapping', () => {
     const code = planToJsx(box({ layout: 'row', gap: 16, radius: 16 }), { name: 'X' });
     expect(code).toContain('gap-[16px]');
     expect(code).toContain('rounded-[16px]');
+  });
+});
+
+describe('planToJsx — Farb-Token + Font-Snapping', () => {
+  const FONTS = { fonts: [{ px: 32, weight: 700, name: 'display-xl' }, { px: 14, weight: 400, name: 'body-default' }, { px: 14, weight: 600, name: 'label-strong' }] };
+
+  it('fill/stroke/color mit token → Token-Klasse, ohne token → Hex', () => {
+    const code = planToJsx(box({
+      fill: { hex: '#022d2c', token: 'primary' },
+      stroke: { hex: '#e5e7eb', token: 'border' }, strokeWeight: 1,
+      children: [text({ content: 'x', color: { hex: '#111827', token: 'foreground' } })],
+    }), { name: 'X' });
+    expect(code).toContain('bg-primary');
+    expect(code).toContain('border border-border');
+    expect(code).toContain('text-foreground');
+  });
+
+  it('token:null → Hex-Fallback', () => {
+    const code = planToJsx(box({ fill: { hex: '#abcdef', token: null } }), { name: 'X' });
+    expect(code).toContain('bg-[#abcdef]');
+  });
+
+  it('font snappt nur bei Size+Weight-Match → text-{name} font-{name}', () => {
+    const code = planToJsx(text({ content: 'Hi', fontSize: 32, fontWeight: 700 }), { name: 'X', tokens: FONTS });
+    expect(code).toContain('text-display-xl');
+    expect(code).toContain('font-display-xl');
+    expect(code).not.toContain('text-[32px]');
+  });
+
+  it('Size-Match aber Weight-Mismatch → arbitrary + Weight-Name (kein falsches Token)', () => {
+    const code = planToJsx(text({ content: 'Hi', fontSize: 14, fontWeight: 500 }), { name: 'X', tokens: FONTS });
+    expect(code).toContain('text-[14px]');
+    expect(code).toContain('font-medium');
+    expect(code).not.toContain('label-strong');
+    expect(code).not.toContain('body-default');
+  });
+
+  it('ohne fonts-Skala → arbitrary Size + Weight-Name (Scheibe-1-Verhalten)', () => {
+    const code = planToJsx(text({ content: 'Hi', fontSize: 32, fontWeight: 700 }), { name: 'X' });
+    expect(code).toContain('text-[32px]');
+    expect(code).toContain('font-bold');
   });
 });

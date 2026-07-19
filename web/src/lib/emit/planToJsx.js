@@ -45,6 +45,26 @@ function radiusClass(radius, scale) {
   return name ? `rounded-${name}` : `rounded-[${Math.round(radius)}px]`;
 }
 
+/** {hex, token}|null → Klassensymbol: `token` (gebunden) oder `[#hex]`; null wenn beides fehlt. */
+function colorSymbol(ref) {
+  if (!ref || (!ref.hex && !ref.token)) return null;
+  return ref.token ? ref.token : `[${ref.hex}]`;
+}
+
+/** Typografie-Token, dessen px (±tol) UND weight (exakt) passen; sonst null. Verhindert Bindung
+ *  eines 14/400-Fließtexts an ein 14/600-Token. */
+function snapFont(fontSize, fontWeight, scale, tol = SNAP_TOLERANCE_PX) {
+  if (!Array.isArray(scale) || !Number.isFinite(fontSize)) return null;
+  let best = null;
+  let bestDiff = Infinity;
+  for (const t of scale) {
+    if (!t || !Number.isFinite(t.px) || t.weight !== fontWeight) continue;
+    const diff = Math.abs(t.px - fontSize);
+    if (diff <= tol && diff < bestDiff) { bestDiff = diff; best = t; }
+  }
+  return best ? best.name : null;
+}
+
 /** padding [t,r,b,l] → minimale Tailwind-Klassenliste (all-equal → p-, t=b&l=r → px-/py-, sonst
  *  einzeln); jedes ausgegebene Symbol gesnappt oder arbitrary. Kollaps rein über px-Gleichheit. */
 function paddingClasses([t, r, b, l], scale) {
@@ -89,9 +109,11 @@ function boxClasses(node, tokens) {
   if (gap) out.push(gap);
   out.push(...paddingClasses(node.padding, tokens?.spacing));
   // Visual
-  if (node.fill?.hex) out.push(`bg-[${node.fill.hex}]`);
-  if (node.stroke?.hex) {
-    out.push('border', `border-[${node.stroke.hex}]`);
+  const fillSym = colorSymbol(node.fill);
+  if (fillSym) out.push(`bg-${fillSym}`);
+  const strokeSym = colorSymbol(node.stroke);
+  if (strokeSym) {
+    out.push('border', `border-${strokeSym}`);
     if (Number.isFinite(node.strokeWeight) && node.strokeWeight !== 1) out.push(`border-[${node.strokeWeight}px]`);
   }
   const radius = radiusClass(node.radius, tokens?.radius);
@@ -128,10 +150,17 @@ function escapeJsxText(s) {
     .replace(/\}/g, '&#125;');
 }
 
-function textClasses(node) {
-  const out = [`text-[${Math.round(node.fontSize)}px]`];
-  out.push(FONT_WEIGHT_NAME[node.fontWeight] || `font-[${node.fontWeight}]`);
-  if (node.color?.hex) out.push(`text-[${node.color.hex}]`);
+function textClasses(node, tokens) {
+  const out = [];
+  const fontName = snapFont(node.fontSize, node.fontWeight, tokens?.fonts);
+  if (fontName) {
+    out.push(`text-${fontName}`, `font-${fontName}`);
+  } else {
+    out.push(`text-[${Math.round(node.fontSize)}px]`);
+    out.push(FONT_WEIGHT_NAME[node.fontWeight] || `font-[${node.fontWeight}]`);
+  }
+  const colorSym = colorSymbol(node.color);
+  if (colorSym) out.push(`text-${colorSym}`);
   if (node.align === 'center') out.push('text-center');
   else if (node.align === 'right') out.push('text-right');
   if (node.lineHeight != null) out.push(`leading-[${Math.round(node.lineHeight)}px]`);
@@ -140,9 +169,9 @@ function textClasses(node) {
   return out;
 }
 
-function walkText(node, depth) {
+function walkText(node, depth, tokens) {
   const pad = INDENT.repeat(depth);
-  const cls = textClasses(node).join(' ');
+  const cls = textClasses(node, tokens).join(' ');
   return `${pad}<span className="${cls}">${escapeJsxText(node.content)}</span>`;
 }
 
