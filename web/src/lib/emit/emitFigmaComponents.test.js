@@ -291,6 +291,40 @@ describe('emitFigmaComponents — composition', () => {
     expect(layout.variants[0].plan.children[0]).toMatchObject({ type: 'component-ref', name: 'SidebarNav' });
     expect(layout.variants[0].plan.children[0].absolute).toBeUndefined();
   });
+
+  it('canvas nutzt echte Bildmaße: composed-Parent-Größe = bbox·image_width (nicht ·1024)', () => {
+    const result = {
+      raw: {
+        tokens: { colors: [] },
+        atoms: [], molecules: [],
+        organisms: [{ name: 'Card A', bbox: { x: 0.1, y: 0.1, w: 0.4, h: 0.2 } }],
+        templates: [{ name: 'Dash', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+        composition: { children: { Dash: ['Card A'] }, roots: ['Dash'] },
+        meta: { image_width: 2000, image_height: 1500 },
+      },
+    };
+    const out = emitFigmaComponents(result);
+    const dash = out.find((c) => c.name === 'Dash');
+    expect(dash.source).toBe('composed');
+    expect(dash.variants[0].plan.width).toBe(2000);   // 1.0 · 2000, nicht 1024
+    expect(dash.variants[0].plan.height).toBe(1500);
+    const childRef = dash.variants[0].plan.children[0];
+    expect(childRef.absolute.width).toBe(800);         // 0.4 · 2000
+  });
+
+  it('fehlendes meta.image_width → Fallback canvas 1024 (altes Verhalten)', () => {
+    const result = {
+      raw: {
+        tokens: { colors: [] }, atoms: [], molecules: [],
+        organisms: [{ name: 'Card A', bbox: { x: 0.1, y: 0.1, w: 0.4, h: 0.2 } }],
+        templates: [{ name: 'Dash', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+        composition: { children: { Dash: ['Card A'] }, roots: ['Dash'] },
+        meta: {},
+      },
+    };
+    const dash = emitFigmaComponents(result).find((c) => c.name === 'Dash');
+    expect(dash.variants[0].plan.width).toBe(1024); // 1.0 · 1024 (Fallback)
+  });
 });
 
 // ---------------------------------------------------------------------------

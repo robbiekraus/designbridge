@@ -8,6 +8,7 @@ import { pickTokenRefs } from './pickTokenRefs.js';
 import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
+import { scalePlan, scaleFactor } from './scalePlan.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
 // bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
@@ -61,10 +62,9 @@ export function emitFigmaComponents(result) {
   }
   const iw = raw.meta?.image_width;
   const ih = raw.meta?.image_height;
-  const canvas = {
-    w: PREVIEW_VIRTUAL_WIDTH,
-    h: iw && ih ? Math.round(PREVIEW_VIRTUAL_WIDTH * ih / iw) : PREVIEW_VIRTUAL_WIDTH,
-  };
+  const canvas = (iw && ih)
+    ? { w: iw, h: ih }
+    : { w: PREVIEW_VIRTUAL_WIDTH, h: PREVIEW_VIRTUAL_WIDTH };
 
   const out = [];
   for (const [rawKey, kind] of KINDS) {
@@ -118,14 +118,15 @@ export function emitFigmaComponents(result) {
               anchorTokens,
             };
           });
-          const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets });
+          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
+            const scaled = scalePlan(plan, scaleFactor(item.bbox, iw, naturalWidth));
             out.push({
               ...meta,
               placeholder: false,
               source: 'composed-spliced',
-              variants: [{ name: 'default', plan }],
+              variants: [{ name: 'default', plan: scaled }],
             });
             continue;
           }
@@ -153,14 +154,15 @@ export function emitFigmaComponents(result) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents });
+        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
+          const scaled = scalePlan(plan, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);
           out.push({
             ...meta,
             placeholder: false,
             source: 'ai-interpreted',
-            variants: [{ name: 'default', plan }],
+            variants: [{ name: 'default', plan: scaled }],
           });
           continue;
         }
