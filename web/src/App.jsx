@@ -200,7 +200,6 @@ export default function App() {
             </button>
           )}
           <button disabled title="Folgt in einer späteren Version" className="btn-ghost text-xs opacity-40 cursor-not-allowed">Settings</button>
-          <button disabled title="Folgt in einer späteren Version — Export nach Figma läuft über das Plugin" className="btn-outline text-xs opacity-40 cursor-not-allowed">Connect Figma</button>
         </div>
       </header>
 
