@@ -1,6 +1,17 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` FERTIG, autonom gebaut+gepusht)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **540/540** · Plugin **98/98**.
+Stand: **19.07.2026 nachts (ARCHITEKTUR-PIVOT: `plan` = kanonisches Modell → ✅ SCHEIBE 1 `plan→Tailwind` + ✅ SCHEIBE 2 Token-Snapping FERTIG, autonom gebaut+gepusht)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **552/552** · Plugin **98/98**.
+
+## ✅ SCHEIBE 2 TOKEN-SNAPPING FERTIG (19.07. nachts, autonom, Sonnet-TDD) — Tailwind-Output ist jetzt design-system-treu
+
+`planToJsx` gibt Token-Klassen aus, die auf die Design-Tokens zeigen (`bg-primary`/`p-card-padding`/`rounded-card`/`text-heading-md`) statt roher arbitrary values — konsistent mit dem exportierten Tailwind-Config (`emitTailwind.js` legt genau diese Namen als `theme.extend`-Keys an). **Kernentscheidung (autonom, dokumentiert):** Snapping ist eine **Emit-Zeit-Transformation** von `planToJsx`, der `plan` bleibt px (kein Shape-/Plugin-/Contract-Change; Figma-Weg unberührt). Farben nutzen die schon im plan gebundene `token`-Ref; Spacing/Radius/Font snappen gegen die aus `normalizeTokens` abgeleiteten Skalen (±2px, Font-Weight exakt). Spec `docs/superpowers/specs/2026-07-19-plan-token-snapping-design.md`, Plan `docs/superpowers/plans/2026-07-19-plan-token-snapping.md`.
+
+**Verifiziert:** Web **540→552** (+ snapToken/Spacing/Radius/Farb/Font-Tests, e2e durch emitComponents; angepasste Scheibe-1-Farb-/Radius-Assertions) · Build sauber · **Browser-Smoke bewiesen** (Organisms→„Emissions Trend Chart Card" Code-Ansicht: `p-card-padding`, `gap-card-padding`, `px-sidebar-item-padding`, `rounded-buttons-and-dropdowns`, `bg-background-card`, `text-body-small font-body-small` — MIT korrekten arbitrary-Fallbacks `w-[750px]`/`rounded-[12px]`/`bg-[#5c56e6]`/`text-[18px] font-bold` wo kein Token passt). Gepusht auf main.
+
+**Grenzen v1 (dokumentiert):** Plan-Shape bleibt px (kein Spacing/Radius/Font-Token-Feld im plan), w/h bleiben arbitrary, Shadows nicht gesnappt, keine Tailwind-Default-Skala als Zwischenraster, `font-{name}`-Weight-Ambiguität akzeptiert (Config definiert sie).
+
+### ⏭️ NÄCHSTER SCHRITT: Scheibe 3 — Figma-Emit-Skalierung 1:1 (Robs ursprünglicher Größen-Fix als Emitter-Transform)
+**Erst lesen:** `docs/superpowers/specs/2026-07-19-canonical-plan-model-architecture.md` §Zerlegung Punkt 3 + der Größen-Root-Cause direkt unten in diesem RESUME (2296×2408 → Canvas fix 1024 → 0,446× gestaucht, Faktor `image_width/1024`=2,24× Mismatch). **Aufgabe:** `canvas = raw.meta.image_width/height` statt fix 1024 + `scalePlan(plan, slot/natural)` uniform pro Baustein (breitengetrieben, Aspekt erhalten; ohne bbox → Faktor 1; komponierte Eltern analog). Zu skalierende Plan-Felder: width/height/padding[4]/gap/radius/strokeWeight/absolute{x,y,w,h}/text.fontSize(+lineHeight px)/svg width+height (viewBox NICHT). Betrifft `emitFigmaComponents.js` (canvas) + neuer `scalePlan`; **Tailwind-Emitter bleibt unberührt** (Code aufs Token-Raster, Figma auf 1:1). ⚠️ Scheibe 3 berührt den Figma-Weg → Verifikation per `/figma-e2e-test`-Skill (autonom, Rob muss nicht klicken); token-schonend aus gecachtem Result re-emittieren statt frischem Gemini-Scan. Löst auch Sidebar-#4 (Profil-Shrink-Overlap) weitgehend. Delikat → sauber speccen + TDD + Figma-verifizieren, nicht blind.
 
 ## ✅ SCHEIBE 1 `plan→Tailwind`-EMITTER FERTIG (19.07. nachts, autonom, Sonnet-TDD) — „ein Modell → beide Ausgänge" bewiesen
 
