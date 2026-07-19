@@ -1,6 +1,14 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Stand: **19.07.2026 (v3 Flow-Box + BILD-GLYPH LIVE; Chart-Trend-Linie NOCH OFFEN — Ursache korrekt diagnostiziert)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **492/492** · Plugin **98/98**.
+Stand: **19.07.2026 nachm. (SPLICE v2 TEXT-ANKER LIVE `8be9fbd` — Robs Sidebar-Befund gefixt; Chart-Trend-Linie NOCH OFFEN)** — **🚀 APP LIVE: https://designbridge-production.up.railway.app** mit **Gemini PAID**. Server **243/243** · Web **514/514** · Plugin **98/98**.
+
+## ✅ COMPOSITION-SPLICE v2 — TEXT-ANKER-MATCHING (19.07. nachm., `8be9fbd`) — Robs Befund „leere Sidebar-Frames" gefixt, E2E-bewiesen
+
+Robs Befund: leere Frames in der Sidebar im letzten Figma-Import = **Fehler, keine Design-Entscheidung** (korrigiert die frühere Einordnung von Rest-Issue 3). **Root Cause belegt am echten Import `59c4365128f19efb`:** Splice-IoU vergleicht Screenshot-bbox mit KI-Neuzeichnungs-Layout — zwei unabhängige Geometrien, Best-IoU real 0.019–0.057 (Schwelle 0.35), bester Kandidat war der GANZE Container. Die guten Einzel-Interpretationen (Sidebar Logo mit echtem SVG, Storage-Widget, Jane-Smith-Profil) wurden nie instanziert → Low-Fidelity-Selbstzeichnung gewann.
+
+**Fix (Spec `docs/superpowers/specs/2026-07-19-splice-text-anchor-matching-design.md`, Robs Wahl „Text-Anker + Plausibilität", TDD Sonnet):** Phase 1 Token-Jaccard Kind-Anker-Texte ↔ Eltern-Subtree (`SPLICE_MIN_TEXT=0.5`, Tie-Break Vorfahre>Nachfahre, Deckel: messbares Rect + ≤80% Referenzfläche), Phase 2 = bestehendes IoU unverändert (textlose Kinder/Bestand). **E2E am echten Import: Sidebar 3/3 gesplict (vorher 0/3), Dashboard Template 15/15 (vorher 13/15), Reports Table 1/1, NULL Splice-Warnungen.** Web 492→**514** (+22). Außerdem `37e22ff`: Connect-Figma-Stub aus Topbar entfernt (Robs Call). **NÄCHSTER SCHRITT: Robs Figma-Beweis-Import (frisches Bild → leere Datei; Plugin-dist unverändert, kein Reload nötig).**
+
+**⏭️ Notierte Folge-Scheibe (klein, Befund aus derselben Analyse):** `<hr>`-Trenner werden zu leeren 0×0-Boxen (nur 1px-Stroke, width/height null → Figma-Hug kollabiert) + Storage-Progress-Füllbalken verliert Höhe (`height:null`). Konverter-Scheibe in htmlToPlan: hr → 1px-Linie mit Breite, %-Höhen-Füllungen einfrieren.
 
 ## ⚠️ CHART-TREND-LINIE: viewBox-Fix (`682e8ca`) WAR DIE FALSCHE WURZEL — echte Ursache jetzt belegt
 
@@ -29,7 +37,7 @@ Rob deferte die Architektur-Entscheidung an Claude („keine Ahnung" + „entsch
 ### Verbleibende Rest-Issues (unverändert, nächste Scheiben)
 1. **SVG skaliert nicht mit** (Trend-Linie kollabiert) — harte Figma-Grenze (Vektor-Node skaliert nicht beim Frame-Resize). Eigene Scheibe.
 2. **KPI-Cards/Content leicht rechts geclippt** (Inhalt für ~480px designt, auf 217er-Slot geschrumpft → „O2"/Prozent-Enden abgeschnitten) — Fidelity-Tradeoff des Shrink-to-fit. Polish/eigene Scheibe.
-3. **Sidebar-Logo & Avatar = leere weiße Boxen** (Gemini malt Marken-Mark/Avatar als leere Divs) — **DESIGN-ENTSCHEIDUNG offen (Robs Call, s.u.)**, KI-Fidelity, kein Hierarchie-Bug. Empfehlung: Konverter-Heuristik „kleine leere Box mit Fill, keine Kinder → Bild-Glyph", konservativ auf Avatare/Logos begrenzt.
+3. ~~Sidebar-Logo & Avatar = leere weiße Boxen~~ — **GELÖST 19.07. nachm. in zwei Teilen:** Bild-Glyph (`ef14c3a`) + Splice v2 Text-Anker (`8be9fbd`, die ECHTEN Einzel-Interpretationen werden jetzt instanziert). Robs Einordnung „das ist ein Fehler" war korrekt, die frühere „Design-Entscheidung"-Rahmung nicht.
 4. **v3-Nebenwirkung (dokumentiert):** `buildBoxNode`-Absolut-Freeze greift für Wrapper-Kinder nicht mehr (Wrapper-Box ist selbst normaler Flow-Teilnehmer). Korrekt, aber Tradeoff falls ein Flow-Parent visuell größer als sein einziges gesplictes Kind ist (Zentrierung/Padding). Bei Befund anfassen.
 
 ## (historisch) 🛑 ARCHITEKTUR-FORK (19.07., systematic-debugging Phase 4.5) — von v3 aufgelöst
