@@ -641,17 +641,36 @@ function stripExternalRefs(root, ctx) {
   }
 }
 
+/** Injiziert fehlende viewBox/width/height auf dem geklonten Wurzel-<svg> aus dem gemessenen Rect
+ *  des LIVE-Elements (Spec: docs/superpowers/specs/2026-07-19-svg-viewbox-injection-design.md).
+ *  Gemini liefert Chart-SVGs ohne diese Attribute (nur CSS width:100%/height:100%) — beim Figma-
+ *  Import nicht auflösbar → Fallback auf CSS-Default (~300×150) → Pfade jenseits davon werden
+ *  abgeschnitten. Fix: Pixel-Koordinatenraum der Pfade (= gemessene Fläche) 1:1 als viewBox setzen.
+ *  Nur bei echtem Rect (>0, jsdom-Default 0×0 ohne Mock → keine Injektion, Markup bleibt verbatim).
+ *  Vorhandene Attribute werden NIE überschrieben (hasAttribute-Check, nicht leere Strings). */
+function injectMissingSvgSize(clone, el) {
+  const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : { width: 0, height: 0 };
+  if (!(rect.width > 0 && rect.height > 0)) return;
+  const w = Math.max(1, Math.round(rect.width));
+  const h = Math.max(1, Math.round(rect.height));
+  if (!clone.hasAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  if (!clone.hasAttribute('width')) clone.setAttribute('width', `${w}`);
+  if (!clone.hasAttribute('height')) clone.setAttribute('height', `${h}`);
+}
+
 /** SVG-Subtree → PlanSvg. Markup verbatim (inkl. eigener Tags/Attribute), `<foreignObject>` vorher
  *  entfernt (kann beliebiges HTML/CSS enthalten, das Figma nicht rendert), externe Ressourcen-Refs
  *  entfernt (Defense-in-Depth — der Live-Baum wurde bereits vor dem Mounten gestrippt, s.
  *  htmlToPlan(); hier zusätzlich auf dem Klon, falls der Knoten nachträglich verändert wurde),
- *  >20000 Zeichen gekappt + Warnung statt fatal. */
+ *  fehlende Größen-Attribute aus dem gemessenen Rect injiziert (s. injectMissingSvgSize), >20000
+ *  Zeichen gekappt + Warnung statt fatal. */
 function convertSvgElement(el, ctx) {
   const clone = el.cloneNode(true);
   for (const fo of Array.from(clone.querySelectorAll?.('foreignObject') || [])) {
     fo.remove();
   }
   stripExternalRefs(clone, ctx);
+  injectMissingSvgSize(clone, el);
   let markup = clone.outerHTML;
   if (markup.length > SVG_MAX_CHARS) {
     markup = markup.slice(0, SVG_MAX_CHARS);

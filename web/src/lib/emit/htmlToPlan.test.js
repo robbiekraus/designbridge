@@ -694,6 +694,89 @@ describe('htmlToPlan — SVG-Extraktion (unverändert: Vektor-Passthrough, kein 
   });
 });
 
+// Spec: docs/superpowers/specs/2026-07-19-svg-viewbox-injection-design.md. Behebt die kollabierende
+// Trend-Linie (Rest-Issue 2): Gemini zeichnet Chart-SVGs ohne viewBox/width/height (Pixel-Koordinaten
+// der vollen Plot-Fläche) → Figma kann `width:100%` (CSS) nicht auflösen → rendert auf CSS-Default
+// (~300×150) → Pfade jenseits davon werden abgeschnitten. Fix: fehlende Größen-Angaben aus dem
+// gemessenen Rect (getBoundingClientRect) auf den geklonten Wurzel-<svg> injizieren, VOR outerHTML —
+// nur wenn das Rect echt ist (>0) und nur für fehlende Attribute (vorhandene nie überschreiben).
+// jsdom liefert nativ nur Nullen (s. Kopf-Kommentar dieser Datei) — Element.prototype.getBoundingClientRect
+// wird für die Dauer dieser Suite gemockt, gleicher Ansatz wie in den anderen Rect-Suiten oben
+// (`data-mock-rect`-JSON-Attribut direkt im HTML-Fixture).
+describe('htmlToPlan — SVG-Größen-Injektion (Spec 2026-07-19: fehlendes viewBox/width/height aus gemessenem Rect)', () => {
+  let restoreGetBoundingClientRect;
+
+  beforeEach(() => {
+    const original = Element.prototype.getBoundingClientRect;
+    restoreGetBoundingClientRect = () => {
+      Element.prototype.getBoundingClientRect = original;
+    };
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x,
+        y: r.y,
+        left: r.x,
+        top: r.y,
+        width: r.width,
+        height: r.height,
+        right: r.x + r.width,
+        bottom: r.y + r.height,
+        toJSON() {
+          return this;
+        },
+      };
+    };
+  });
+
+  afterEach(() => {
+    restoreGetBoundingClientRect();
+  });
+
+  it('SVG ohne viewBox/width/height, Rect 700×180 → alle drei werden injiziert', () => {
+    const html =
+      '<svg data-mock-rect=\'{"x":0,"y":0,"width":700,"height":180}\'><path d="M 0,140 700,40"></path></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('viewBox="0 0 700 180"');
+    expect(markup).toContain('width="700"');
+    expect(markup).toContain('height="180"');
+  });
+
+  it('Icon mit viewBox+width+height (12×12), Rect 12×12 → Markup UNVERÄNDERT (nichts überschrieben)', () => {
+    const html =
+      '<svg viewBox="0 0 24 24" width="12" height="12" data-mock-rect=\'{"x":0,"y":0,"width":12,"height":12}\'><path d="M0 0"></path></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    // Kein Attribut wurde doppelt gesetzt oder überschrieben — jeweils genau ein Treffer, mit den
+    // ursprünglichen Werten (Assertion count-basiert statt String-exakt, da jsdom die serialisierte
+    // Attribut-Anführung des unabhängigen data-mock-rect-Test-Attributs normalisiert).
+    expect(markup.match(/viewBox="[^"]*"/g)).toEqual(['viewBox="0 0 24 24"']);
+    expect(markup.match(/\bwidth="[^"]*"/g)).toEqual(['width="12"']);
+    expect(markup.match(/\bheight="[^"]*"/g)).toEqual(['height="12"']);
+  });
+
+  it('viewBox vorhanden, width/height fehlen, Rect 22×22 → width/height injiziert, viewBox unberührt', () => {
+    const html =
+      '<svg viewBox="0 0 50 50" data-mock-rect=\'{"x":0,"y":0,"width":22,"height":22}\'><rect width="10" height="10"></rect></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('viewBox="0 0 50 50"');
+    expect(markup).toContain('width="22"');
+    expect(markup).toContain('height="22"');
+    // viewBox darf nicht überschrieben worden sein (weiterhin genau ein viewBox-Attribut, unverändert)
+    expect(markup.match(/viewBox="[^"]*"/g)).toEqual(['viewBox="0 0 50 50"']);
+  });
+
+  it('degeneriertes Rect (0×0, kein Mock-Attribut) → keine Injektion, Markup bleibt verbatim', () => {
+    const html = '<svg><rect width="5" height="5"></rect></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toBe('<svg><rect width="5" height="5"></rect></svg>');
+  });
+});
+
 describe('htmlToPlan — SVG externe Ressourcen-Härtung (Review-Fix v1 + v2: kein SSRF/Remote-Leak, jetzt auch beim Offscreen-Mount)', () => {
   it('<image> mit externer http(s)-Quelle wird komplett entfernt + Warnung', () => {
     const html =
