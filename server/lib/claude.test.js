@@ -133,6 +133,37 @@ test('mergeByName: erster Treffer behält seine bbox, wenn der zweite keine oder
   assert.deepEqual(mergedSmaller[0].bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
 });
 
+test('mergeByName: summiert instanceCount über gleichnamige Treffer', () => {
+  const merged = mergeByName([
+    { name: 'Nav Item', bbox: { x: 0, y: 0, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.05, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.1, w: 0.1, h: 0.05 } },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].instanceCount, 3);
+});
+
+test('mergeByName: respektiert von der KI geliefertes instanceCount und addiert', () => {
+  const merged = mergeByName([
+    { name: 'Nav Item', instanceCount: 9, bbox: { x: 0, y: 0, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.05, w: 0.1, h: 0.05 } },
+  ]);
+  assert.equal(merged[0].instanceCount, 10);
+});
+
+test('mergeByName: fehlendes/ungültiges instanceCount zählt als 1', () => {
+  const merged = mergeByName([
+    { name: 'Badge', instanceCount: 0, bbox: { x: 0, y: 0, w: 0.02, h: 0.02 } },
+    { name: 'Badge', instanceCount: -5, bbox: { x: 0, y: 0, w: 0.02, h: 0.02 } },
+  ]);
+  assert.equal(merged[0].instanceCount, 2);
+});
+
+test('mergeByName: einzelner Treffer bekommt instanceCount 1', () => {
+  const merged = mergeByName([{ name: 'Logo', bbox: { x: 0, y: 0, w: 0.05, h: 0.05 } }]);
+  assert.equal(merged[0].instanceCount, 1);
+});
+
 test('analyzeScreenshot: abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
   const imgPath = tmpImage();
   const fakeClient = {

@@ -126,15 +126,24 @@ export function mergeByName(items) {
   const byName = new Map();
   for (const item of items ?? []) {
     const key = String(item.name ?? '').trim().toLowerCase();
+    const count = Number.isFinite(item.instanceCount) && item.instanceCount > 0
+      ? Math.floor(item.instanceCount)
+      : 1;
     const prev = byName.get(key);
     if (!prev) {
-      byName.set(key, { ...item, variants: Array.isArray(item.variants) ? [...item.variants] : item.variants });
+      byName.set(key, {
+        ...item,
+        instanceCount: count,
+        variants: Array.isArray(item.variants) ? [...item.variants] : item.variants,
+      });
       continue;
     }
+    prev.instanceCount += count;
     if (Array.isArray(item.variants) && item.variants.length) {
       prev.variants = [...new Set([...(prev.variants ?? []), ...item.variants])];
     }
     if (!prev.notes && item.notes) prev.notes = item.notes;
+    if (!prev.partOf && item.partOf) prev.partOf = item.partOf;
     // Größte bbox gewinnt: der erste Treffer war oft ein Mini-Exemplar,
     // dessen Crop downstream zu klein zum Interpretieren ist (Diagnose 16.07.).
     if (bboxArea(item.bbox) > bboxArea(prev.bbox)) prev.bbox = item.bbox;
