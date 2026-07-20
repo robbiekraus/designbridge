@@ -68,6 +68,21 @@ describe('emitComponents', () => {
     expect(out).toHaveLength(1);
     expect(out[0].name).toBe('Button');
   });
+
+  it('reicht instanceCount und partOf pro Baustein durch', () => {
+    const r = { raw: { tokens: {}, atoms: [], molecules: [{ name: 'Nav Item', instanceCount: 9, partOf: 'Sidebar' }], organisms: [], templates: [] } };
+    const items = emitComponents(r, 'molecule');
+    expect(items).toHaveLength(1);
+    expect(items[0].instanceCount).toBe(9);
+    expect(items[0].partOf).toBe('Sidebar');
+  });
+
+  it('setzt Defaults instanceCount 1 und partOf null', () => {
+    const r = { raw: { tokens: {}, atoms: [{ name: 'Logo' }], molecules: [], organisms: [], templates: [] } };
+    const items = emitComponents(r, 'atom');
+    expect(items[0].instanceCount).toBe(1);
+    expect(items[0].partOf).toBe(null);
+  });
 });
 
 describe('emitComponents + Interpretationen', () => {
