@@ -130,6 +130,11 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
 // Leitet partOf (Eltern-Organismus) für herausgezogene Kleinteile aus der bbox-
 // Enthaltung ab. Additiv: setzt partOf NUR, wo die KI keins geliefert hat.
 // Templates sind KEINE partOf-Kandidaten (sonst wäre jeder Organismus "part of screen").
+// Hinweis zur Semantik: der KI-Prompt setzt partOf = Name des ELTERN-ORGANISMUS; die
+// hier abgeleitete Fallback-Quelle nimmt den KLEINSTEN direkten Container — das kann auch
+// ein Molekül sein (z.B. Trend-Badge → "Stat Pair"). Beide sind gültige „Herkunft"; die
+// Library zeigt nur den Namen. Falls je etwas downstream „partOf ist ein Organismus"
+// annimmt, hier ansetzen.
 export function derivePartOf(guarded) {
   const flat = [...guarded.atoms, ...guarded.molecules, ...guarded.organisms];
   const items = flat.map((it) => ({ name: it.name, ref: it }));
