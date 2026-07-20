@@ -228,13 +228,18 @@ export default function App() {
           </button>
         </aside>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto db-scroll">
           <div className="p-8">
             {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
             {lastImport && Boolean(LIBRARY_LEVELS[page]) && (
               <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
             )}
             {renderPage()}
+            <footer className="mt-12 pt-4 border-t border-zinc-200 flex items-center gap-2 text-[11px] text-zinc-400">
+              <span className="font-medium text-zinc-500">UIPrism</span>
+              <span>v0.1.1</span>
+              <span className="ml-auto">Map your UI, automatically.</span>
+            </footer>
           </div>
         </main>
       </div>

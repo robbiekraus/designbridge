@@ -27,3 +27,15 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 .spinner { animation: spin .7s linear infinite; }
+
+/* Immer sichtbare, dezente Scrollbar (macOS blendet Overlay-Scrollbars sonst aus) */
+.db-scroll { scrollbar-gutter: stable; }
+.db-scroll::-webkit-scrollbar { width: 10px; }
+.db-scroll::-webkit-scrollbar-track { background: transparent; }
+.db-scroll::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.db-scroll::-webkit-scrollbar-thumb:hover { background: #a1a1aa; background-clip: content-box; }
