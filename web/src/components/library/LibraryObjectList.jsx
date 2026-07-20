@@ -22,17 +22,128 @@ function Spinner({ className = '' }) {
   );
 }
 
-function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
-  const [open, setOpen] = useState(false);
-  const [variant, setVariant] = useState(item.variants[0] ?? null);
-  const [copied, setCopied] = useState(false);
+// Header-Meta: Name, Confidence-Pille, Source-Pillen, Stub-Chip, Aktivitäts-
+// Pille, Dateiname — identische Bausteine in beiden Layouts (Akkordeon &
+// Preview-First), nur die Umgebung (Button vs. div) unterscheidet sich.
+function HeaderMeta({ item, showActivityPill }) {
+  return (
+    <>
+      <span className="font-medium text-zinc-900">{item.name}</span>
+      <ConfidencePill value={item.confidence} />
+      <SourcePill value={item.source} />
+      {item.lifted && <SourcePill value="lifted" />}
+      {item.interpretedHtml && <SourcePill value="interpreted" />}
+      {item.interpretedDemo && <SourcePill value="demo" />}
+      {item.interpretedHtml && !item.interpretedDemo && item.interpretedModel && (
+        <span className="text-[10px] font-mono text-zinc-400">{item.interpretedModel}</span>
+      )}
+      {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && !item.lifted && (
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
+          generischer Stub
+        </span>
+      )}
+      {showActivityPill && (
+        <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600">
+          <Spinner />
+          interpretiert …
+        </span>
+      )}
+    </>
+  );
+}
+
+function VariantSwitcher({ variants, variant, setVariant }) {
+  if (!variants || variants.length === 0) return null;
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {variants.map((v) => (
+        <button
+          key={v}
+          onClick={() => setVariant(v)}
+          className={`text-[11px] px-2 py-0.5 rounded ${
+            variant === v ? 'bg-primary text-white' : 'bg-zinc-100 text-zinc-600'
+          }`}
+        >
+          {v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Vorschau-Inhalt (Regel-Preview / interpretiertes HTML / Platzhalter) —
+// identisch für beide Layouts.
+function PreviewBody({ item, picks, variant, retrying }) {
   const Preview = item.hasPreview ? PREVIEWS[item.templateKey] : null;
-  // Fix 1: Quota-Sperre disabled ALLE Retry-Buttons dieser Zeile, mit Grund im title.
+  if (Preview) return <Preview variant={variant} picks={picks} name={item.name} />;
+  if (item.interpretedHtml) {
+    return (
+      <div className="w-full">
+        <InterpretedPreview html={item.interpretedHtml} title={item.name} />
+      </div>
+    );
+  }
+  if (retrying) return <PreviewPlaceholder label="Wird interpretiert …" spinner />;
+  if (item.interpretPending) return <PreviewPlaceholder label="Wird interpretiert …" />;
+  return <PreviewPlaceholder label="keine Vorschau" />;
+}
+
+// Retry-/Fehler-Zeile unter der Vorschau — identisch für beide Layouts.
+function RetryStatus({ item, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
   const quotaTitle = quotaExhausted ? (interpretError || QUOTA_FALLBACK_MESSAGE) : undefined;
   const retryDisabled = retrying || batchPending || quotaExhausted;
-  // Fix 2: Header-Pille auch im zugeklappten Zustand, solange die Zeile retried
-  // oder ein laufender Batch diesen (noch offenen) Baustein noch nicht erreicht hat.
-  const showActivityPill = retrying || (batchPending && !item.interpretedHtml && !item.hasPreview);
+
+  return (
+    <>
+      {item.lifted && !item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && onRetryInterpret && (
+        <div className="pt-2">
+          <button
+            onClick={() => onRetryInterpret(item.name)}
+            disabled={retryDisabled}
+            title={quotaTitle}
+            className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {retrying ? 'Läuft …' : 'Mit KI interpretieren'}
+          </button>
+        </div>
+      )}
+      {item.interpretFailed && (
+        <div className="flex items-center gap-2 pt-2 text-[11px] text-zinc-500">
+          {retrying && <Spinner />}
+          <span>
+            {retrying
+              ? 'Wird erneut interpretiert …'
+              : batchPending
+                ? 'Interpretation läuft noch — Retry gleich möglich …'
+                : quotaExhausted
+                  ? (interpretError || QUOTA_FALLBACK_MESSAGE)
+                  : interpretError
+                    ? `Interpretation fehlgeschlagen: ${interpretError}`
+                    : 'Interpretation fehlgeschlagen.'}
+          </span>
+          {onRetryInterpret && (
+            <button
+              onClick={() => onRetryInterpret(item.name)}
+              disabled={retryDisabled}
+              title={quotaTitle}
+              className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {retrying ? 'Läuft …' : 'Erneut versuchen'}
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+// Code-Bereich hinter dem „Code anzeigen"-Toggle — Kopieren/Herunterladen
+// gehören nur hierher, wie im Spec gefordert. Die Notiz (item.notes, z.B.
+// Herkunftsvermerk) sitzt links neben dem Toggle, statt auf eigener Zeile
+// über dem Inhalt (Rob-Feedback 2026-07-20, dritte Runde).
+function CodeToggle({ item }) {
+  const [showCode, setShowCode] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const copy = async () => {
     try {
@@ -45,119 +156,29 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretE
   };
 
   return (
-    <div className="border-b border-zinc-200">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm hover:bg-zinc-50"
-      >
-        <span className={`text-zinc-400 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
-        <span className="font-medium text-zinc-900">{item.name}</span>
-        <ConfidencePill value={item.confidence} />
-        <SourcePill value={item.source} />
-        {item.lifted && <SourcePill value="lifted" />}
-        {item.interpretedHtml && <SourcePill value="interpreted" />}
-        {item.interpretedDemo && <SourcePill value="demo" />}
-        {item.interpretedHtml && !item.interpretedDemo && item.interpretedModel && (
-          <span className="text-[10px] font-mono text-zinc-400">{item.interpretedModel}</span>
-        )}
-        {!item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && !item.lifted && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-500">
-            generischer Stub
-          </span>
-        )}
-        {showActivityPill && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600">
-            <Spinner />
-            interpretiert …
-          </span>
-        )}
-        <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
-      </button>
-
-      {open && (
-        <div className="bg-zinc-50 px-3 pb-3">
-          {item.variants.length > 0 && (
-            <div className="flex gap-1 py-2">
-              {item.variants.map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setVariant(v)}
-                  className={`text-[11px] px-2 py-0.5 rounded ${
-                    variant === v ? 'bg-primary text-white' : 'bg-zinc-100 text-zinc-600'
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-          )}
-          {item.notes && (
-            <div className="flex items-start gap-1 text-[11px] italic text-zinc-500 pt-1">
-              <span aria-hidden="true">✎</span>
-              <span>{item.notes}</span>
-            </div>
-          )}
-
-          <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-1 pb-1.5">Vorschau</div>
-          <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
-            {Preview ? (
-              <Preview variant={variant} picks={picks} name={item.name} />
-            ) : item.interpretedHtml ? (
-              <div className="w-full">
-                <InterpretedPreview html={item.interpretedHtml} title={item.name} />
-              </div>
-            ) : retrying ? (
-              <PreviewPlaceholder label="Wird interpretiert …" spinner />
-            ) : item.interpretPending ? (
-              <PreviewPlaceholder label="Wird interpretiert …" />
-            ) : (
-              <PreviewPlaceholder label="keine Vorschau" />
-            )}
+    <div className="pt-2">
+      <div className="flex items-center justify-between gap-2">
+        {item.notes ? (
+          <div className="flex items-start gap-1 text-[11px] italic text-zinc-500 min-w-0">
+            <span aria-hidden="true">✎</span>
+            <span className="truncate">{item.notes}</span>
           </div>
-          {item.lifted && !item.hasPreview && !item.interpretedHtml && !item.interpretPending && !item.interpretFailed && onRetryInterpret && (
-            <div className="pt-2">
-              <button
-                onClick={() => onRetryInterpret(item.name)}
-                disabled={retryDisabled}
-                title={quotaTitle}
-                className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {retrying ? 'Läuft …' : 'Mit KI interpretieren'}
-              </button>
-            </div>
-          )}
-          {item.interpretFailed && (
-            <div className="flex items-center gap-2 pt-2 text-[11px] text-zinc-500">
-              {retrying && <Spinner />}
-              <span>
-                {retrying
-                  ? 'Wird erneut interpretiert …'
-                  : batchPending
-                    ? 'Interpretation läuft noch — Retry gleich möglich …'
-                    : quotaExhausted
-                      ? (interpretError || QUOTA_FALLBACK_MESSAGE)
-                      : interpretError
-                        ? `Interpretation fehlgeschlagen: ${interpretError}`
-                        : 'Interpretation fehlgeschlagen.'}
-              </span>
-              {onRetryInterpret && (
-                <button
-                  onClick={() => onRetryInterpret(item.name)}
-                  disabled={retryDisabled}
-                  title={quotaTitle}
-                  className="text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {retrying ? 'Läuft …' : 'Erneut versuchen'}
-                </button>
-              )}
-            </div>
-          )}
+        ) : (
+          <span />
+        )}
+        <button
+          onClick={() => setShowCode((s) => !s)}
+          className="flex-shrink-0 text-[11px] px-2 py-0.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+        >
+          {showCode ? 'Code verbergen' : 'Code anzeigen'}
+        </button>
+      </div>
 
-          <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-3 pb-1.5">Code</div>
+      {showCode && (
+        <div className="pt-2">
           <pre className="text-xs font-mono bg-white border border-zinc-200 rounded p-3 overflow-auto max-h-72 whitespace-pre">
             {item.code}
           </pre>
-
           <div className="flex items-center gap-2 mt-2">
             <span className="text-[10px] font-mono text-zinc-400">{item.filename}</span>
             {copied && <span className="text-[10px] text-emerald-600">kopiert</span>}
@@ -181,9 +202,140 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretE
   );
 }
 
+// Heutige Akkordeon-Zeile, unverändert für kind === 'template' (und Fallback
+// wenn kein `kind` übergeben wird — Rückwärtskompatibilität für Aufrufer, die
+// die Prop (noch) nicht setzen).
+function TemplateRow({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
+  const [open, setOpen] = useState(false);
+  const [variant, setVariant] = useState(item.variants[0] ?? null);
+  const showActivityPill = retrying || (batchPending && !item.interpretedHtml && !item.hasPreview);
+
+  return (
+    <div className="border-b border-zinc-200">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm hover:bg-zinc-50"
+      >
+        <span className={`text-zinc-400 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
+        <HeaderMeta item={item} showActivityPill={showActivityPill} />
+        <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
+      </button>
+
+      {open && (
+        <div className="bg-zinc-50 px-3 pb-3">
+          <div className="py-2">
+            <VariantSwitcher variants={item.variants} variant={variant} setVariant={setVariant} />
+          </div>
+          {item.notes && (
+            <div className="flex items-start gap-1 text-[11px] italic text-zinc-500 pt-1">
+              <span aria-hidden="true">✎</span>
+              <span>{item.notes}</span>
+            </div>
+          )}
+
+          <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-1 pb-1.5">Vorschau</div>
+          <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
+            <PreviewBody item={item} picks={picks} variant={variant} retrying={retrying} />
+          </div>
+          <RetryStatus
+            item={item}
+            onRetryInterpret={onRetryInterpret}
+            retrying={retrying}
+            batchPending={batchPending}
+            interpretError={interpretError}
+            quotaExhausted={quotaExhausted}
+          />
+
+          <div className="text-[9px] uppercase tracking-wider text-zinc-400 pt-3 pb-1.5">Code</div>
+          <CodeInline item={item} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Der Templates-Code-Block bleibt immer offen (kein Toggle) — genau wie vor
+// dem Umbau. Eigene, kleine Komponente statt CodeToggle, damit das Template-
+// Verhalten unangetastet bleibt.
+function CodeInline({ item }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(item.code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <>
+      <pre className="text-xs font-mono bg-white border border-zinc-200 rounded p-3 overflow-auto max-h-72 whitespace-pre">
+        {item.code}
+      </pre>
+      <div className="flex items-center gap-2 mt-2">
+        <span className="text-[10px] font-mono text-zinc-400">{item.filename}</span>
+        {copied && <span className="text-[10px] text-emerald-600">kopiert</span>}
+        <span className="ml-auto" />
+        <button
+          onClick={copy}
+          className="text-xs px-2.5 py-1 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
+        >
+          Kopieren
+        </button>
+        <button
+          onClick={() => downloadFile(item.filename, item.code, 'text/javascript')}
+          className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover"
+        >
+          Herunterladen
+        </button>
+      </div>
+    </>
+  );
+}
+
+// Preview-First-Zeile — geteilt von atom/molecule/organism (Rob-Feedback
+// 2026-07-20, dritte Runde): eine Zeilen-Komponente für alle drei Ebenen,
+// je eine volle-Breite-Zeile. Vorschau + Varianten-Umschalter immer sichtbar,
+// nur Code hinter Toggle. Notiz sitzt in der Code-Toggle-Zeile (siehe
+// CodeToggle), nicht mehr separat über dem Inhalt.
+function PreviewFirstRow({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
+  const [variant, setVariant] = useState(item.variants[0] ?? null);
+  const showActivityPill = retrying || (batchPending && !item.interpretedHtml && !item.hasPreview);
+
+  return (
+    <div className="border border-zinc-200 rounded-lg p-3 bg-white flex flex-col gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <HeaderMeta item={item} showActivityPill={showActivityPill} />
+        <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
+      </div>
+
+      <VariantSwitcher variants={item.variants} variant={variant} setVariant={setVariant} />
+
+      <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
+        <PreviewBody item={item} picks={picks} variant={variant} retrying={retrying} />
+      </div>
+
+      <RetryStatus
+        item={item}
+        onRetryInterpret={onRetryInterpret}
+        retrying={retrying}
+        batchPending={batchPending}
+        interpretError={interpretError}
+        quotaExhausted={quotaExhausted}
+      />
+
+      <CodeToggle item={item} />
+    </div>
+  );
+}
+
+const PREVIEW_FIRST_LIST_CLASS = 'flex flex-col gap-4';
+
 export default function LibraryObjectList({
   items,
   picks,
+  kind,
   onRetryInterpret,
   retryingNames,
   batchPending,
@@ -193,19 +345,35 @@ export default function LibraryObjectList({
   if (!items || items.length === 0) {
     return <div className="text-sm text-zinc-500">Keine Objekte erkannt.</div>;
   }
+
+  const sharedProps = (item) => ({
+    item,
+    picks,
+    onRetryInterpret,
+    retrying: retryingNames?.has(item.name) ?? false,
+    batchPending,
+    interpretError,
+    quotaExhausted,
+  });
+
+  // Templates bleiben unverändert die heutige Akkordeon-Liste. Ohne `kind`
+  // (Rückwärtskompatibilität / ältere Aufrufer) gilt derselbe Pfad.
+  if (!kind || kind === 'template') {
+    return (
+      <div className="max-w-3xl border-t border-zinc-200">
+        {items.map((item) => (
+          <TemplateRow key={item.slug + item.kind} {...sharedProps(item)} />
+        ))}
+      </div>
+    );
+  }
+
+  // atom/molecule/organism teilen sich dieselbe Preview-First-Zeilen-Liste —
+  // eine volle-Breite-Zeile pro Item, Vorschau immer sichtbar.
   return (
-    <div className="max-w-3xl border-t border-zinc-200">
+    <div className={PREVIEW_FIRST_LIST_CLASS}>
       {items.map((item) => (
-        <Row
-          key={item.slug + item.kind}
-          item={item}
-          picks={picks}
-          onRetryInterpret={onRetryInterpret}
-          retrying={retryingNames?.has(item.name) ?? false}
-          batchPending={batchPending}
-          interpretError={interpretError}
-          quotaExhausted={quotaExhausted}
-        />
+        <PreviewFirstRow key={item.slug + item.kind} {...sharedProps(item)} />
       ))}
     </div>
   );

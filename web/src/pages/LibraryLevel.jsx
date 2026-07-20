@@ -22,6 +22,7 @@ export default function LibraryLevel({ result, kind, title, onRetryInterpret, re
     <LibraryObjectList
       items={items}
       picks={picks}
+      kind={kind}
       onRetryInterpret={onRetryInterpret}
       retryingNames={retryingNames}
       batchPending={result?.interpretPending ?? false}

@@ -60,6 +60,111 @@ describe('LibraryObjectList', () => {
   });
 });
 
+describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teilen sich eine Zeilen-Liste)', () => {
+  const button = {
+    name: 'Button', slug: 'button', filename: 'Button.jsx', kind: 'atom',
+    templateKey: 'button', variants: ['primary', 'secondary', 'ghost'],
+    code: 'export function Button() {}', confidence: 'high', hasPreview: true,
+  };
+
+  it.each(['atom', 'molecule', 'organism'])(
+    'kind=%s: Vorschau + Varianten-Umschalter sind ohne Klick sichtbar, Code ist zunächst verborgen',
+    (kind) => {
+      render(<LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />);
+      expect(screen.getByText('Button', { selector: 'span.font-medium' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'ghost' })).toBeInTheDocument();
+      // Vorschau (das echte Button-Element aus PREVIEWS) ist da, ohne dass irgendetwas aufgeklappt wurde:
+      expect(screen.getAllByText('Button').length).toBeGreaterThan(1);
+      expect(screen.queryByText('export function Button() {}')).not.toBeInTheDocument();
+    }
+  );
+
+  it.each(['atom', 'molecule', 'organism'])(
+    'kind=%s: Code-Toggle zeigt den Code inkl. Kopieren/Herunterladen und lässt sich wieder verbergen',
+    (kind) => {
+      render(<LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Code anzeigen' }));
+      expect(screen.getByText('export function Button() {}')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /kopieren/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /herunterladen/i })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Code verbergen' }));
+      expect(screen.queryByText('export function Button() {}')).not.toBeInTheDocument();
+    }
+  );
+
+  it.each(['atom', 'molecule', 'organism'])(
+    'kind=%s: rendert als volle-Breite-Zeile, kein Grid/Raster',
+    (kind) => {
+      const { container } = render(
+        <LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />
+      );
+      expect(container.firstChild.className).toMatch(/flex flex-col/);
+      expect(container.firstChild.className).not.toMatch(/grid/);
+    }
+  );
+
+  it('organism: interpretFailed-Retry funktioniert weiterhin (Vorschau bleibt sichtbar wie molecule)', () => {
+    const onRetryInterpret = vi.fn();
+    const organismItem = {
+      name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
+      code: 'export const PricingWidget = () => <div/>;', confidence: 'low', source: 'rules',
+      variants: [], hasPreview: false, interpretedHtml: null,
+      interpretFailed: true, interpretPending: false,
+    };
+    render(
+      <LibraryObjectList
+        items={[organismItem]}
+        picks={picks}
+        kind="organism"
+        onRetryInterpret={onRetryInterpret}
+      />
+    );
+    expect(screen.getByText('Interpretation fehlgeschlagen.')).toBeInTheDocument();
+    // Ohne Template-Preview/interpretedHtml zeigt die Vorschau-Box den Platzhalter:
+    expect(screen.getByText('keine Vorschau')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Erneut versuchen' }));
+    expect(onRetryInterpret).toHaveBeenCalledWith('PricingWidget');
+  });
+
+  it('organism: Notiz (item.notes) sitzt in der Code-Toggle-Zeile, nicht separat über dem Inhalt', () => {
+    const organismItem = {
+      ...button, kind: 'organism', name: 'Nav', notes: 'aus <nav>-Landmarke gehoben',
+    };
+    render(<LibraryObjectList items={[organismItem]} picks={picks} kind="organism" />);
+    const note = screen.getByText('aus <nav>-Landmarke gehoben');
+    const toggle = screen.getByRole('button', { name: 'Code anzeigen' });
+    // Beide sitzen im selben Flex-Zeilen-Container (Notiz links, Toggle rechts):
+    expect(note.closest('.flex.items-center.justify-between')).toBe(
+      toggle.closest('.flex.items-center.justify-between')
+    );
+  });
+
+  it('atom/molecule: keine separate Notiz-Zeile über dem Inhalt mehr (Notiz jetzt nur neben dem Toggle)', () => {
+    const atomItem = { ...button, notes: 'Variante manuell korrigiert' };
+    render(<LibraryObjectList items={[atomItem]} picks={picks} kind="atom" />);
+    const note = screen.getByText('Variante manuell korrigiert');
+    const toggle = screen.getByRole('button', { name: 'Code anzeigen' });
+    expect(note.closest('.flex.items-center.justify-between')).toBe(
+      toggle.closest('.flex.items-center.justify-between')
+    );
+  });
+
+  it('ohne kind (Rückwärtskompatibilität): bleibt exakt die Akkordeon-Zeile', () => {
+    render(<LibraryObjectList items={[button]} picks={picks} />);
+    expect(screen.queryByText('export function Button() {}')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByText('export function Button() {}')).toBeInTheDocument();
+  });
+
+  it('kind="template": bleibt exakt die Akkordeon-Zeile, Code bleibt ohne Toggle sichtbar nach Aufklappen', () => {
+    render(<LibraryObjectList items={[button]} picks={picks} kind="template" />);
+    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByText('export function Button() {}')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Code anzeigen' })).not.toBeInTheDocument();
+  });
+});
+
 function item(overrides = {}) {
   return {
     name: 'Avatar', slug: 'avatar', filename: 'Avatar.jsx', kind: 'atom',

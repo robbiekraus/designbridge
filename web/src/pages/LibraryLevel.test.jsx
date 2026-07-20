@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import LibraryLevel from './LibraryLevel.jsx';
 
 const emptyRaw = {
@@ -26,11 +26,10 @@ describe('LibraryLevel page', () => {
     expect(screen.getByText('Thing')).toBeInTheDocument();
   });
 
-  it('lists a recognized atom and expands to show the variant switcher', () => {
+  it('lists a recognized atom with its variant switcher visible without any click (preview-first)', () => {
     const result = { raw: { ...emptyRaw, atoms: [{ name: 'Button', variants: ['primary'], confidence: 'high' }] } };
     render(<LibraryLevel result={result} kind="atom" title="Atoms" />);
-    expect(screen.getByText('Button')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Button'));
+    expect(screen.getByText('Button', { selector: 'span.font-medium' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
   });
 });

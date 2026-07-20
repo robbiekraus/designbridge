@@ -178,7 +178,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen overflow-hidden flex flex-col">
       <header className="h-12 border-b border-zinc-200 flex items-center px-5 gap-0 flex-shrink-0 relative">
         <a href="#" className="flex items-center gap-1.5 text-sm font-semibold mr-6">
           <img src="/uiprism-appicon.svg" className="h-[18px] w-[18px]" alt="UIPrism" />
@@ -235,14 +235,15 @@ export default function App() {
               <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
             )}
             {renderPage()}
-            <footer className="mt-12 pt-4 border-t border-zinc-200 flex items-center gap-2 text-[11px] text-zinc-400">
-              <span className="font-medium text-zinc-500">UIPrism</span>
-              <span>v0.1.1</span>
-              <span className="ml-auto">Map your UI, automatically.</span>
-            </footer>
           </div>
         </main>
       </div>
+
+      <footer className="h-9 border-t border-zinc-200 flex items-center px-5 gap-2 flex-shrink-0 text-[11px] text-zinc-400">
+        <span className="font-medium text-zinc-500">UIPrism</span>
+        <span>v0.1.1</span>
+        <span className="ml-auto">Map your UI, automatically.</span>
+      </footer>
 
       <ImportModal
         open={modalOpen}
