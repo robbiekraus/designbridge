@@ -211,8 +211,8 @@ export default function App() {
             className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === 'Dashboard' ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
             Dashboard
           </button>
-          <div className="my-2 mx-1 border-t border-zinc-200" />
-          {['Tokens', 'Atoms', 'Molecules', 'Organisms', 'Templates', 'Export'].map((label) => (
+          <div className="my-3 mx-1 border-t border-zinc-200" />
+          {['Tokens', 'Atoms', 'Molecules', 'Organisms', 'Templates'].map((label) => (
             <button key={label} onClick={() => setPage(label)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
               <span>{label}</span>
@@ -221,6 +221,11 @@ export default function App() {
               )}
             </button>
           ))}
+          <div className="my-3 mx-1 border-t border-zinc-200" />
+          <button onClick={() => setPage('Export')}
+            className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === 'Export' ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
+            Export
+          </button>
         </aside>
 
         <main className="flex-1 overflow-y-auto">
