@@ -22,3 +22,6 @@ exports/
 /package.json
 /package-lock.json
 .worktrees/
+
+# Brainstorm-Companion (Mockups, Sessions)
+.superpowers/
