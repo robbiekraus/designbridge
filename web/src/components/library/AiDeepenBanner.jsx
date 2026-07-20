@@ -37,7 +37,7 @@ export default function AiDeepenBanner({ result, onDeepened }) {
       <button
         onClick={run}
         disabled={busy}
-        className="text-xs px-3 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover disabled:opacity-50"
+        className="text-xs px-3 py-1.5 rounded bg-[#c2553d] text-white font-medium hover:bg-[#a94a35] disabled:opacity-50"
       >
         {busy ? 'Analysiere…' : 'Komponenten-Erkennung verfeinern'}
       </button>

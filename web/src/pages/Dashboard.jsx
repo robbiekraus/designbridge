@@ -6,7 +6,7 @@ function SummaryItem({ label, value }) {
   if (!value) return null;
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-wider text-zinc-400">{label}</span>
+      <span className="text-[10px] uppercase tracking-wider text-zinc-500">{label}</span>
       <span className="text-sm text-zinc-900">{value}</span>
     </div>
   );
@@ -69,23 +69,25 @@ export default function Dashboard({ result }) {
         </div>
       )}
 
-      <Section title="Tokens">
-        <ul className="border border-zinc-200 rounded-lg overflow-hidden">
-          {tokenCategories.map(cat => (
-            <CountRow key={cat.key} label={cat.label} count={cat.count} confidence={cat.confidence} />
-          ))}
-        </ul>
-      </Section>
-
-      {inventoryRows.length > 0 && (
-        <Section title="UI Inventory">
+      <div className="grid grid-cols-2 gap-6 items-start">
+        <Section title="Tokens">
           <ul className="border border-zinc-200 rounded-lg overflow-hidden">
-            {inventoryRows.map(row => (
-              <CountRow key={row.label} label={row.label} count={row.count} />
+            {tokenCategories.map(cat => (
+              <CountRow key={cat.key} label={cat.label} count={cat.count} confidence={cat.confidence} />
             ))}
           </ul>
         </Section>
-      )}
+
+        {inventoryRows.length > 0 && (
+          <Section title="UI Inventory">
+            <ul className="border border-zinc-200 rounded-lg overflow-hidden">
+              {inventoryRows.map(row => (
+                <CountRow key={row.label} label={row.label} count={row.count} />
+              ))}
+            </ul>
+          </Section>
+        )}
+      </div>
 
       <div className="flex items-center justify-between border border-zinc-200 rounded-lg px-3 py-2 text-sm">
         <span className="text-zinc-900">Export</span>
