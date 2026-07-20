@@ -30,6 +30,14 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 - **Naming ruht:** „Refracta" NICHT bestätigt (vermutlich besetzt), aktueller Produktname **UIPrism** (Skin/Favicon/Title), aber Code/Repo/URL heißen weiterhin „Designbridge"/`designbridge-production`. Thema NICHT proaktiv wieder aufbringen — Rob entscheidet.
 - **Zwei-Stränge-Workflow:** `main` = Präsentations-Strang (Proben, Deck, kleine Bugs), Live-App hängt NUR an main, jeder Push = Auto-Deploy. `experiment/rekursive-zerlegung` = Sandbox für Option B (rekursive Zerlegung), Branch-Push löst KEIN Deploy aus. Idealerweise eigene Claude-Session je Strang, damit sie sich nie in die Quere kommen.
 
+## Account-Fallback (Privat-Account als Ersatz bei Schul-Account-Token-Burn)
+
+- **`.claude/skills/` ist jetzt getrackt** (vorher komplett gitignored — `figma-e2e-test` & Co. existierten nur lokal auf dem Schul-Account, nie im Repo). `.gitignore` ignoriert weiterhin `.claude/*` außer `skills/`, `commands/`, `agents/`, `settings.json` (lokale `settings.local.json`/Caches bleiben draußen).
+- **Superpowers-Skills (v6.1.1, alle 14) vendored** unter `.claude/skills/` (brainstorming, writing-plans, executing-plans, systematic-debugging, test-driven-development, verification-before-completion, using-git-worktrees, subagent-driven-development, requesting/receiving-code-review, dispatching-parallel-agents, writing-skills, finishing-a-development-branch, using-superpowers). Kein SessionStart-Hook mitgezogen (bewusst — Hooks laufen bei jedem Sessionstart automatisch, nicht ohne Rücksprache aktiviert). Skills greifen, wenn die Aufgabe passt, nicht automatisch wie mit Hook.
+- **Präzedenz bei Widerspruch:** `CLAUDE.md`/`RESUME.md`-Projektregeln schlagen generische Skill-Defaults — v.a. „keine PRs, direkt auf main pushen" (Superpowers' `finishing-a-development-branch` geht eher von PR-Flow aus).
+- **Lücke, die NUR Rob schließen kann:** Alles, was rein lokal im `.claude/` des Schul-Accounts liegt (z. B. `figma-e2e-test/SKILL.md`), sieht dieser Account nie von selbst — kein Zugriff auf fremde Accounts/Filesysteme. Muss manuell rübergezogen und committed werden, dann ist es für beide Accounts da.
+- **Eigentlicher Cross-Account-Sync-Mechanismus bleibt Git:** Code + `CLAUDE.md` + `docs/superpowers/{specs,plans}` + dieses `RESUME.md` sind der geteilte Zustand. Chat-Verlauf selbst ist NIE zwischen Accounts übertragbar — Disziplin: vor Account-Wechsel committen+pushen, `RESUME.md`-Stand aktuell halten.
+
 ## Betriebs-Fallen
 
 - **Ports:** Express-Server `3047`; lokaler reiner UI-Vite-Preview `5199` (`npx vite --port 5199`, kein Express/API, nur für UI-Vorschau — URL-/Bild-Import geht dort nicht, Daten per `window.name`-Trick injizieren); `launch.json` injiziert `PORT=5173` → kollidiert mit Express/Vite — Fix: eigener Startbefehl mit `PORT=3047 npm run dev:demo` bzw. explizit anderen Port setzen.
