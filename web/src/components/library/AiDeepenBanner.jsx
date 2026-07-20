@@ -25,7 +25,7 @@ export default function AiDeepenBanner({ result, onDeepened }) {
   };
 
   return (
-    <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+    <div className="mb-6 max-w-3xl flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
       <div className="flex-1">
         <div className="text-sm font-medium text-amber-900">Atoms, Molecules, Organisms &amp; Templates noch nicht analysiert</div>
         {error ? (
