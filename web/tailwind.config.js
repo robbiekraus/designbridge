@@ -8,20 +8,15 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
+        // Primär = schwarz/zink (zurück vom Indigo-Rebrand). Token-Namen
+        // bleiben, damit bg-primary/primary-soft überall greifen.
         primary: {
-          DEFAULT: '#6366F1',
-          hover: '#4F52E0',
-          soft: '#EFECFF',
-          ink: '#4A3AD1',
+          DEFAULT: '#18181b', // zinc-900
+          hover: '#3f3f46', // zinc-700
+          soft: '#f4f4f5', // zinc-100
+          ink: '#18181b', // zinc-900
         },
         ink: '#141418',
-        spectrum: {
-          indigo: '#6366F1',
-          cyan: '#06B6D4',
-          green: '#10B981',
-          amber: '#F59E0B',
-          pink: '#EC4899',
-        },
       },
     },
   },

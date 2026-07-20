@@ -198,7 +198,6 @@ export default function App() {
           <button disabled title="Folgt in einer späteren Version" className="btn-ghost text-xs opacity-40 cursor-not-allowed">Settings</button>
         </div>
       </header>
-      <div className="h-0.5 flex-shrink-0" style={{ background: 'linear-gradient(90deg,#6366F1,#06B6D4,#10B981,#F59E0B,#EC4899)' }} />
 
       <div className="flex flex-1 overflow-hidden">
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
