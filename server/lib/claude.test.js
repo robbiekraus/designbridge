@@ -389,3 +389,15 @@ test('derivePartOf: von der KI gesetztes partOf wird nicht überschrieben', () =
   derivePartOf(guarded);
   assert.equal(guarded.atoms[0].partOf, 'KPI-Card');
 });
+
+test('derivePartOf: Molekül als kleinster Container gewinnt als partOf', () => {
+  const guarded = {
+    atoms: [{ name: 'Trend Badge', kind: 'atom', bbox: { x: 0.12, y: 0.12, w: 0.03, h: 0.02 } }],
+    molecules: [{ name: 'Stat Pair', kind: 'molecule', bbox: { x: 0.1, y: 0.1, w: 0.08, h: 0.06 } }],
+    organisms: [{ name: 'KPI Card', kind: 'organism', bbox: { x: 0.05, y: 0.05, w: 0.3, h: 0.3 } }],
+    templates: [],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'Stat Pair');   // kleinster Container, nicht KPI Card
+  assert.equal(guarded.molecules[0].partOf, 'KPI Card');
+});

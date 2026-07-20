@@ -81,6 +81,19 @@ function bboxOverlapArea(a, b) {
   return w * h;
 }
 
+// Gemeinsame bbox-Geometrie für die Enthaltungs-Logik (applyContainmentGuard + derivePartOf).
+// EINE Definition von "A enthält B", damit beide Stellen nie auseinanderlaufen.
+function makeBboxGeometry() {
+  const areaOf = (ref) => bboxArea(ref?.bbox);
+  const contains = (a, b) => {
+    const areaA = bboxArea(a?.bbox);
+    const areaB = bboxArea(b?.bbox);
+    if (areaA <= areaB || areaB === 0) return false;
+    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
+  };
+  return { areaOf, contains };
+}
+
 // Enthaltungs-Guard (Ansatz B, docs/superpowers/specs/2026-07-18-atomic-design-taxonomy-design.md):
 // Bild-Pfad v1 — bbox-basierte areaOf/contains, danach zurück in die 4 Buckets.
 // „A enthält B": B liegt zu >= CONTAIN_RATIO seiner Fläche in A UND A ist flächengrößer.
@@ -93,13 +106,7 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
     ...asRefItems(templates, 'template'),
   ];
 
-  const areaOf = (ref) => bboxArea(ref?.bbox);
-  const contains = (a, b) => {
-    const areaA = bboxArea(a?.bbox);
-    const areaB = bboxArea(b?.bbox);
-    if (areaB === 0 || areaA <= areaB) return false;
-    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
-  };
+  const { areaOf, contains } = makeBboxGeometry();
 
   const classified = classifyByContainment(flat, { areaOf, contains });
 
@@ -124,13 +131,7 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
 export function derivePartOf(guarded) {
   const flat = [...guarded.atoms, ...guarded.molecules, ...guarded.organisms];
   const items = flat.map((it) => ({ name: it.name, ref: it }));
-  const areaOf = (ref) => bboxArea(ref?.bbox);
-  const contains = (a, b) => {
-    const areaA = bboxArea(a?.bbox);
-    const areaB = bboxArea(b?.bbox);
-    if (areaA <= areaB || areaB === 0) return false;
-    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
-  };
+  const { areaOf, contains } = makeBboxGeometry();
   const parent = parentByName(items, { areaOf, contains });
   for (const it of flat) {
     if (!it.partOf && parent[it.name]) it.partOf = parent[it.name];
