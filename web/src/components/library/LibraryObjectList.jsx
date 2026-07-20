@@ -71,6 +71,13 @@ function Row({ item, picks, onRetryInterpret, retrying, batchPending, interpretE
             interpretiert …
           </span>
         )}
+        {(item.partOf || item.instanceCount > 1) && (
+          <span className="text-[10px] text-zinc-500">
+            {item.partOf && `Teil von ${item.partOf}`}
+            {item.partOf && item.instanceCount > 1 && ' · '}
+            {item.instanceCount > 1 && `×${item.instanceCount}`}
+          </span>
+        )}
         <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
       </button>
 

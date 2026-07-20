@@ -379,3 +379,23 @@ describe('LibraryObjectList — Fix 2: sichtbare Retry-Aktivität', () => {
     expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
   });
 });
+
+describe('LibraryObjectList — Herkunft (Task 6: partOf + instanceCount)', () => {
+  it('zeigt Herkunft und Instanzzahl für herausgezogene Bausteine', () => {
+    const items = [{ name: 'Nav Item', slug: 'nav-item', filename: 'NavItem.jsx', kind: 'molecule',
+      templateKey: null, variants: [], code: '', confidence: 'high', hasPreview: false,
+      instanceCount: 9, partOf: 'Sidebar' }];
+    render(<LibraryObjectList items={items} picks={picks} />);
+    expect(screen.getByText(/Teil von Sidebar/)).toBeInTheDocument();
+    expect(screen.getByText(/×9/)).toBeInTheDocument();
+  });
+
+  it('zeigt kein Herkunfts-Label für Top-Level-Bausteine', () => {
+    const items = [{ name: 'Logo', slug: 'logo', filename: 'Logo.jsx', kind: 'atom',
+      templateKey: null, variants: [], code: '', confidence: 'high', hasPreview: false,
+      instanceCount: 1, partOf: null }];
+    render(<LibraryObjectList items={items} picks={picks} />);
+    expect(screen.queryByText(/Teil von/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/×/)).not.toBeInTheDocument();
+  });
+});
