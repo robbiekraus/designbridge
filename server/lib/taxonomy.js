@@ -105,3 +105,17 @@ export function buildCompositionTree(items, { areaOf, contains }) {
   const roots = items.filter((x) => !hasParent.has(x.name)).map((x) => x.name);
   return { children, roots };
 }
+
+/**
+ * parentByName(items, { areaOf, contains }) -> { [childName]: parentName }
+ * Invertiert buildCompositionTree: für jedes Kind sein direkter Elternteil
+ * (der flächenkleinste enthaltende Container). Nur direkte Kanten.
+ */
+export function parentByName(items, { areaOf, contains }) {
+  const { children } = buildCompositionTree(items, { areaOf, contains });
+  const parent = {};
+  for (const [parentName, childNames] of Object.entries(children)) {
+    for (const childName of childNames) parent[childName] = parentName;
+  }
+  return parent;
+}
