@@ -211,7 +211,7 @@ export default function App() {
             className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === 'Dashboard' ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
             Dashboard
           </button>
-          <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 px-2 pt-3 pb-1">Library</div>
+          <div className="my-2 mx-1 border-t border-zinc-200" />
           {['Tokens', 'Atoms', 'Molecules', 'Organisms', 'Templates', 'Export'].map((label) => (
             <button key={label} onClick={() => setPage(label)}
               className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === label ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
