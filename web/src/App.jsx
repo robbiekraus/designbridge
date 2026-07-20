@@ -179,23 +179,29 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="h-12 border-b border-zinc-200 flex items-center px-5 gap-0 flex-shrink-0">
-        <a href="#" className="flex items-center gap-2 text-sm font-semibold tracking-tight mr-6">
-          <img src="/uiprism-mark.svg" className="h-5 w-auto" alt="UIPrism" />
-          <span><span className="text-ink">UI</span><span className="text-primary">Prism</span></span>
+      <header className="h-12 border-b border-zinc-200 flex items-center px-5 gap-0 flex-shrink-0 relative">
+        <a href="#" className="flex items-center gap-1.5 text-sm font-semibold mr-6">
+          <img src="/uiprism-appicon.svg" className="h-[18px] w-[18px]" alt="UIPrism" />
+          <span className="flex items-baseline gap-1.5">
+            <span className="tracking-wide"><span className="text-ink">UI</span><span className="text-primary">Prism</span></span>
+            <span className="text-[10px] font-medium text-zinc-400 tabular-nums">v0.1.1</span>
+          </span>
         </a>
+        {serverOk === false && (
+          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-full px-2.5 py-0.5">⚠ API key missing</span>
+        )}
         <div className="flex-1" />
         <div className="flex items-center gap-2">
-          {serverOk === false && (
-            <span className="text-xs text-red-600 font-medium">⚠ API key missing</span>
-          )}
           {lastImport && (
             <button onClick={() => setModalOpen(true)}
               className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors">
               Neuer Import
             </button>
           )}
-          <button disabled title="Folgt in einer späteren Version" className="btn-ghost text-xs opacity-40 cursor-not-allowed">Settings</button>
+          <button disabled title="Folgt in einer späteren Version"
+            className="text-xs px-2.5 py-1 rounded border border-zinc-200 text-zinc-400 cursor-not-allowed">Verlauf</button>
+          <button disabled title="Folgt in einer späteren Version"
+            className="text-xs px-2.5 py-1 rounded border border-zinc-200 text-zinc-400 cursor-not-allowed">Einstellungen</button>
         </div>
       </header>
 
