@@ -20,10 +20,14 @@ der Rest ist dein manueller Real-Smoke.
 
 ## 1 · App-Smoke (Branding) — ✅ maschinell vorgeprüft
 - **Tun:** Prod-URL öffnen.
-- **Erwartet:** Header zeigt UIPrism-Mark + „UI"(dunkel)/„Prism"(indigo), Tab-Titel
-  „UIPrism", dünne Spektrum-Linie unter dem Header, „Neuer Import" indigo, aktive Nav
-  indigo-hinterlegt.
+- **Erwartet:** Header zeigt UIPrism-Mark + Wortmarke „UIPrism" in **Schwarz**, Tab-Titel
+  „UIPrism", darunter eine **schlichte graue Linie** (Header-Border, kein Farbspektrum),
+  „Neuer Import" **schwarz**, aktive Nav **grau** (zink) hinterlegt.
 - **🚩** Noch „Designbridge"-Wortmarke sichtbar → Deploy nicht durch / Cache (hart neu laden).
+- **🚩** Indigo-Buttons / Flieder-Nav / bunte Spektrum-Leiste sichtbar → alter Skin, Deploy
+  `c63114c` nicht durch (hart neu laden).
+- *Hinweis:* Farb-/Spektrum-Rollback auf zink (Robs Feedback 20.07.), Web 584/584 grün,
+  Browser-verifiziert.
 
 ## 2 · Bild-Import — der Live-Demo-Kern (Zuverlässigkeits-Fix)
 - **Tun:** „Neuer Import" → Bild → den **großen** Screenshot hochladen.
