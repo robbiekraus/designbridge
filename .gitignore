@@ -16,6 +16,12 @@ designbridge-dev/
 Testdaten/
 Artefakte/
 .claude/
+# ...aber ausgewählte Skills sollen ins Repo (Rest von .claude/ bleibt lokal)
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/figma-e2e-test/
 exports/
 **/public/data/generated/
 # stale root orchestrator manifests (real ones live in designbridge-web/ etc.)
