@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { analyzeScreenshot, mergeByName, applyContainmentGuard, derivePartOf } from './claude.js';
+import { analyzeScreenshot, mergeByName, applyContainmentGuard, derivePartOf, EXTRACTION_PROMPT } from './claude.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-scan-${Math.random().toString(36).slice(2)}.png`);
@@ -36,6 +36,12 @@ test('analyzeScreenshot: prompt asks for bbox and passes it through', async () =
   // 4096 war zu knapp für token-reiche Screenshots (Live-Fund 15.07.):
   // Gemini schnitt mitten im JSON ab.
   assert.ok(captured.max_tokens >= 16384, `max_tokens zu klein: ${captured.max_tokens}`);
+});
+
+test('EXTRACTION_PROMPT enthält Zerlegungs-Instruktion + neue Felder', () => {
+  assert.match(EXTRACTION_PROMPT, /DECOMPOSE/);
+  assert.match(EXTRACTION_PROMPT, /instanceCount/);
+  assert.match(EXTRACTION_PROMPT, /partOf/);
 });
 
 test('analyzeScreenshot: normalisiert String-Größen ("64px") zu Zahlen — Gemini liefert px-Suffixe (Live-Fund 15.07.)', async () => {
