@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { analyzeScreenshot, mergeByName, applyContainmentGuard } from './claude.js';
+import { analyzeScreenshot, mergeByName, applyContainmentGuard, derivePartOf } from './claude.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-scan-${Math.random().toString(36).slice(2)}.png`);
@@ -365,4 +365,27 @@ test('applyContainmentGuard returns composition with direct edges', () => {
   assert.deepEqual(out.composition.children['Dashboard'], ['Sidebar']);
   assert.deepEqual(out.composition.children['Sidebar'], ['Logo']);
   assert.deepEqual(out.composition.roots, ['Dashboard']);
+});
+
+test('derivePartOf: setzt partOf für enthaltenes Kind, Organismus bleibt top-level', () => {
+  const guarded = {
+    atoms: [{ name: 'Nav Item', kind: 'atom', bbox: { x: 0.01, y: 0.1, w: 0.18, h: 0.05 } }],
+    molecules: [],
+    organisms: [{ name: 'Sidebar', kind: 'organism', bbox: { x: 0, y: 0, w: 0.2, h: 1 } }],
+    templates: [{ name: 'Dashboard', kind: 'template', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'Sidebar');
+  assert.equal(guarded.organisms[0].partOf, undefined); // Template ist kein partOf-Kandidat
+});
+
+test('derivePartOf: von der KI gesetztes partOf wird nicht überschrieben', () => {
+  const guarded = {
+    atoms: [{ name: 'Icon', kind: 'atom', partOf: 'KPI-Card', bbox: { x: 0.5, y: 0.5, w: 0.02, h: 0.02 } }],
+    molecules: [],
+    organisms: [{ name: 'Sidebar', kind: 'organism', bbox: { x: 0.4, y: 0.4, w: 0.4, h: 0.4 } }],
+    templates: [],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'KPI-Card');
 });

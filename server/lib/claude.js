@@ -1,7 +1,7 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
-import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO } from './taxonomy.js';
+import { classifyByContainment, buildCompositionTree, parentByName, CONTAIN_RATIO } from './taxonomy.js';
 import { downscaleForVision } from './imageResize.js';
 
 const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
@@ -116,6 +116,26 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
     templates: buckets.template,
     composition,
   };
+}
+
+// Leitet partOf (Eltern-Organismus) für herausgezogene Kleinteile aus der bbox-
+// Enthaltung ab. Additiv: setzt partOf NUR, wo die KI keins geliefert hat.
+// Templates sind KEINE partOf-Kandidaten (sonst wäre jeder Organismus "part of screen").
+export function derivePartOf(guarded) {
+  const flat = [...guarded.atoms, ...guarded.molecules, ...guarded.organisms];
+  const items = flat.map((it) => ({ name: it.name, ref: it }));
+  const areaOf = (ref) => bboxArea(ref?.bbox);
+  const contains = (a, b) => {
+    const areaA = bboxArea(a?.bbox);
+    const areaB = bboxArea(b?.bbox);
+    if (areaA <= areaB || areaB === 0) return false;
+    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
+  };
+  const parent = parentByName(items, { areaOf, contains });
+  for (const it of flat) {
+    if (!it.partOf && parent[it.name]) it.partOf = parent[it.name];
+  }
+  return guarded;
 }
 
 // Die KI listet identische Bausteine mehrfach (Live-Fund 15.07.: dreimal
@@ -242,6 +262,7 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
     templates: mergeByName(parsed.templates),
   };
   const guarded = applyContainmentGuard(merged.atoms, merged.molecules, merged.organisms, merged.templates);
+  derivePartOf(guarded);
 
   return {
     ...parsed,
