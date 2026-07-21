@@ -38,6 +38,13 @@ _Letzter Check: 20.07.2026 — Basis-Commit `f523c6c`._
 - **`RESUME.md` als lebendes Handoff-Dokument** führen — bei jedem Checkpoint aktualisieren,
   nicht nur am Schluss.
 
+## Session-Start-Hook (eingerichtet 21.07.2026)
+
+`.claude/hooks/session-start.sh` + `.claude/settings.json`: Jede neue Claude-Code-Web-Session
+installiert automatisch alle drei npm-Bäume (Root/Server, `web/`, `designbridge-plugin/`),
+damit Tests sofort laufen. Läuft nur remote (`$CLAUDE_CODE_REMOTE`), lokal passiert nichts.
+Gilt projektweit, sobald er auf dem Default-Branch liegt.
+
 ## Bekannte Lücke: Railway (geprüft 21.07.2026)
 
 - **Kein direkter Railway-Zugang** vom Failover-Account: keine Railway-CLI, kein `RAILWAY_TOKEN`

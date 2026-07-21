@@ -15,7 +15,11 @@ out/
 designbridge-dev/
 Testdaten/
 Artefakte/
-.claude/
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/skills/
+.claude/settings.local.json
 exports/
 **/public/data/generated/
 # stale root orchestrator manifests (real ones live in designbridge-web/ etc.)
