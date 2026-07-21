@@ -11,6 +11,10 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 - **`designbridge-plugin/`** — Figma plugin. Separate codebase, separate concern. Touch only when the task says so.
 - **`designbridge-dev/`** — Next.js sandbox for design-system preview. Not production. Do not migrate things into it unless explicitly asked.
 
+## Local paths (Rob's Mac)
+
+- **Bootcamp working directory:** `/Volumes/4TB Shield/Vibe Coding Bootcamp` — Rob's standard directory for all Vibe Coding Bootcamp work. This repo lives locally at `/Volumes/4TB Shield/Vibe Coding Bootcamp/Projekte/Designbridge`. These paths only exist on Rob's Mac, not in remote/cloud sessions.
+
 ## Hard rules
 
 1. **Never start design work without a briefing or references.** If the user says "design X", ask for direction or references first. This is a standing user preference.
