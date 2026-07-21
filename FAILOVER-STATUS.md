@@ -37,3 +37,20 @@ _Letzter Check: 20.07.2026 — Basis-Commit `f523c6c`._
   Falls bewusst lokal: hier notieren, was verloren geht.
 - **`RESUME.md` als lebendes Handoff-Dokument** führen — bei jedem Checkpoint aktualisieren,
   nicht nur am Schluss.
+
+## Bekannte Lücke: Railway (geprüft 21.07.2026)
+
+- **Kein direkter Railway-Zugang** vom Failover-Account: keine Railway-CLI, kein `RAILWAY_TOKEN`
+  in der Umgebung, kein Railway-Connector.
+- **Prod-URL nicht erreichbar:** Die Netzwerk-Policy der Cloud-Umgebung blockt
+  `designbridge-production.up.railway.app` (Proxy 403 auf CONNECT). Kein Healthcheck,
+  kein Live-Smoke-Test, keine Logs von hier aus.
+- **Deployen geht trotzdem:** Push auf `main` = Auto-Deploy (Git-Push funktioniert nachweislich).
+  Der Arbeits-Workflow ist voll intakt — nur die Prod-Beobachtung fehlt.
+- **Fix, falls gewünscht (Rob):**
+  1. Netzwerk-Policy der Claude-Code-Web-Umgebung um `*.up.railway.app` erweitern
+     (→ Healthchecks/Smoke-Tests möglich).
+  2. Optional `RAILWAY_TOKEN` als Env-Var im Environment hinterlegen
+     (→ Logs/Deploy-Status über die Railway-API abfragbar).
+- Bis dahin: Nach jedem Deploy aus dieser Umgebung muss Rob (oder der Haupt-Account) kurz
+  selbst prüfen, ob die App oben ist.
