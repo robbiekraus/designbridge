@@ -1,6 +1,6 @@
 # Designbridge — Schnellstart-Spickzettel
 
-Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Scheiben) liegt in `RESUME-ARCHIVE.md`. Diese Datei ist der schlanke Ist-Zustand.
+Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Scheiben) liegt in `RESUME-ARCHIVE.md`. Diese Datei ist der schlanke Ist-Zustand. Alle wichtigen URLs (Prod, One-Pager, Notion-Seiten, Abgabe-Termine) stehen in `LINKS.md`.
 
 ## Stand
 
