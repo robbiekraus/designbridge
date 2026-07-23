@@ -11,6 +11,11 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Aktives Ziel / Nächste Schritte
 
+- **23.07.2026 — DS-Grounding Scheibe 1 KOMPLETT** (Branch `claude/superpowers-und-start-63ooy0`, noch nicht in main): Interpretation wird jetzt gegen einen shadcn/ui-Default-Katalog gegroundet statt freihändig nachgebaut. Kette: Katalog (`web/src/lib/catalog/shadcn-default.js`) → `htmlToPlan` promotet `data-ds-component`-Marker zu Katalog-`component-ref`s → `planToJsx` emittiert echten shadcn-Code (`import { Button } … <Button variant=…>`) → Server-Prompt (`server/lib/catalog/shadcnVocabulary.js`) lehrt das Vokabular → Emit-Verdrahtung → **Verifikation** (`web/verification/`: Emit kompiliert via esbuild + rendert via react-dom gegen ein reales shadcn-Target) → `grounded`-Flag als `GroundedPill` in der UI. Tests: Server 296, Web 646. Specs: `docs/superpowers/specs/2026-07-23-*`. Der Kern der These (Scan → gegen shadcn interpretiert → echter kompilierender Code) ist end-to-end belegt.
+  - **So anschauen:** (a) echten Emit sehen → `node web/verification/generate-sample.mjs`; (b) Kompilier-+Render-Beweis → `cd web && npx vitest run src/lib/emit/grounding.verify.test.js`; (c) alle Grounding-Tests → `npx vitest run` (Suche „grounding"); (d) UI-Pille → `GroundedPill` erscheint in den Content-Seiten (Atoms/Molecules/Organisms) neben den Source-Pillen, sobald ein Baustein gegroundet ist. **Achtung:** frischer Clone braucht `npm install` (Root + `web/`) — sonst fehlen `@anthropic-ai/sdk` (Server) bzw. vitest-Deps (Web).
+  - **Commits:** `bce4b87`→`13d250c` auf `claude/superpowers-und-start-63ooy0`. Noch NICHT in main (kein Deploy). Nach Review: mergen entscheidet Rob.
+  - **Offen/Folge (Wiedereinstieg):** Scheibe 2 (Katalog aus User-Repo statt Default, cva-Parsing — „User bringt eigenes System rein"), Scheibe 3 (Storybook-Emit), Scheibe 4 (Figma-DS als Quelle). Bekannte Grenzen: verschachtelte Katalog-Komponenten noch nicht komponiert (in `<Card>` genestete Buttons → Text-Blatt); Server/Web-Vokabular-Duplizierung (`server/lib/catalog/shadcnVocabulary.js` ↔ `web/src/lib/catalog/shadcn-default.js`, Vereinheitlichung später); Verifikations-Target ist API-kompatibel (kein Radix, bewusst).
+
 - Presentation-Ready-Gate ist erfüllt (6/6 orchestrierter Test grün, 20.07.). Nächster Schritt: sauberer Recording-Fallback-Take (Proben 24.–27.07.), Deck/One-Pager-Screenshots auf zink-Stand erneuern.
 - ~~T-propagate (Kachel-/Listen-Muster von Tokens auf Atoms/Molecules/Organisms/Templates übertragen)~~ — ERLEDIGT 20.07. abends im Preview-First-Umbau.
 - Offen, klein/Polish: (F) gelber Info-Kasten-Ton (bewusst gelassen); (G) „Quelle: url"-Platzierung (Rob hinterfragt noch); Farb-Spaltenzahl (6) + Farbname-Größe evtl. nachjustieren.
@@ -27,8 +32,12 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 - **Kanonisches Modell:** der `plan`-Baum (nicht `interp.html` oder `interp.jsx`) ist DAS kanonische Datenmodell. Figma-Emitter UND Tailwind-Emitter (`planToJsx`) emittieren beide daraus. Skalieren ist eine **Emit-Zeit-Transformation** (`scalePlan`), nicht Teil des Modells — Figma skaliert 1:1 auf Bildmaße, Tailwind bleibt aufs Token-Raster gesnappt.
 - **Atomic-Taxonomie:** 5 Ebenen, englisch — **Tokens · Atoms · Molecules · Organisms · Templates** (oberste Ebene „Templates", nicht „Page"). Ganzer Screen = 1 Template; Card/Chart/Table = Organism; Button/Input = Atom; Suchfeld = Molecule.
-- **Naming ruht:** „Refracta" NICHT bestätigt (vermutlich besetzt), aktueller Produktname **UIPrism** (Skin/Favicon/Title), aber Code/Repo/URL heißen weiterhin „Designbridge"/`designbridge-production`. Thema NICHT proaktiv wieder aufbringen — Rob entscheidet.
-- **Zwei-Stränge-Workflow:** `main` = Präsentations-Strang (Proben, Deck, kleine Bugs), Live-App hängt NUR an main, jeder Push = Auto-Deploy. `experiment/rekursive-zerlegung` = Sandbox für Option B (rekursive Zerlegung), Branch-Push löst KEIN Deploy aus. Idealerweise eigene Claude-Session je Strang, damit sie sich nie in die Quere kommen.
+- **Naming ENTSCHIEDEN (Rob, 23.07.):** Produktname ist **UIPrism** — final, kein offenes Thema mehr. Sichtbar bereits umgesetzt: Skin/Favicon/Title, One-Pager `uiprism.netlify.app`, Logos `Brand/UIPrism-Logos/`. Rein kosmetischer Rest: Code/Repo/URL heißen technisch noch „Designbridge"/`designbridge-production` — reine Umbenenn-Fleißarbeit, ganz zuletzt (URL im Plugin hartkodiert). Das ist keine Entscheidung mehr, nur noch Ausführung. („Refracta" war verworfen.)
+- **Branch-Landschaft (Stand 23.07.):** Live-App hängt NUR an `main`, jeder main-Push = Auto-Deploy. Zwei fertige Feature-Stränge liegen bewusst **ungemergt** daneben (kein Deploy, erst nach der Präsentation Rob-Entscheidung zum Merge):
+  - `main` (`bd83340`) = Präsentations-Strang (Proben, Deck, kleine Bugs), Gate 6/6 grün.
+  - `claude/superpowers-und-start-63ooy0` = **DS-Grounding Scheibe 1** (shadcn-Katalog, s. „Aktives Ziel"), Tests 296/646 — der strategisch zentrale Strang (belegt die Kernthese).
+  - `experiment/rekursive-zerlegung` = Kleinteile aus Organismen, code-~fertig, aber **10 Commits hinter main** → braucht Rebase + Einpassen ins Preview-First-Layout vor Merge.
+  - Idealerweise eigene Claude-Session je Strang, damit sie sich nie in die Quere kommen.
 
 ## Betriebs-Fallen
 
