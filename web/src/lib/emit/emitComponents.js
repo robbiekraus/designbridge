@@ -5,6 +5,7 @@ import { pickTokens } from './pickTokens.js';
 import { slugify } from './slugify.js';
 import { htmlToPlan } from './htmlToPlan.js';
 import { planToJsx } from './planToJsx.js';
+import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 
 const KINDS = [
   ['atoms', 'atom'],
@@ -55,7 +56,7 @@ function genericStub(pascal, item) {
 function codeFromInterp(interp, pascal, item, namedColors, tokenScales) {
   const html = interp?.html;
   if (html && html.trim()) {
-    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [] });
+    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [], catalog: SHADCN_DEFAULT_CATALOG_OPTION });
     if (plan) return planToJsx(plan, { name: pascal, tokens: tokenScales });
   }
   return genericStub(pascal, item);

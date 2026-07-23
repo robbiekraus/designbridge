@@ -6,6 +6,7 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
+import { SHADCN_VOCABULARY, catalogPromptBlock } from './catalog/shadcnVocabulary.js';
 
 const MODEL = 'claude-sonnet-5';
 
@@ -45,8 +46,19 @@ export function sanitizeHtml(html) {
     .replace(/(<img\b[^>]*\ssrc\s*=\s*)(?:https?:)?\/\/[^\s>]+/gi, `$1"${IMG_PLACEHOLDER}"`);
 }
 
-function buildPrompt(segments, hasFullImageFallback, hasStructure, hasCode) {
+function buildPrompt(segments, hasFullImageFallback, hasStructure, hasCode, catalog = SHADCN_VOCABULARY) {
   const labels = segments.map((s) => s.label);
+  // DS-Grounding (Spec 2026-07-23 §Q2/Q4): dem Modell das Katalog-Vokabular beibringen, damit es
+  // erkannte Bausteine mit data-ds-component markiert. Additiv — die Inline-Stile bleiben. Nur bei
+  // Sicherheit markieren (kein Zwang, Q4). Der Vokabular-Block steht VOR der COMPONENTS-Zeile, die
+  // laut Test-Vertrag die LETZTE Zeile bleiben muss.
+  const catalogBlock = catalogPromptBlock(catalog);
+  const groundingRule = catalogBlock
+    ? `\n- DESIGN-SYSTEM GROUNDING: when an element clearly IS one of the KNOWN COMPONENTS listed below, mark its OUTERMOST element with data-ds-component="<ExactName>", plus data-ds-<axis>="<value>" for any variant/size axis whose value is clearly visible (use ONLY values from the list). Keep the inline styles as usual — the marker is additive metadata. Mark ONLY when confident; if unsure, leave it as plain inline-styled html and do NOT force a component.`
+    : '';
+  const catalogSection = catalogBlock
+    ? `\n\nKNOWN COMPONENTS (for data-ds-component grounding — exact names):\n${catalogBlock}`
+    : '';
   return `You are a UI reconstruction engine. Below you receive one cropped image OR the source HTML+CSS OR the component SOURCE CODE per component (in order), each preceded by its name. ${hasFullImageFallback ? 'For any component WITHOUT its own crop, use the full screenshot provided first.' : ''}
 
 For EACH component, reconstruct it as faithfully as possible to how it appears in ITS image.
@@ -69,7 +81,7 @@ Rules:
 - Icons (social icons, UI glyphs): draw each one as a simplified inline SVG that resembles the ACTUAL icon visible in the crop — recognizable shape or monogram (e.g. a rounded square with "in" for LinkedIn, a camera outline, a play triangle). NEVER render plain gray or placeholder boxes where the original shows an icon.
 - Preserve state that is visible: highlighted / selected / active / hovered items, badges, status colors and dots, and any tooltip or callout shown in the crop (render it as a small static element). Draw tooltip/callout pointer tails as a small inline SVG triangle (<svg><polygon .../></svg>) — NEVER with CSS border tricks or transform:rotate, those do not survive the design-tool export.${hasStructure ? '\n- For components given as SOURCE HTML + CSS: translate the REAL markup into inline-styled html — keep the exact text content, structure, states and visual properties (colors, spacing, radii) expressed by the source CSS. Do not invent content that is not in the source.' : ''}${hasCode ? '\n- For components given as SOURCE CODE (React/shadcn/Tailwind): read the real component source and render a faithful DEFAULT state — preserve the real class names, cva variants, structure and any literal text; express the resulting look as inline-styled html. Do not invent content the source does not imply.' : ''}
 - Keep each html snippet compact (one component).
-- Produce one entry per component, using its EXACT name.
+- Produce one entry per component, using its EXACT name.${groundingRule}${catalogSection}
 
 COMPONENTS (in order): ${JSON.stringify(labels)}`;
 }
@@ -82,7 +94,7 @@ const CHUNK_SIZE = 4; // Diagnose 16.07.: 13 Bausteine in einem Call verwässern
 const isBare = (s) =>
   !(s.visual && s.visual.base64) && !(s.structure && s.structure.html) && !(s.structure && s.structure.code);
 
-export async function interpretComponents(imagePath, mimetype, segments, { client } = {}) {
+export async function interpretComponents(imagePath, mimetype, segments, { client, catalog = SHADCN_VOCABULARY } = {}) {
   const c = client ?? getAiClient();
   // Vollbild nur einmal von Platte lesen, auch wenn mehrere Chunks es brauchen.
   const fullImage = imagePath
@@ -103,7 +115,7 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   // Sequenziell, NICHT Promise.all: Gemini-Free-Tier erlaubt nur ~10 req/min.
   for (const chunk of chunks) {
     try {
-      const r = await interpretChunk(c, fullImage, chunk);
+      const r = await interpretChunk(c, fullImage, chunk, catalog);
       interpretations.push(...r.interpretations);
       failed.push(...r.failed);
     } catch (err) {
@@ -117,7 +129,7 @@ export async function interpretComponents(imagePath, mimetype, segments, { clien
   return { interpretations, failed };
 }
 
-async function interpretChunk(c, fullImage, segments) {
+async function interpretChunk(c, fullImage, segments, catalog = SHADCN_VOCABULARY) {
   const withVisual = segments.filter((s) => s.visual && s.visual.base64);
   const withStructure = segments.filter((s) => s.structure && s.structure.html);
   const withCode = segments.filter((s) => s.structure && s.structure.code);
@@ -159,7 +171,7 @@ async function interpretChunk(c, fullImage, segments) {
       text: `Component: ${s.label}\nSOURCE CODE (${s.structure.lang}):\n${s.structure.code}`,
     });
   }
-  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0, withCode.length > 0) });
+  content.push({ type: 'text', text: buildPrompt(segments, hasFullImageFallback, withStructure.length > 0, withCode.length > 0, catalog) });
 
   const response = await c.messages.create({
     model: MODEL,

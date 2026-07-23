@@ -220,6 +220,11 @@ export const SHADCN_DEFAULT_CATALOG = [
   },
 ];
 
+// Fertige htmlToPlan-Option (Scheibe 1 Schritt 4): source + components in der Form, die htmlToPlan
+// erwartet. Emit-Aufrufer (emitComponents/emitFigmaComponents) reichen das an htmlToPlan durch, damit
+// data-ds-*-Marker zu Katalog-component-refs werden.
+export const SHADCN_DEFAULT_CATALOG_OPTION = { source: 'shadcn-default', components: SHADCN_DEFAULT_CATALOG };
+
 const BY_NAME = new Map(SHADCN_DEFAULT_CATALOG.map((c) => [c.name, c]));
 
 /** Katalog-Eintrag per Name (== Katalog-Identität), oder undefined. */
