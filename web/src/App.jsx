@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ImportModal from './components/ImportModal/ImportModal.jsx';
-import { loadLastImport, saveLastImport } from './lib/libraryStore.js';
+import { loadLastImport, saveLastImport, clearLastImport } from './lib/libraryStore.js';
 import Dashboard from './pages/Dashboard.jsx';
 import Tokens from './pages/Tokens.jsx';
 import LibraryLevel from './pages/LibraryLevel.jsx';
 import Export from './pages/Export.jsx';
-import EmptyState from './components/library/EmptyState.jsx';
+import StartScreen from './components/StartScreen.jsx';
 import AiDeepenBanner from './components/library/AiDeepenBanner.jsx';
 import InterpretAllBar from './components/library/InterpretAllBar.jsx';
 import { componentsNeedingInterpretation, runInterpretation, retryInterpretation, applyRetryOutcome, carryInterpretations, applyIfSameImport, normalizeStalePending } from './lib/interpret.js';
@@ -23,7 +23,11 @@ export default function App() {
   const [page, setPage] = useState('Dashboard');
   const [serverOk, setServerOk] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState('image');
   const [lastImport, setLastImport] = useState(null);
+  // Zwischengespeicherter letzter Import — NICHT automatisch geladen, sondern auf
+  // dem Start-Screen zum Fortsetzen angeboten (kein Stale-Data beim Reload).
+  const [cachedImport, setCachedImport] = useState(null);
   const [retryingNames, setRetryingNames] = useState(() => new Set());
   const interpretAbortRef = useRef(null);
 
@@ -66,20 +70,15 @@ export default function App() {
       .then(d => setServerOk(d.ai_key_configured ?? d.anthropic_key_configured))
       .catch(() => setServerOk(false));
 
-    try {
-      if (localStorage.getItem('designbridge.hasImported') !== '1') {
-        setModalOpen(true);
-      }
-    } catch {}
-    // Reload-Limbo-Fix: ein beim letzten Reload noch laufender Batch/Chunk
-    // hat keinen Request mehr, der ihn fortführt — persistiertes
-    // interpretPending:true würde Bausteine für immer auf "Wird
-    // interpretiert …" hängen lassen. Auf failed normalisieren, damit der
-    // bestehende Retry-Knopf erscheint.
+    // Beim (Neu-)Laden NICHT automatisch die alten Daten anzeigen — stattdessen den
+    // Start-Screen zeigen und den letzten Import (falls vorhanden) zum Fortsetzen
+    // anbieten. Reload-Limbo-Fix: ein beim letzten Reload noch laufender Batch hat
+    // keinen Request mehr, der ihn fortführt — persistiertes interpretPending:true
+    // auf failed normalisieren, damit nach dem Fortsetzen der Retry-Knopf erscheint.
     const loaded = loadLastImport();
     const normalized = normalizeStalePending(loaded);
-    if (normalized !== loaded) saveLastImport(normalized);
-    setLastImport(normalized);
+    if (normalized && normalized !== loaded) saveLastImport(normalized);
+    setCachedImport(normalized);
   }, []);
 
   const handleImported = (result) => {
@@ -89,9 +88,24 @@ export default function App() {
       : result;
     saveLastImport(initial);
     setLastImport(initial);
+    setCachedImport(null); // neuer Import ersetzt den zwischengespeicherten
     if (initial.interpretPending) {
       startInterpretation(initial);
     }
+  };
+
+  // Start-Screen-Aktionen.
+  const openImport = (tab = 'image') => {
+    setModalTab(tab);
+    setModalOpen(true);
+  };
+  const handleResume = () => {
+    if (cachedImport) setLastImport(cachedImport);
+    setCachedImport(null);
+  };
+  const handleDiscard = () => {
+    clearLastImport();
+    setCachedImport(null);
   };
 
   const handleDeepened = (result) => {
@@ -145,7 +159,7 @@ export default function App() {
   };
 
   const renderPage = () => {
-    if (!lastImport) return <EmptyState onNewImport={() => setModalOpen(true)} />;
+    if (!lastImport) return null; // Start-Screen wird direkt im Main gerendert
     const kind = LIBRARY_LEVELS[page];
     if (kind) {
       return (
@@ -193,7 +207,7 @@ export default function App() {
         <div className="flex-1" />
         <div className="flex items-center gap-2">
           {lastImport && (
-            <button onClick={() => setModalOpen(true)}
+            <button onClick={() => openImport()}
               className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors">
               Neuer Import
             </button>
@@ -206,6 +220,7 @@ export default function App() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
+        {lastImport && (
         <aside className="w-48 border-r border-zinc-200 p-2 flex flex-col gap-0.5 flex-shrink-0">
           <button onClick={() => setPage('Dashboard')}
             className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors w-full text-left ${page === 'Dashboard' ? 'bg-primary-soft text-primary-ink font-medium' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900'}`}>
@@ -227,15 +242,25 @@ export default function App() {
             Export
           </button>
         </aside>
+        )}
 
         <main className="flex-1 overflow-y-auto db-scroll">
-          <div className="p-8">
-            {lastImport && <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />}
-            {lastImport && Boolean(LIBRARY_LEVELS[page]) && (
-              <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
-            )}
-            {renderPage()}
-          </div>
+          {lastImport ? (
+            <div className="p-8">
+              <AiDeepenBanner result={lastImport} onDeepened={handleDeepened} />
+              {Boolean(LIBRARY_LEVELS[page]) && (
+                <InterpretAllBar result={lastImport} onInterpretAll={() => handleRetryInterpret()} retryBusy={retryingNames.size > 0} />
+              )}
+              {renderPage()}
+            </div>
+          ) : (
+            <StartScreen
+              onNewImport={openImport}
+              cachedImport={cachedImport}
+              onResume={handleResume}
+              onDiscard={handleDiscard}
+            />
+          )}
         </main>
       </div>
 
@@ -247,6 +272,7 @@ export default function App() {
 
       <ImportModal
         open={modalOpen}
+        initialTab={modalTab}
         onClose={() => setModalOpen(false)}
         onImported={handleImported}
         onOpenLibrary={() => { setModalOpen(false); setPage('Dashboard'); }}

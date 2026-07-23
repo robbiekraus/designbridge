@@ -15,9 +15,15 @@ const TABS = [
   { id: 'figma', label: 'Figma' },
 ];
 
-export default function ImportModal({ open, onClose, onImported, onOpenLibrary }) {
+export default function ImportModal({ open, onClose, onImported, onOpenLibrary, initialTab }) {
   const [activeTab, setActiveTab] = useState('image');
   const { stage, result, error, submit, reset } = useImportSession();
+
+  // Beim Öffnen auf den gewünschten Tab springen (Start-Screen-Kacheln wählen die
+  // Quelle vor). Nur beim Öffnungswechsel, damit ein Tab-Klick im Modal bleibt.
+  useEffect(() => {
+    if (open && initialTab) setActiveTab(initialTab);
+  }, [open, initialTab]);
 
   // Jedes erfolgreiche Import-Ergebnis GENAU EINMAL nach oben melden — auch wenn
   // der Parent bei jedem Render eine neue onImported-Referenz übergibt. Ohne diese
