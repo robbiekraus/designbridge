@@ -262,6 +262,24 @@ function collectCatalogImports(node, byModule) {
   for (const c of node.children || []) collectCatalogImports(c, byModule);
 }
 
+/** Namen der im Plan gegroundeten Katalog-Komponenten (sortiert, dedupliziert) — für das grounded-
+ *  Flag in der UI (Spec 2026-07-23 §Q4/Schritt 5). Spiegelt walk: in einen Katalog-ref nicht weiter
+ *  absteigen (sein fallback wird nicht gerendert), in scan-interne Refs schon. */
+export function groundedComponentNames(plan) {
+  const names = new Set();
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'component-ref') {
+      if (node.catalog && node.name) { names.add(node.name); return; }
+      visit(node.fallback);
+      return;
+    }
+    for (const c of node.children || []) visit(c);
+  };
+  visit(plan);
+  return [...names].sort();
+}
+
 /** Gesammelte Katalog-Imports → sortierte `import { … } from "…";`-Zeilen (je Modul zusammengefasst). */
 function buildImportLines(plan) {
   const byModule = new Map();

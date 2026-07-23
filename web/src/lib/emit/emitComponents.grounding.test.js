@@ -21,9 +21,11 @@ describe('emitComponents — DS-Grounding-Verdrahtung', () => {
     const [item] = emitComponents(result, 'atom');
     expect(item.code).toContain('import { Button } from "@/components/ui/button";');
     expect(item.code).toContain('<Button variant="secondary" size="sm">Speichern</Button>');
+    // Schritt 5: grounded-Flag reist mit.
+    expect(item.grounded).toEqual(['Button']);
   });
 
-  it('ohne Marker: unveränderter Freihand-Code (kein Katalog-Import)', () => {
+  it('ohne Marker: unveränderter Freihand-Code (kein Katalog-Import), grounded leer', () => {
     const result = {
       raw: baseRaw,
       interpretations: { Aktion: { html: '<div style="background:#18181b;padding:8px">X</div>', jsx: '' } },
@@ -31,5 +33,6 @@ describe('emitComponents — DS-Grounding-Verdrahtung', () => {
     const [item] = emitComponents(result, 'atom');
     expect(item.code).not.toContain('import {');
     expect(item.code).toContain('export function');
+    expect(item.grounded).toEqual([]);
   });
 });
