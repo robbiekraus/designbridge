@@ -308,38 +308,113 @@ function CodeInline({ item }) {
 // je eine volle-Breite-Zeile. Vorschau + Varianten-Umschalter immer sichtbar,
 // nur Code hinter Toggle. Notiz sitzt in der Code-Toggle-Zeile (siehe
 // CodeToggle), nicht mehr separat über dem Inhalt.
-function PreviewFirstRow({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted }) {
+// Collapse-fähige Zeile: Kopf (Chevron + Pillen) immer sichtbar; Vorschau/Varianten/
+// Code-Toggle nur im aufgeklappten Zustand. `open`/`onToggle` werden von der Liste
+// gesteuert (Seiten-Toggle „Alle Vorschauen" / einzelnes Aufklappen). „Code anzeigen"
+// bleibt innerhalb der Vorschau eine eigene, manuelle Aktion (CodeToggle).
+function PreviewFirstRow({ item, picks, onRetryInterpret, retrying, batchPending, interpretError, quotaExhausted, open, onToggle }) {
   const [variant, setVariant] = useState(item.variants[0] ?? null);
   const showActivityPill = retrying || (batchPending && !item.interpretedHtml && !item.hasPreview);
 
   return (
-    <div className="border border-zinc-200 rounded-lg p-3 bg-white flex flex-col gap-2">
-      <div className="flex items-center gap-2 flex-wrap">
+    <div className="border border-zinc-200 rounded-lg bg-white">
+      <button
+        onClick={onToggle}
+        className="flex items-center gap-2 flex-wrap w-full text-left px-3 py-2.5 rounded-lg hover:bg-zinc-50 transition-colors"
+      >
+        <span className={`text-zinc-400 transition-transform ${open ? 'rotate-90' : ''}`}>›</span>
         <HeaderMeta item={item} showActivityPill={showActivityPill} />
         <span className="ml-auto text-[10px] font-mono text-zinc-400">{item.filename}</span>
-      </div>
+      </button>
 
-      <VariantSwitcher variants={item.variants} variant={variant} setVariant={setVariant} />
+      {open && (
+        <div className="px-3 pb-3 flex flex-col gap-2">
+          <VariantSwitcher variants={item.variants} variant={variant} setVariant={setVariant} />
 
-      <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
-        <PreviewBody item={item} picks={picks} variant={variant} retrying={retrying} />
-      </div>
+          <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-zinc-200 rounded">
+            <PreviewBody item={item} picks={picks} variant={variant} retrying={retrying} />
+          </div>
 
-      <RetryStatus
-        item={item}
-        onRetryInterpret={onRetryInterpret}
-        retrying={retrying}
-        batchPending={batchPending}
-        interpretError={interpretError}
-        quotaExhausted={quotaExhausted}
-      />
+          <RetryStatus
+            item={item}
+            onRetryInterpret={onRetryInterpret}
+            retrying={retrying}
+            batchPending={batchPending}
+            interpretError={interpretError}
+            quotaExhausted={quotaExhausted}
+          />
 
-      <CodeToggle item={item} />
+          <CodeToggle item={item} />
+        </div>
+      )}
     </div>
   );
 }
 
 const PREVIEW_FIRST_LIST_CLASS = 'flex flex-col gap-4';
+
+const itemKey = (item) => `${item.slug}-${item.kind}`;
+const confOf = (item) => (item.confidence === 'medium' ? 'med' : item.confidence);
+const herkunftOf = (item) => (item.lifted ? 'repo' : 'ki');
+
+function SearchIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400 flex-shrink-0" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
+// Filter- + Collapse-Leiste über den Ebenen-Seiten (atom/molecule/organism).
+// Zwei Achsen: Filter (Suche · gegroundet · Confidence · Herkunft) = „zeig mir nur…";
+// Kompakt/Alle-Vorschauen = „wie viel Detail".
+function LevelToolbar({
+  count, total, search, setSearch, groundedOnly, setGroundedOnly,
+  confSet, toggleConf, herkSet, toggleHerk, onReset, allOpen, onToggleAll,
+}) {
+  const chip = (active) =>
+    `text-[12px] px-2.5 py-1 rounded-full border transition-colors ${
+      active ? 'bg-primary text-white border-primary' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'
+    }`;
+  const anyFilter = search || groundedOnly || confSet.size > 0 || herkSet.size > 0;
+  return (
+    <div className="flex items-center gap-2 flex-wrap mb-4">
+      <label className="flex items-center gap-1.5 border border-zinc-200 rounded-md px-2.5 py-1.5 bg-white min-w-[180px]">
+        <SearchIcon />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Baustein suchen …"
+          className="text-[13px] outline-none bg-transparent w-full text-zinc-900 placeholder:text-zinc-400"
+        />
+      </label>
+      <button onClick={() => setGroundedOnly(!groundedOnly)} className={chip(groundedOnly)}>shadcn</button>
+      <span className="w-px h-5 bg-zinc-200" aria-hidden="true" />
+      {['high', 'med', 'low'].map((c) => (
+        <button key={c} onClick={() => toggleConf(c)} className={chip(confSet.has(c))}>{c}</button>
+      ))}
+      <span className="w-px h-5 bg-zinc-200" aria-hidden="true" />
+      {[['ki', 'KI'], ['repo', 'aus Repo']].map(([v, label]) => (
+        <button key={v} onClick={() => toggleHerk(v)} className={chip(herkSet.has(v))}>{label}</button>
+      ))}
+      {anyFilter && (
+        <>
+          <span className="text-[11px] text-zinc-400 font-mono tabular-nums">{count}/{total}</span>
+          <button onClick={onReset} className="text-[12px] text-zinc-500 hover:text-zinc-900 underline underline-offset-2">
+            zurücksetzen
+          </button>
+        </>
+      )}
+      <button
+        onClick={onToggleAll}
+        className="ml-auto text-[12px] px-2.5 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+      >
+        {allOpen ? 'Kompakt' : 'Alle Vorschauen'}
+      </button>
+    </div>
+  );
+}
 
 export default function LibraryObjectList({
   items,
@@ -351,6 +426,14 @@ export default function LibraryObjectList({
   interpretError,
   quotaExhausted,
 }) {
+  // Hooks unbedingt vor jedem early return (Rules of Hooks). Für den Template-/
+  // Backward-Compat-Pfad werden sie nicht genutzt, schaden aber nicht.
+  const [search, setSearch] = useState('');
+  const [groundedOnly, setGroundedOnly] = useState(false);
+  const [confSet, setConfSet] = useState(() => new Set());
+  const [herkSet, setHerkSet] = useState(() => new Set());
+  const [openKeys, setOpenKeys] = useState(() => new Set()); // Initial: alles zusammengeklappt
+
   if (!items || items.length === 0) {
     return <div className="text-sm text-zinc-500">Keine Objekte erkannt.</div>;
   }
@@ -366,7 +449,7 @@ export default function LibraryObjectList({
   });
 
   // Templates bleiben unverändert die heutige Akkordeon-Liste. Ohne `kind`
-  // (Rückwärtskompatibilität / ältere Aufrufer) gilt derselbe Pfad.
+  // (Rückwärtskompatibilität / ältere Aufrufer) gilt derselbe Pfad — ohne Toolbar.
   if (!kind || kind === 'template') {
     return (
       <div className="max-w-3xl border-t border-zinc-200">
@@ -377,13 +460,68 @@ export default function LibraryObjectList({
     );
   }
 
-  // atom/molecule/organism teilen sich dieselbe Preview-First-Zeilen-Liste —
-  // eine volle-Breite-Zeile pro Item, Vorschau immer sichtbar.
+  // atom/molecule/organism: Filter- + Collapse-Liste.
+  const q = search.trim().toLowerCase();
+  const filtered = items.filter((item) => {
+    if (q && !item.name.toLowerCase().includes(q)) return false;
+    if (groundedOnly && !(item.grounded?.length > 0)) return false;
+    if (confSet.size > 0 && !confSet.has(confOf(item))) return false;
+    if (herkSet.size > 0 && !herkSet.has(herkunftOf(item))) return false;
+    return true;
+  });
+
+  const allOpen = filtered.length > 0 && filtered.every((i) => openKeys.has(itemKey(i)));
+  const toggleInSet = (setFn) => (val) =>
+    setFn((prev) => {
+      const next = new Set(prev);
+      next.has(val) ? next.delete(val) : next.add(val);
+      return next;
+    });
+  const toggleOne = (item) =>
+    setOpenKeys((prev) => {
+      const next = new Set(prev);
+      const k = itemKey(item);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
+  const onReset = () => {
+    setSearch('');
+    setGroundedOnly(false);
+    setConfSet(new Set());
+    setHerkSet(new Set());
+  };
+
   return (
-    <div className={PREVIEW_FIRST_LIST_CLASS}>
-      {items.map((item) => (
-        <PreviewFirstRow key={item.slug + item.kind} {...sharedProps(item)} />
-      ))}
+    <div>
+      <LevelToolbar
+        count={filtered.length}
+        total={items.length}
+        search={search}
+        setSearch={setSearch}
+        groundedOnly={groundedOnly}
+        setGroundedOnly={setGroundedOnly}
+        confSet={confSet}
+        toggleConf={toggleInSet(setConfSet)}
+        herkSet={herkSet}
+        toggleHerk={toggleInSet(setHerkSet)}
+        onReset={onReset}
+        allOpen={allOpen}
+        onToggleAll={() => setOpenKeys(allOpen ? new Set() : new Set(filtered.map(itemKey)))}
+      />
+      {filtered.length === 0 ? (
+        <div className="text-sm text-zinc-500 py-8 text-center">Keine Bausteine für diese Filter.</div>
+      ) : (
+        <div className={PREVIEW_FIRST_LIST_CLASS}>
+          {filtered.map((item) => (
+            <PreviewFirstRow
+              key={itemKey(item)}
+              open={openKeys.has(itemKey(item))}
+              onToggle={() => toggleOne(item)}
+              {...sharedProps(item)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

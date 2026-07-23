@@ -68,22 +68,28 @@ describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teile
   };
 
   it.each(['atom', 'molecule', 'organism'])(
-    'kind=%s: Vorschau + Varianten-Umschalter sind ohne Klick sichtbar, Code ist zunächst verborgen',
+    'kind=%s: initial zusammengeklappt — Kopf sichtbar, Vorschau/Varianten erst nach Aufklappen; Code separat',
     (kind) => {
       render(<LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />);
+      // Kopf (Name-Pille) immer sichtbar; zusammengeklappt: kein Varianten-Umschalter, nur der eine Kopf-Text:
       expect(screen.getByText('Button', { selector: 'span.font-medium' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'primary' })).not.toBeInTheDocument();
+      expect(screen.getAllByText('Button').length).toBe(1);
+      // Aufklappen über den Kopf:
+      fireEvent.click(screen.getByText('Button', { selector: 'span.font-medium' }));
       expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'ghost' })).toBeInTheDocument();
-      // Vorschau (das echte Button-Element aus PREVIEWS) ist da, ohne dass irgendetwas aufgeklappt wurde:
       expect(screen.getAllByText('Button').length).toBeGreaterThan(1);
+      // Code bleibt trotz aufgeklappter Vorschau hinter dem eigenen Toggle verborgen:
       expect(screen.queryByText('export function Button() {}')).not.toBeInTheDocument();
     }
   );
 
   it.each(['atom', 'molecule', 'organism'])(
-    'kind=%s: Code-Toggle zeigt den Code inkl. Kopieren/Herunterladen und lässt sich wieder verbergen',
+    'kind=%s: Code-Toggle (nach Aufklappen) zeigt Code inkl. Kopieren/Herunterladen und verbirgt wieder',
     (kind) => {
       render(<LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />);
+      fireEvent.click(screen.getByText('Button', { selector: 'span.font-medium' })); // aufklappen
       fireEvent.click(screen.getByRole('button', { name: 'Code anzeigen' }));
       expect(screen.getByText('export function Button() {}')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /kopieren/i })).toBeInTheDocument();
@@ -94,17 +100,17 @@ describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teile
   );
 
   it.each(['atom', 'molecule', 'organism'])(
-    'kind=%s: rendert als volle-Breite-Zeile, kein Grid/Raster',
+    'kind=%s: Zeilen-Liste ist eine flex-col-Spalte, kein Grid/Raster',
     (kind) => {
       const { container } = render(
         <LibraryObjectList items={[{ ...button, kind }]} picks={picks} kind={kind} />
       );
-      expect(container.firstChild.className).toMatch(/flex flex-col/);
-      expect(container.firstChild.className).not.toMatch(/grid/);
+      expect(container.querySelector('.flex.flex-col.gap-4')).not.toBeNull();
+      expect(container.querySelector('[class*="grid-cols"]')).toBeNull();
     }
   );
 
-  it('organism: interpretFailed-Retry funktioniert weiterhin (Vorschau bleibt sichtbar wie molecule)', () => {
+  it('organism: interpretFailed-Retry funktioniert nach Aufklappen (Vorschau-Box zeigt Platzhalter)', () => {
     const onRetryInterpret = vi.fn();
     const organismItem = {
       name: 'PricingWidget', slug: 'pricing-widget', kind: 'organism', filename: 'PricingWidget.tsx',
@@ -120,6 +126,7 @@ describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teile
         onRetryInterpret={onRetryInterpret}
       />
     );
+    fireEvent.click(screen.getByText('PricingWidget', { selector: 'span.font-medium' })); // aufklappen
     expect(screen.getByText('Interpretation fehlgeschlagen.')).toBeInTheDocument();
     // Ohne Template-Preview/interpretedHtml zeigt die Vorschau-Box den Platzhalter:
     expect(screen.getByText('keine Vorschau')).toBeInTheDocument();
@@ -127,11 +134,12 @@ describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teile
     expect(onRetryInterpret).toHaveBeenCalledWith('PricingWidget');
   });
 
-  it('organism: Notiz (item.notes) sitzt in der Code-Toggle-Zeile, nicht separat über dem Inhalt', () => {
+  it('organism: Notiz (item.notes) sitzt (nach Aufklappen) in der Code-Toggle-Zeile', () => {
     const organismItem = {
       ...button, kind: 'organism', name: 'Nav', notes: 'aus <nav>-Landmarke gehoben',
     };
     render(<LibraryObjectList items={[organismItem]} picks={picks} kind="organism" />);
+    fireEvent.click(screen.getByText('Nav', { selector: 'span.font-medium' })); // aufklappen
     const note = screen.getByText('aus <nav>-Landmarke gehoben');
     const toggle = screen.getByRole('button', { name: 'Code anzeigen' });
     // Beide sitzen im selben Flex-Zeilen-Container (Notiz links, Toggle rechts):
@@ -140,9 +148,10 @@ describe('LibraryObjectList — Preview-First (kind atom/molecule/organism teile
     );
   });
 
-  it('atom/molecule: keine separate Notiz-Zeile über dem Inhalt mehr (Notiz jetzt nur neben dem Toggle)', () => {
+  it('atom/molecule: Notiz sitzt (nach Aufklappen) neben dem Toggle, keine separate Zeile', () => {
     const atomItem = { ...button, notes: 'Variante manuell korrigiert' };
     render(<LibraryObjectList items={[atomItem]} picks={picks} kind="atom" />);
+    fireEvent.click(screen.getByText('Button', { selector: 'span.font-medium' })); // aufklappen
     const note = screen.getByText('Variante manuell korrigiert');
     const toggle = screen.getByRole('button', { name: 'Code anzeigen' });
     expect(note.closest('.flex.items-center.justify-between')).toBe(
@@ -502,5 +511,68 @@ describe('LibraryObjectList — Herkunft (Task 6: partOf + instanceCount)', () =
     render(<LibraryObjectList items={items} picks={picks} />);
     expect(screen.queryByText(/Teil von/)).not.toBeInTheDocument();
     expect(screen.queryByText(/×/)).not.toBeInTheDocument();
+  });
+});
+
+describe('LibraryObjectList — Filter- + Collapse-Leiste (atom/molecule/organism)', () => {
+  const mixed = [
+    { name: 'Button', slug: 'button', filename: 'Button.jsx', kind: 'atom', templateKey: 'button',
+      variants: ['primary'], code: 'export function Button() {}', confidence: 'high', hasPreview: true,
+      grounded: ['Button'], lifted: false },
+    { name: 'Badge', slug: 'badge', filename: 'Badge.jsx', kind: 'atom', templateKey: null,
+      variants: [], code: '// badge', confidence: 'medium', hasPreview: false, grounded: [], lifted: false },
+    { name: 'Card Skeleton', slug: 'card-skeleton', filename: 'card-skeleton.jsx', kind: 'atom', templateKey: null,
+      variants: [], code: '// skel', confidence: 'low', hasPreview: false, grounded: [], lifted: true },
+  ];
+  const head = (name) => screen.queryByText(name, { selector: 'span.font-medium' });
+
+  it('initial: alle zusammengeklappt (kein Varianten-Umschalter sichtbar)', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    expect(head('Button')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'primary' })).not.toBeInTheDocument();
+  });
+
+  it('Suche filtert nach Name', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.change(screen.getByPlaceholderText(/baustein suchen/i), { target: { value: 'badge' } });
+    expect(head('Badge')).toBeInTheDocument();
+    expect(head('Button')).not.toBeInTheDocument();
+    expect(head('Card Skeleton')).not.toBeInTheDocument();
+  });
+
+  it('shadcn-Chip zeigt nur gegroundete Bausteine', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.click(screen.getByRole('button', { name: 'shadcn' }));
+    expect(head('Button')).toBeInTheDocument();
+    expect(head('Badge')).not.toBeInTheDocument();
+  });
+
+  it('Confidence-Chip „low" filtert auf niedrige Sicherheit', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.click(screen.getByRole('button', { name: 'low' }));
+    expect(head('Card Skeleton')).toBeInTheDocument();
+    expect(head('Button')).not.toBeInTheDocument();
+  });
+
+  it('Herkunft-Chip „aus Repo" filtert auf gehobene Bausteine', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.click(screen.getByRole('button', { name: 'aus Repo' }));
+    expect(head('Card Skeleton')).toBeInTheDocument();
+    expect(head('Button')).not.toBeInTheDocument();
+    expect(head('Badge')).not.toBeInTheDocument();
+  });
+
+  it('„Alle Vorschauen" klappt alle auf, „Kompakt" wieder zu', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Alle Vorschauen' }));
+    expect(screen.getByRole('button', { name: 'primary' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Kompakt' }));
+    expect(screen.queryByRole('button', { name: 'primary' })).not.toBeInTheDocument();
+  });
+
+  it('leere Filtermenge zeigt eine Hinweiszeile', () => {
+    render(<LibraryObjectList items={mixed} picks={picks} kind="atom" />);
+    fireEvent.change(screen.getByPlaceholderText(/baustein suchen/i), { target: { value: 'zzz' } });
+    expect(screen.getByText(/keine bausteine für diese filter/i)).toBeInTheDocument();
   });
 });
