@@ -1,10 +1,10 @@
 import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
-import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO } from './taxonomy.js';
+import { classifyByContainment, buildCompositionTree, parentByName, CONTAIN_RATIO } from './taxonomy.js';
 import { downscaleForVision } from './imageResize.js';
 
-const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
+export const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
 Return ONLY a valid JSON object with no markdown, no explanation, no preamble.
 
@@ -23,9 +23,9 @@ Structure:
     "border_radius": [{ "value": "px or % value", "usage": "where used", "confidence": "high|medium|low" }],
     "shadows": [{ "description": "semantic name e.g. card-shadow", "css": "box-shadow CSS value", "confidence": "high|medium|low" }]
   },
-  "atoms": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
-  "molecules": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
-  "organisms": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "atoms": [{ "name": "component name", "variants": ["variant names"], "confidence": "high|medium|low", "notes": "", "instanceCount": 1, "partOf": "organism name or omit", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "molecules": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "instanceCount": 1, "partOf": "organism name or omit", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
+  "organisms": [{ "name": "component name", "confidence": "high|medium|low", "notes": "", "instanceCount": 1, "partOf": "organism name or omit", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
   "templates": [{ "name": "template name", "confidence": "high|medium|low", "bbox": { "x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0 } }],
   "warnings": ["any caveats about low-confidence extractions or things that cannot be inferred from a static image"]
 }
@@ -36,6 +36,8 @@ Classify every UI element into exactly ONE of four atomic-design levels:
 - "organisms": a larger self-contained section built from molecules and atoms — a card (KPI/stat card), a chart (bar/line/donut incl. its legend and axes), a data table, a full form, a navigation bar, a header/topbar, a sidebar navigation, a footer, a hero. If it's a distinct block you could lift out and reuse as a whole section, it's an organism.
 - "templates": the overall screen layout — how organisms are arranged into a full screen (e.g. sidebar + topbar + content grid). Emit AT MOST ONE template for the whole screen.
 CRITICAL: a card, a chart and a table are ORGANISMS, not molecules. A button and a bare input are ATOMS. The whole screen is the single TEMPLATE — never fold the individual sections into it, and never mark an individual section as a template.
+
+DECOMPOSE each organism into its reusable inner building blocks and add them to the appropriate "atoms"/"molecules" arrays IN ADDITION to the organism itself. Extract an inner element when it (a) repeats within the screen, OR (b) is a standard reusable atom (button, input, icon, badge, avatar, single control). Do NOT extract one-off decorative containers or every stray label. When an inner element repeats (e.g. sidebar nav items), emit it ONCE and set "instanceCount" to how many times it appears — never list the same element multiple times. For every extracted inner element set "partOf" to the exact "name" of the organism it belongs to, and give it a reusable generic name (e.g. "Nav Item", not "Dashboard nav item 3"). Top-level building blocks omit "partOf" and use "instanceCount": 1.
 
 Rules:
 - Only include items you can actually observe in the screenshot
@@ -81,6 +83,19 @@ function bboxOverlapArea(a, b) {
   return w * h;
 }
 
+// Gemeinsame bbox-Geometrie für die Enthaltungs-Logik (applyContainmentGuard + derivePartOf).
+// EINE Definition von "A enthält B", damit beide Stellen nie auseinanderlaufen.
+function makeBboxGeometry() {
+  const areaOf = (ref) => bboxArea(ref?.bbox);
+  const contains = (a, b) => {
+    const areaA = bboxArea(a?.bbox);
+    const areaB = bboxArea(b?.bbox);
+    if (areaA <= areaB || areaB === 0) return false;
+    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
+  };
+  return { areaOf, contains };
+}
+
 // Enthaltungs-Guard (Ansatz B, docs/superpowers/specs/2026-07-18-atomic-design-taxonomy-design.md):
 // Bild-Pfad v1 — bbox-basierte areaOf/contains, danach zurück in die 4 Buckets.
 // „A enthält B": B liegt zu >= CONTAIN_RATIO seiner Fläche in A UND A ist flächengrößer.
@@ -93,13 +108,7 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
     ...asRefItems(templates, 'template'),
   ];
 
-  const areaOf = (ref) => bboxArea(ref?.bbox);
-  const contains = (a, b) => {
-    const areaA = bboxArea(a?.bbox);
-    const areaB = bboxArea(b?.bbox);
-    if (areaB === 0 || areaA <= areaB) return false;
-    return bboxOverlapArea(a?.bbox, b?.bbox) / areaB >= CONTAIN_RATIO;
-  };
+  const { areaOf, contains } = makeBboxGeometry();
 
   const classified = classifyByContainment(flat, { areaOf, contains });
 
@@ -118,6 +127,25 @@ export function applyContainmentGuard(atoms, molecules, organisms, templates) {
   };
 }
 
+// Leitet partOf (Eltern-Organismus) für herausgezogene Kleinteile aus der bbox-
+// Enthaltung ab. Additiv: setzt partOf NUR, wo die KI keins geliefert hat.
+// Templates sind KEINE partOf-Kandidaten (sonst wäre jeder Organismus "part of screen").
+// Hinweis zur Semantik: der KI-Prompt setzt partOf = Name des ELTERN-ORGANISMUS; die
+// hier abgeleitete Fallback-Quelle nimmt den KLEINSTEN direkten Container — das kann auch
+// ein Molekül sein (z.B. Trend-Badge → "Stat Pair"). Beide sind gültige „Herkunft"; die
+// Library zeigt nur den Namen. Falls je etwas downstream „partOf ist ein Organismus"
+// annimmt, hier ansetzen.
+export function derivePartOf(guarded) {
+  const flat = [...guarded.atoms, ...guarded.molecules, ...guarded.organisms];
+  const items = flat.map((it) => ({ name: it.name, ref: it }));
+  const { areaOf, contains } = makeBboxGeometry();
+  const parent = parentByName(items, { areaOf, contains });
+  for (const it of flat) {
+    if (!it.partOf && parent[it.name]) it.partOf = parent[it.name];
+  }
+  return guarded;
+}
+
 // Die KI listet identische Bausteine mehrfach (Live-Fund 15.07.: dreimal
 // "button" für Chips + Send-Button) — gleichnamige Einträge verschmelzen,
 // Varianten vereinigen. Der erste Treffer behält notes/confidence; die bbox
@@ -126,15 +154,24 @@ export function mergeByName(items) {
   const byName = new Map();
   for (const item of items ?? []) {
     const key = String(item.name ?? '').trim().toLowerCase();
+    const count = Number.isFinite(item.instanceCount) && item.instanceCount > 0
+      ? Math.floor(item.instanceCount)
+      : 1;
     const prev = byName.get(key);
     if (!prev) {
-      byName.set(key, { ...item, variants: Array.isArray(item.variants) ? [...item.variants] : item.variants });
+      byName.set(key, {
+        ...item,
+        instanceCount: count,
+        variants: Array.isArray(item.variants) ? [...item.variants] : item.variants,
+      });
       continue;
     }
+    prev.instanceCount += count;
     if (Array.isArray(item.variants) && item.variants.length) {
       prev.variants = [...new Set([...(prev.variants ?? []), ...item.variants])];
     }
     if (!prev.notes && item.notes) prev.notes = item.notes;
+    if (!prev.partOf && item.partOf) prev.partOf = item.partOf;
     // Größte bbox gewinnt: der erste Treffer war oft ein Mini-Exemplar,
     // dessen Crop downstream zu klein zum Interpretieren ist (Diagnose 16.07.).
     if (bboxArea(item.bbox) > bboxArea(prev.bbox)) prev.bbox = item.bbox;
@@ -233,6 +270,7 @@ The user wants to extract specifically: ${targetSummary || 'all visible design t
     templates: mergeByName(parsed.templates),
   };
   const guarded = applyContainmentGuard(merged.atoms, merged.molecules, merged.organisms, merged.templates);
+  derivePartOf(guarded);
 
   return {
     ...parsed,

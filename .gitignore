@@ -30,3 +30,6 @@ exports/
 .worktrees/
 # Grounding-Verifikations-Harness: flüchtige Bundle-/tmp-Verzeichnisse (Scheibe 1 Schritt 6)
 web/.verify-*/
+
+# Brainstorm-Companion (Mockups, Sessions)
+.superpowers/

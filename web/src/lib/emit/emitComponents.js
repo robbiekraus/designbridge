@@ -113,6 +113,8 @@ export function emitComponents(result, kind) {
         source: item.source ?? null,
         lifted,
         notes: item.notes ?? null,
+        instanceCount: item.instanceCount ?? 1,
+        partOf: item.partOf ?? null,
         hasPreview: Boolean(tpl),
         interpretedHtml: interp?.html ?? null,
         interpretedModel: interp?.model ?? null,

@@ -33,6 +33,13 @@ function HeaderMeta({ item, showActivityPill }) {
       <ConfidencePill value={item.confidence} />
       <SourcePill value={item.source} />
       <GroundedPill names={item.grounded} />
+      {(item.partOf || item.instanceCount > 1) && (
+        <span className="text-[10px] text-zinc-500">
+          {item.partOf && `Teil von ${item.partOf}`}
+          {item.partOf && item.instanceCount > 1 && ' · '}
+          {item.instanceCount > 1 && `×${item.instanceCount}`}
+        </span>
+      )}
       {item.lifted && <SourcePill value="lifted" />}
       {item.interpretedHtml && <SourcePill value="interpreted" />}
       {item.interpretedDemo && <SourcePill value="demo" />}

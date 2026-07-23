@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { analyzeScreenshot, mergeByName, applyContainmentGuard } from './claude.js';
+import { analyzeScreenshot, mergeByName, applyContainmentGuard, derivePartOf, EXTRACTION_PROMPT } from './claude.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-scan-${Math.random().toString(36).slice(2)}.png`);
@@ -36,6 +36,12 @@ test('analyzeScreenshot: prompt asks for bbox and passes it through', async () =
   // 4096 war zu knapp für token-reiche Screenshots (Live-Fund 15.07.):
   // Gemini schnitt mitten im JSON ab.
   assert.ok(captured.max_tokens >= 16384, `max_tokens zu klein: ${captured.max_tokens}`);
+});
+
+test('EXTRACTION_PROMPT enthält Zerlegungs-Instruktion + neue Felder', () => {
+  assert.match(EXTRACTION_PROMPT, /DECOMPOSE/);
+  assert.match(EXTRACTION_PROMPT, /instanceCount/);
+  assert.match(EXTRACTION_PROMPT, /partOf/);
 });
 
 test('analyzeScreenshot: normalisiert String-Größen ("64px") zu Zahlen — Gemini liefert px-Suffixe (Live-Fund 15.07.)', async () => {
@@ -131,6 +137,37 @@ test('mergeByName: erster Treffer behält seine bbox, wenn der zweite keine oder
     { name: 'button', bbox: { x: 0.5, y: 0.5, w: 0.05, h: 0.03 } },
   ]);
   assert.deepEqual(mergedSmaller[0].bbox, { x: 0.1, y: 0.1, w: 0.2, h: 0.1 });
+});
+
+test('mergeByName: summiert instanceCount über gleichnamige Treffer', () => {
+  const merged = mergeByName([
+    { name: 'Nav Item', bbox: { x: 0, y: 0, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.05, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.1, w: 0.1, h: 0.05 } },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].instanceCount, 3);
+});
+
+test('mergeByName: respektiert von der KI geliefertes instanceCount und addiert', () => {
+  const merged = mergeByName([
+    { name: 'Nav Item', instanceCount: 9, bbox: { x: 0, y: 0, w: 0.1, h: 0.05 } },
+    { name: 'Nav Item', bbox: { x: 0, y: 0.05, w: 0.1, h: 0.05 } },
+  ]);
+  assert.equal(merged[0].instanceCount, 10);
+});
+
+test('mergeByName: fehlendes/ungültiges instanceCount zählt als 1', () => {
+  const merged = mergeByName([
+    { name: 'Badge', instanceCount: 0, bbox: { x: 0, y: 0, w: 0.02, h: 0.02 } },
+    { name: 'Badge', instanceCount: -5, bbox: { x: 0, y: 0, w: 0.02, h: 0.02 } },
+  ]);
+  assert.equal(merged[0].instanceCount, 2);
+});
+
+test('mergeByName: einzelner Treffer bekommt instanceCount 1', () => {
+  const merged = mergeByName([{ name: 'Logo', bbox: { x: 0, y: 0, w: 0.05, h: 0.05 } }]);
+  assert.equal(merged[0].instanceCount, 1);
 });
 
 test('analyzeScreenshot: abgeschnittene Antwort (max_tokens) → klare deutsche Meldung', async () => {
@@ -334,4 +371,39 @@ test('applyContainmentGuard returns composition with direct edges', () => {
   assert.deepEqual(out.composition.children['Dashboard'], ['Sidebar']);
   assert.deepEqual(out.composition.children['Sidebar'], ['Logo']);
   assert.deepEqual(out.composition.roots, ['Dashboard']);
+});
+
+test('derivePartOf: setzt partOf für enthaltenes Kind, Organismus bleibt top-level', () => {
+  const guarded = {
+    atoms: [{ name: 'Nav Item', kind: 'atom', bbox: { x: 0.01, y: 0.1, w: 0.18, h: 0.05 } }],
+    molecules: [],
+    organisms: [{ name: 'Sidebar', kind: 'organism', bbox: { x: 0, y: 0, w: 0.2, h: 1 } }],
+    templates: [{ name: 'Dashboard', kind: 'template', bbox: { x: 0, y: 0, w: 1, h: 1 } }],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'Sidebar');
+  assert.equal(guarded.organisms[0].partOf, undefined); // Template ist kein partOf-Kandidat
+});
+
+test('derivePartOf: von der KI gesetztes partOf wird nicht überschrieben', () => {
+  const guarded = {
+    atoms: [{ name: 'Icon', kind: 'atom', partOf: 'KPI-Card', bbox: { x: 0.5, y: 0.5, w: 0.02, h: 0.02 } }],
+    molecules: [],
+    organisms: [{ name: 'Sidebar', kind: 'organism', bbox: { x: 0.4, y: 0.4, w: 0.4, h: 0.4 } }],
+    templates: [],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'KPI-Card');
+});
+
+test('derivePartOf: Molekül als kleinster Container gewinnt als partOf', () => {
+  const guarded = {
+    atoms: [{ name: 'Trend Badge', kind: 'atom', bbox: { x: 0.12, y: 0.12, w: 0.03, h: 0.02 } }],
+    molecules: [{ name: 'Stat Pair', kind: 'molecule', bbox: { x: 0.1, y: 0.1, w: 0.08, h: 0.06 } }],
+    organisms: [{ name: 'KPI Card', kind: 'organism', bbox: { x: 0.05, y: 0.05, w: 0.3, h: 0.3 } }],
+    templates: [],
+  };
+  derivePartOf(guarded);
+  assert.equal(guarded.atoms[0].partOf, 'Stat Pair');   // kleinster Container, nicht KPI Card
+  assert.equal(guarded.molecules[0].partOf, 'KPI Card');
 });

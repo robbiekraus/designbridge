@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyByContainment, buildCompositionTree, CONTAIN_RATIO, CANVAS_RATIO, SECTION_RATIO } from './taxonomy.js';
+import { classifyByContainment, buildCompositionTree, parentByName, CONTAIN_RATIO, CANVAS_RATIO, SECTION_RATIO } from './taxonomy.js';
 
 // Einfaches bbox-Modell für die Tests: ref = { x, y, w, h } als Flächen-Anteile 0..1.
 const areaOf = (ref) => (ref ? ref.w * ref.h : 0);
@@ -136,4 +136,36 @@ test('buildCompositionTree: multiple roots', () => {
   ];
   const { roots } = buildCompositionTree(items, { areaOf, contains });
   assert.deepEqual(roots.sort(), ['Stray', 'Template']);
+});
+
+// parentByName — invertierter Kompositions-Baum (Kind -> direkter Elternteil).
+
+test('parentByName: kleines Item in großem Container -> child:parent', () => {
+  const items = [
+    { name: 'Sidebar', ref: { x: 0, y: 0, w: 0.2, h: 1 } },
+    { name: 'Nav Item', ref: { x: 0.01, y: 0.1, w: 0.18, h: 0.05 } },
+  ];
+  const parent = parentByName(items, { areaOf, contains });
+  assert.equal(parent['Nav Item'], 'Sidebar');
+  assert.equal(parent['Sidebar'], undefined);
+});
+
+test('parentByName: ohne Enthaltung kein Eintrag', () => {
+  const items = [
+    { name: 'A', ref: { x: 0, y: 0, w: 0.1, h: 0.1 } },
+    { name: 'B', ref: { x: 0.5, y: 0.5, w: 0.1, h: 0.1 } },
+  ];
+  const parent = parentByName(items, { areaOf, contains });
+  assert.deepEqual(parent, {});
+});
+
+test('parentByName: verschachtelt -> kleinster enthaltender Container gewinnt', () => {
+  const items = [
+    { name: 'Screen', ref: { x: 0, y: 0, w: 1, h: 1 } },
+    { name: 'Card', ref: { x: 0.1, y: 0.1, w: 0.3, h: 0.3 } },
+    { name: 'Trend Badge', ref: { x: 0.12, y: 0.12, w: 0.05, h: 0.03 } },
+  ];
+  const parent = parentByName(items, { areaOf, contains });
+  assert.equal(parent['Trend Badge'], 'Card');
+  assert.equal(parent['Card'], 'Screen');
 });
