@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { htmlToPlan } from './htmlToPlan.js';
+import { planToJsx } from './planToJsx.js';
 import { SHADCN_DEFAULT_CATALOG } from '../catalog/shadcn-default.js';
 
 // DS-Grounding, Scheibe 1 Schritt 2 (Spec 2026-07-23-slice1-ds-grounding-default-catalog-design.md §Q2):
@@ -81,5 +82,14 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     const { plan } = htmlToPlan(html, { catalog: CATALOG });
     expect(plan.type).toBe('box');
     expect(findCatalogRef(plan)?.name).toBe('Button');
+  });
+
+  it('Durchstich HTML → plan → JSX: markierter Button ergibt echten shadcn-Code', () => {
+    const html = '<button data-ds-component="Button" data-ds-variant="secondary" data-ds-size="sm" style="padding:6px 12px">Speichern</button>';
+    const { plan } = htmlToPlan(html, { catalog: CATALOG });
+    const code = planToJsx(plan, { name: 'SaveButton' });
+    expect(code).toContain('import { Button } from "@/components/ui/button";');
+    expect(code).toContain('<Button variant="secondary" size="sm">Speichern</Button>');
+    expect(code).toContain('export function SaveButton(');
   });
 });
