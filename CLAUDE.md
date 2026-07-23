@@ -37,6 +37,8 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 ## Active specs
 
 - [docs/superpowers/specs/2026-06-11-import-modal-design.md](docs/superpowers/specs/2026-06-11-import-modal-design.md) — Initial Import Modal (Image / URL / Repo / Figma)
+- [docs/superpowers/specs/2026-07-23-design-system-grounded-interpretation-architecture.md](docs/superpowers/specs/2026-07-23-design-system-grounded-interpretation-architecture.md) — Interpretation gegen ein Design System groundnen (Katalog als Vokabular; Figma↔Repo-Verbindung). Richtungsdokument.
+- [docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md](docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md) — Scheibe 1 (Grounding gegen shadcn/Tailwind-Default-Katalog). **KOMPLETT** 23.07.
 
 ## Current goal
 

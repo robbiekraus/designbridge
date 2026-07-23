@@ -4,7 +4,8 @@ import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokens } from './pickTokens.js';
 import { slugify } from './slugify.js';
 import { htmlToPlan } from './htmlToPlan.js';
-import { planToJsx } from './planToJsx.js';
+import { planToJsx, groundedComponentNames } from './planToJsx.js';
+import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 
 const KINDS = [
   ['atoms', 'atom'],
@@ -52,13 +53,15 @@ function genericStub(pascal, item) {
  *  Geminis separatem interp.jsx. Leeres/kaputtes html (plan === null) oder gar keine Interpretation
  *  → generischer Stub. knownComponents bewusst leer: der Code-Export braucht keine component-ref-
  *  Instanzen (die Datei ist eigenständig), planToJsx würde sie ohnehin nur als fallback rendern. */
+// Liefert { code, grounded } — grounded = Namen der gegen den Katalog aufgelösten shadcn-Komponenten
+// (leer im Stub-Fall). Das grounded-Flag reist bis in die UI (Schritt 5, Ehrlichkeit).
 function codeFromInterp(interp, pascal, item, namedColors, tokenScales) {
   const html = interp?.html;
   if (html && html.trim()) {
-    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [] });
-    if (plan) return planToJsx(plan, { name: pascal, tokens: tokenScales });
+    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [], catalog: SHADCN_DEFAULT_CATALOG_OPTION });
+    if (plan) return { code: planToJsx(plan, { name: pascal, tokens: tokenScales }), grounded: groundedComponentNames(plan) };
   }
-  return genericStub(pascal, item);
+  return { code: genericStub(pascal, item), grounded: [] };
 }
 
 export function emitComponents(result, kind) {
@@ -90,6 +93,13 @@ export function emitComponents(result, kind) {
       const interp = !tpl ? (result?.interpretations?.[item.name] ?? null) : null;
       const unresolved = !tpl && !interp;
       const failedListed = (result?.interpretFailed ?? []).includes(item.name);
+      // code + grounded gemeinsam bestimmen: nur der Interpretations-Pfad kann Katalog-refs
+      // enthalten; Repo-gehobener Code und Template-Emit sind (in Scheibe 1) nie gegroundet.
+      const emitted = lifted
+        ? { code: item.sourceCode, grounded: [] }
+        : tpl
+          ? { code: tpl.emit(picks, item), grounded: [] }
+          : codeFromInterp(interp, pascal, item, namedColors, tokenScales);
       out.push({
         name: item.name,
         slug,
@@ -97,9 +107,8 @@ export function emitComponents(result, kind) {
         kind: itemKind,
         templateKey: tpl?.key ?? null,
         variants: tpl?.variants ?? [],
-        code: lifted
-          ? item.sourceCode
-          : (tpl ? tpl.emit(picks, item) : codeFromInterp(interp, pascal, item, namedColors, tokenScales)),
+        code: emitted.code,
+        grounded: emitted.grounded,
         confidence: item.confidence ?? null,
         source: item.source ?? null,
         lifted,

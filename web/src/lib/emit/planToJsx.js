@@ -4,8 +4,12 @@
 // arbitrary values (gap-[12px], bg-[#022d2c]) — Token-Snapping ist Scheibe 2. Kein DOM nötig.
 //
 // Bewusste Grenzen v1 (Spec §Bewusst NICHT in Scheibe 1): `absolute` wird ignoriert (Tailwind
-// bleibt aufs Flow-Raster), component-ref rendert seinen fallback-Box-Baum (entsteht in der
-// emitComponents-Verdrahtung ohnehin nicht — knownComponents:[]), SVG-`style`-Attribute entfallen.
+// bleibt aufs Flow-Raster), SVG-`style`-Attribute entfallen.
+//
+// DS-Grounding (Spec 2026-07-23-slice1-ds-grounding-default-catalog-design.md §Q3): ein Katalog-
+// component-ref (trägt `catalog` + `import`) rendert die ECHTE Komponente (`<Button variant=…>`)
+// samt gesammeltem Import am Dateikopf. Ein scan-interner Ref (ohne `catalog`) rendert weiterhin
+// seinen fallback-Box-Baum.
 
 const INDENT = '  ';
 
@@ -127,7 +131,13 @@ function walk(node, depth, tokens) {
   if (!node || typeof node !== 'object') return '';
   if (node.type === 'text') return walkText(node, depth, tokens);
   if (node.type === 'svg') return walkSvg(node, depth);
-  if (node.type === 'component-ref') return walk(node.fallback, depth, tokens); // fallback-Box, defensiv
+  if (node.type === 'component-ref') {
+    // DS-Grounding (Spec 2026-07-23 §Q3/Schritt 3): ein Katalog-ref (trägt `catalog` + `import`)
+    // rendert die ECHTE Komponente (`<Button variant=…>Text</Button>`) — Import wird in planToJsx
+    // gesammelt. Scan-interne Refs (kein `catalog`) rendern wie bisher ihren fallback-Box-Baum.
+    if (node.catalog) return walkCatalogRef(node, depth);
+    return walk(node.fallback, depth, tokens);
+  }
 
   // box
   const cls = boxClasses(node, tokens).join(' ');
@@ -202,13 +212,94 @@ function walkSvg(node, depth) {
   return pad + svgMarkupToJsx(node.markup);
 }
 
+// --- DS-Grounding: Katalog-Refs als echte Komponenten (Spec 2026-07-23 §Q3/Schritt 3) ------------
+
+/** Sichtbaren Text eines (fallback-)Subtrees einsammeln → Kind-Inhalt der Katalog-Komponente
+ *  (z. B. Button-Label). Reine Funktion; Whitespace kollabiert. */
+function extractText(node) {
+  if (!node || typeof node !== 'object') return '';
+  if (node.type === 'text') return node.content || '';
+  let s = '';
+  for (const c of node.children || []) s += `${extractText(c)} `;
+  return s;
+}
+
+/** Validierte Katalog-Props → JSX-Attribut-String. shadcn-Default-Werte ("default") werden
+ *  weggelassen (idiomatisch: `<Button>` statt `<Button variant="default">`). Reihenfolge = props. */
+function catalogPropAttrs(props) {
+  if (!props || typeof props !== 'object') return '';
+  return Object.entries(props)
+    .filter(([, v]) => v != null && v !== 'default')
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ');
+}
+
+function walkCatalogRef(node, depth) {
+  const pad = INDENT.repeat(depth);
+  const tag = node.import?.name || node.name || 'Component';
+  const attrs = catalogPropAttrs(node.props);
+  const attrStr = attrs ? ` ${attrs}` : '';
+  const text = extractText(node.fallback).replace(/\s+/g, ' ').trim();
+  if (!text) return `${pad}<${tag}${attrStr} />`;
+  return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
+}
+
+/** Katalog-Imports im gerenderten Baum sammeln → Map<from, Set<name>>. Spiegelt walk: ein Katalog-ref
+ *  wird als Komponente gerendert (Import zählt, kein Abstieg in seinen fallback); ein scan-interner
+ *  Ref rendert seinen fallback → dort weiter absteigen. */
+function collectCatalogImports(node, byModule) {
+  if (!node || typeof node !== 'object') return;
+  if (node.type === 'component-ref') {
+    if (node.catalog && node.import?.name && node.import?.from) {
+      const set = byModule.get(node.import.from) || new Set();
+      set.add(node.import.name);
+      byModule.set(node.import.from, set);
+      return;
+    }
+    collectCatalogImports(node.fallback, byModule);
+    return;
+  }
+  for (const c of node.children || []) collectCatalogImports(c, byModule);
+}
+
+/** Namen der im Plan gegroundeten Katalog-Komponenten (sortiert, dedupliziert) — für das grounded-
+ *  Flag in der UI (Spec 2026-07-23 §Q4/Schritt 5). Spiegelt walk: in einen Katalog-ref nicht weiter
+ *  absteigen (sein fallback wird nicht gerendert), in scan-interne Refs schon. */
+export function groundedComponentNames(plan) {
+  const names = new Set();
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'component-ref') {
+      if (node.catalog && node.name) { names.add(node.name); return; }
+      visit(node.fallback);
+      return;
+    }
+    for (const c of node.children || []) visit(c);
+  };
+  visit(plan);
+  return [...names].sort();
+}
+
+/** Gesammelte Katalog-Imports → sortierte `import { … } from "…";`-Zeilen (je Modul zusammengefasst). */
+function buildImportLines(plan) {
+  const byModule = new Map();
+  collectCatalogImports(plan, byModule);
+  return [...byModule.keys()].sort().map((from) => {
+    const names = [...byModule.get(from)].sort().join(', ');
+    return `import { ${names} } from "${from}";`;
+  });
+}
+
 export function planToJsx(plan, { name, tokens } = {}) {
   const componentName = name || 'Component';
   const body = walk(plan, 3, tokens); // 3 Ebenen Einrückung: export→return→( → Wurzel-Element
   // Wurzelklassen an den className-Passthrough hängen (Spec §Wrapper): das Wurzel-<div> trägt
   // seine eigenen Klassen + ${className}. Wir hängen den Passthrough in das gerenderte Wurzel-Tag.
   const rooted = injectClassNamePassthrough(body);
+  const importLines = buildImportLines(plan);
   return [
+    ...importLines,
+    ...(importLines.length ? [''] : []),
     `export function ${componentName}({ className = "", ...props }) {`,
     `  return (`,
     rooted,

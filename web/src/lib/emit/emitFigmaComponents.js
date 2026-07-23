@@ -9,6 +9,7 @@ import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 import { scalePlan, scaleFactor } from './scalePlan.js';
+import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
 // bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
@@ -118,7 +119,7 @@ export function emitFigmaComponents(result) {
               anchorTokens,
             };
           });
-          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets });
+          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog: SHADCN_DEFAULT_CATALOG_OPTION });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
             const scaled = scalePlan(plan, scaleFactor(item.bbox, iw, naturalWidth));
@@ -154,7 +155,7 @@ export function emitFigmaComponents(result) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents });
+        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog: SHADCN_DEFAULT_CATALOG_OPTION });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
           const scaled = scalePlan(plan, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);

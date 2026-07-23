@@ -28,3 +28,5 @@ exports/
 /package.json
 /package-lock.json
 .worktrees/
+# Grounding-Verifikations-Harness: flüchtige Bundle-/tmp-Verzeichnisse (Scheibe 1 Schritt 6)
+web/.verify-*/

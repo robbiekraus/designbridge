@@ -797,6 +797,36 @@ function matchKnownComponent(el) {
   return null;
 }
 
+/**
+ * DS-Grounding (Spec 2026-07-23-slice1-ds-grounding-default-catalog-design.md §Q2): explizite
+ * `data-ds-component="Button"`-Markierung des Interpretations-HTML gegen den Katalog auflösen.
+ * Anders als matchKnownComponent (Klassen-/Tag-Heuristik) ist das ein EXPLIZITES Signal des Modells —
+ * es hat Vorrang und muss nicht raten. Nur ein im Katalog vorhandener Name wird promotet; Varianten-
+ * Achsen (`data-ds-variant`, `data-ds-size`, …) werden gegen die erlaubten Optionen des Katalog-
+ * Eintrags validiert. Unbekannter Name / ungültige Variante → Warnung + Fallback (kein Zwang).
+ * @returns {{ name, source, import, variant, props }|null}
+ */
+function matchCatalogComponent(el, ctx) {
+  if (!ctx.catalog || typeof el.getAttribute !== 'function') return null;
+  const raw = el.getAttribute('data-ds-component');
+  if (!raw || !raw.trim()) return null;
+  const name = raw.trim();
+  const entry = ctx.catalog.components.get(name);
+  if (!entry) {
+    ctx.warnings.add(`data-ds-component="${name}" ist keine bekannte Katalog-Komponente — freihändiger Fallback.`);
+    return null;
+  }
+  const axes = entry.variants || {};
+  const props = {};
+  for (const axis of Object.keys(axes)) {
+    const v = el.getAttribute(`data-ds-${axis}`);
+    if (v == null) continue;
+    if (Array.isArray(axes[axis]) && axes[axis].includes(v)) props[axis] = v;
+    else ctx.warnings.add(`data-ds-${axis}="${v}" ist keine gültige ${axis}-Option für ${name} — ignoriert.`);
+  }
+  return { name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props };
+}
+
 /** IoU (Intersection over Union) zweier normierter Rechtecke {x,y,w,h} (0..1, gleicher Bezugsrahmen).
  *  Reine Funktion — kein DOM nötig (Spec §Tests: direkt mit Plain-Objects testbar). Degenerierte/
  *  nicht überlappende Rechtecke → 0 (kein `NaN`/Division durch 0 nach außen). */
@@ -1085,6 +1115,30 @@ function buildNormalNode(el, ctx, parent) {
 function convertElement(el, ctx, parent = null) {
   if (isSvgElement(el)) return convertSvgElement(el, ctx);
 
+  // DS-Grounding (Spec 2026-07-23 §Q2): explizite data-ds-component-Markierung hat VORRANG vor der
+  // Klassen-Heuristik. Erzeugt einen Katalog-component-ref — Unterscheidungsmerkmal ist das
+  // `catalog`-Feld (scan-interne Refs unten tragen es NICHT). `import` reist am Knoten mit, damit
+  // Code-Emit (planToJsx, Schritt 3) und Figma-Emit die Komponente auflösen können, ohne den Katalog
+  // erneut nachzuschlagen. Der inline-gestylte Subtree bleibt als `fallback` erhalten (sichtbar,
+  // solange die Katalog-Instanz-Renderung — Schritt 3+ — nicht greift bzw. das Plugin die Komponente
+  // nicht auflöst) — analog zum bestehenden ref-Zweig darunter.
+  const catalogRef = matchCatalogComponent(el, ctx);
+  if (catalogRef) {
+    const computed = getComputedStyle(el);
+    const absolute = readAbsolute(el, computed);
+    const stretchGrow = absolute ? { stretch: false, grow: false } : readStretchGrow(el, computed, parent);
+    const refNode = {
+      type: 'component-ref',
+      name: catalogRef.name,
+      catalog: catalogRef.source,
+      import: catalogRef.import,
+      variant: catalogRef.variant,
+      props: catalogRef.props,
+      fallback: ensureBox(buildNormalNode(el, ctx, parent)),
+    };
+    return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);
+  }
+
   const match = matchKnownComponent(el);
   if (match && ctx.knownComponents.some((c) => c.name === match.name)) {
     // absolute/stretch/grow beziehen sich auf DIESEN component-ref-Knoten (das referenzierte
@@ -1173,10 +1227,20 @@ function freezeRootWidth(node, el) {
  *   kompatibel) — wird intern zu einem Set gemacht; fehlend/leer bedeutet: dieses Ziel läuft nur
  *   durch das IoU-Matching (Phase 2). Leer/undefinierte spliceTargets → identisches Verhalten zum
  *   bisherigen Nicht-Splice-Pfad.
+ * @param {{ source: string, components: Array<{name: string, variants?: object,
+ *   import?: {name: string, from: string}}> }} [options.catalog] DS-Grounding-Katalog (Spec
+ *   2026-07-23 §Q2). Fehlend/leer → der Katalog-Zweig in convertElement feuert nie (Verhalten 1:1
+ *   wie bisher). `components` wird intern zu einer Map name→Eintrag normiert.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
-export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [] } = {}) {
+export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null } = {}) {
   const warnings = new Set();
+  // DS-Grounding-Kontext (Spec 2026-07-23 §Q2): SEPARAT von knownComponents gehalten, damit die
+  // scan-interne Heuristik (matchKnownComponent) unberührt bleibt — Grounding ist rein explizit
+  // marker-getrieben. Fehlende/leere components → null → der Katalog-Zweig greift nie.
+  const catalogCtx = (catalog && Array.isArray(catalog.components) && catalog.components.length)
+    ? { source: catalog.source || 'catalog', components: new Map(catalog.components.map((c) => [c.name, c])) }
+    : null;
   let container = null;
   try {
     if (typeof html !== 'string' || !html.trim()) {
@@ -1239,7 +1303,7 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
       }
     }
 
-    const ctx = { tokens, knownComponents, warnings, spliceAssignment };
+    const ctx = { tokens, knownComponents, warnings, spliceAssignment, catalog: catalogCtx };
     // Wurzel-Breiten-Freeze je Wurzel-ELEMENT (nicht auf dem synthetischen Mehrfach-Root-Wrapper,
     // der kein Element zum Messen hat) — Begründung s. freezeRootWidth.
     let plan;

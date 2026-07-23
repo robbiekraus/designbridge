@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ConfidencePill from './ConfidencePill.jsx';
 import SourcePill from './SourcePill.jsx';
+import GroundedPill from './GroundedPill.jsx';
 import PreviewPlaceholder from './PreviewPlaceholder.jsx';
 import InterpretedPreview from './InterpretedPreview.jsx';
 import { PREVIEWS } from '../../lib/components/templates/Previews.jsx';
@@ -31,6 +32,7 @@ function HeaderMeta({ item, showActivityPill }) {
       <span className="font-medium text-zinc-900">{item.name}</span>
       <ConfidencePill value={item.confidence} />
       <SourcePill value={item.source} />
+      <GroundedPill names={item.grounded} />
       {item.lifted && <SourcePill value="lifted" />}
       {item.interpretedHtml && <SourcePill value="interpreted" />}
       {item.interpretedDemo && <SourcePill value="demo" />}
