@@ -49,7 +49,12 @@ export default function StartScreen({ onNewImport, cachedImport, onResume, onDis
 
   return (
     <div className="min-h-full flex flex-col items-center justify-center text-center px-6 py-16">
-      <img src="/uiprism-appicon.svg" className="h-11 w-11 mb-4" alt="" aria-hidden="true" />
+      <div className="flex items-center gap-2 mb-5">
+        <img src="/uiprism-appicon.svg" className="h-6 w-6" alt="" aria-hidden="true" />
+        <span className="text-xl font-semibold tracking-wide">
+          <span className="text-ink">UI</span><span className="text-primary">Prism</span>
+        </span>
+      </div>
       <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 text-balance">Bring deine UI in Code &amp; Figma</h1>
       <p className="text-sm text-zinc-500 mt-1.5 mb-7 max-w-md text-balance">
         Screenshot, URL, Repo oder Figma rein — Design-Tokens, Komponenten und Storybook raus.
