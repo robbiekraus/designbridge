@@ -6,7 +6,9 @@ import { emitFigma } from './emitFigma.js';
 import { emitFigmaComponents } from './emitFigmaComponents.js';
 
 export { emitComponents } from './emitComponents.js';
+export { emitStories } from './emitStories.js';
 export { buildLibraryZip } from './buildLibraryZip.js';
+export { buildStorybookZip } from './buildStorybookZip.js';
 
 export const EXPORT_FORMATS = [
   { id: 'css', label: 'CSS-Variablen', filename: 'tokens.css', mime: 'text/css' },

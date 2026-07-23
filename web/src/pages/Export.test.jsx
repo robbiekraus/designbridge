@@ -73,11 +73,11 @@ describe('Export page', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows a disabled Storybook stub button', () => {
+  it('offers an active Storybook export button', () => {
     render(<Export result={imageResult} />);
-    const btn = screen.getByRole('button', { name: /nach storybook/i });
-    expect(btn).toBeDisabled();
-    expect(btn).toHaveAttribute('title', 'Folgt in einer späteren Version');
+    const btn = screen.getByRole('button', { name: /nach storybook exportieren/i });
+    expect(btn).toBeEnabled();
+    expect(btn).toHaveAttribute('title', expect.stringMatching(/handoff-paket/i));
   });
 
   it('shows an amber placeholder warning naming the affected Baustein when the Figma payload contains placeholders', () => {

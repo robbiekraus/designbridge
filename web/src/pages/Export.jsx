@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { buildExports, EXPORT_FORMATS, buildLibraryZip } from '../lib/emit/index.js';
+import { buildExports, EXPORT_FORMATS, buildLibraryZip, buildStorybookZip } from '../lib/emit/index.js';
 import { downloadFile, downloadBlob } from '../lib/download.js';
 
 // Figma is a "Ziel" (destination), not a code format — kept out of the FORMAT
@@ -74,6 +74,15 @@ export default function Export({ result }) {
       downloadBlob('designbridge-library.zip', blob);
     } catch (err) {
       console.error('Library-Export fehlgeschlagen:', err);
+    }
+  };
+
+  const handleExportStorybook = async () => {
+    try {
+      const blob = await buildStorybookZip(result);
+      downloadBlob('designbridge-storybook.zip', blob);
+    } catch (err) {
+      console.error('Storybook-Export fehlgeschlagen:', err);
     }
   };
 
@@ -155,11 +164,11 @@ export default function Export({ result }) {
             </div>
           )}
           <button
-            disabled
-            title="Folgt in einer späteren Version"
-            className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-500 opacity-40 cursor-not-allowed"
+            onClick={handleExportStorybook}
+            title="Komponenten + Stories + .storybook/main.js als Handoff-Paket"
+            className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50"
           >
-            Nach Storybook (folgt)
+            Nach Storybook exportieren
           </button>
         </div>
 
