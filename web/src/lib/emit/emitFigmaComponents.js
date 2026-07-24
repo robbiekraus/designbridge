@@ -10,6 +10,7 @@ import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 import { scalePlan, scaleFactor } from './scalePlan.js';
 import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
+import { resolveCatalog } from './emitComponents.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
 // bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
@@ -21,7 +22,10 @@ const KINDS = [
   ['templates', 'template'],
 ];
 
-export function emitFigmaComponents(result) {
+export function emitFigmaComponents(result, opts = {}) {
+  // Scheibe 2: derselbe Katalog wie im Code-Emit — Repo-Katalog (echter Look) wenn vorhanden,
+  // sonst shadcn-Default. So spiegelt der Figma-Export das echte Design System des Users.
+  const catalog = resolveCatalog(result, opts);
   const raw = result?.raw;
   if (!raw) return [];
   const normalizedTokens = normalizeTokens(raw.tokens);
@@ -119,7 +123,7 @@ export function emitFigmaComponents(result) {
               anchorTokens,
             };
           });
-          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog: SHADCN_DEFAULT_CATALOG_OPTION });
+          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
             const scaled = scalePlan(plan, scaleFactor(item.bbox, iw, naturalWidth));
@@ -155,7 +159,7 @@ export function emitFigmaComponents(result) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog: SHADCN_DEFAULT_CATALOG_OPTION });
+        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
           const scaled = scalePlan(plan, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);

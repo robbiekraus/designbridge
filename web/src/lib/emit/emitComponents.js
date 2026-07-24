@@ -6,6 +6,17 @@ import { slugify } from './slugify.js';
 import { htmlToPlan } from './htmlToPlan.js';
 import { planToJsx, groundedComponentNames } from './planToJsx.js';
 import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
+import { repoCatalogOption } from '../catalog/buildRepoCatalog.js';
+
+// Katalog-Auswahl (Scheibe 2): explizit übergeben > fertiger result.repoCatalog >
+// aus Server-Rohdaten (result.repoCatalogData: entries+theme) gebaut > shadcn-Default.
+export function resolveCatalog(result, opts = {}) {
+  if (opts.catalog) return opts.catalog;
+  if (result?.repoCatalog) return result.repoCatalog;
+  const data = result?.repoCatalogData;
+  if (data?.entries?.length) return repoCatalogOption(data.entries, data.theme);
+  return SHADCN_DEFAULT_CATALOG_OPTION;
+}
 
 const KINDS = [
   ['atoms', 'atom'],
@@ -68,7 +79,7 @@ function codeFromInterp(interp, pascal, item, namedColors, tokenScales, catalog)
 // opts.catalog) hat Vorrang; sonst der mitgelieferte shadcn-Default (Scheibe 1). So groundet der
 // Emit gegen das echte System des Users, wenn eins da ist — Verträge bleiben unverändert.
 export function emitComponents(result, kind, opts = {}) {
-  const catalog = opts.catalog ?? result?.repoCatalog ?? SHADCN_DEFAULT_CATALOG_OPTION;
+  const catalog = resolveCatalog(result, opts);
   const raw = result?.raw;
   if (!raw) return [];
   const picks = pickTokens(normalizeTokens(raw.tokens));
