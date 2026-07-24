@@ -30,7 +30,7 @@ describe('StartScreen', () => {
     render(<StartScreen onNewImport={vi.fn()} cachedImport={cached} onResume={onResume} onDiscard={onDiscard} />);
     expect(screen.getByText(/dashboard\.png/)).toBeInTheDocument();
     expect(screen.getByText(/21 Tokens · 5 Atoms · 3 Molecules · 6 Organisms · 1 Templates/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Öffnen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Fortsetzen' }));
     expect(onResume).toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'verwerfen' }));
     expect(onDiscard).toHaveBeenCalled();

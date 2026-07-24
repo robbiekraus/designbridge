@@ -10,8 +10,9 @@ describe('App header', () => {
 
   it('renders the UIPrism wordmark, not the old Designbridge name', () => {
     render(<App />);
-    expect(screen.getByText('UI')).toBeInTheDocument();
-    expect(screen.getByText('Prism')).toBeInTheDocument();
+    // Wortmarke „UIPrism" erscheint im Header und im Start-Screen-Lockup.
+    expect(screen.getAllByText('UI').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Prism').length).toBeGreaterThan(0);
     expect(screen.queryByText(/Designbridge/i)).not.toBeInTheDocument();
   });
 
@@ -45,8 +46,9 @@ describe('App — Start-Screen / Reload-Verhalten', () => {
     };
     localStorage.setItem('designbridge.lastImport', JSON.stringify(cached));
     render(<App />);
-    expect(screen.getByText(/letzten import fortsetzen/i)).toBeInTheDocument();
-    // Kein Auto-Load: die Daten-Sidebar (Export) erscheint erst nach „Öffnen".
+    expect(screen.getByText(/letzter import/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Fortsetzen' })).toBeInTheDocument();
+    // Kein Auto-Load: die Daten-Sidebar (Export) erscheint erst nach „Fortsetzen".
     expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
   });
 });

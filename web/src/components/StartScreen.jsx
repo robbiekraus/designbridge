@@ -60,29 +60,6 @@ export default function StartScreen({ onNewImport, cachedImport, onResume, onDis
         Screenshot, URL, Repo oder Figma rein — Design-Tokens, Komponenten und Storybook raus.
       </p>
 
-      {resume && (
-        <div className="w-full max-w-xl flex items-center gap-3 text-left border border-primary-soft bg-primary-soft/40 rounded-xl px-4 py-3 mb-6">
-          <span className="w-9 h-9 rounded-lg bg-white border border-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0"><DashboardIcon className="w-4 h-4" /></span>
-          <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-primary-ink truncate">Letzten Import fortsetzen — {resume.title}</div>
-            {resume.line && <p className="text-[11px] text-zinc-500 mt-0.5 tabular-nums">{resume.line}</p>}
-          </div>
-          <button
-            onClick={onResume}
-            className="text-xs px-3 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors flex-shrink-0"
-          >
-            Öffnen
-          </button>
-          <button
-            onClick={onDiscard}
-            title="Aus dem Zwischenspeicher entfernen"
-            className="text-[11px] text-zinc-400 hover:text-zinc-700 underline underline-offset-2 flex-shrink-0"
-          >
-            verwerfen
-          </button>
-        </div>
-      )}
-
       <button
         onClick={() => onNewImport()}
         className="text-sm px-5 py-2.5 rounded-lg bg-primary text-white font-medium hover:bg-primary-hover transition-colors mb-8"
@@ -114,6 +91,33 @@ export default function StartScreen({ onNewImport, cachedImport, onResume, onDis
           </button>
         ))}
       </div>
+
+      {/* Sekundär: letzten Import fortsetzen — ruhige Leiste unter dem primären Flow,
+          kein konkurrierender gefüllter Button. */}
+      {resume && (
+        <div className="w-full max-w-xl mt-6 flex items-center gap-3 text-left border border-zinc-200 bg-zinc-50 rounded-lg px-3.5 py-2.5">
+          <span className="w-8 h-8 rounded-md bg-white border border-zinc-200 flex items-center justify-center text-zinc-500 flex-shrink-0">
+            <DashboardIcon className="w-3.5 h-3.5" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-medium text-zinc-700 truncate">Letzter Import — {resume.title}</div>
+            {resume.line && <p className="text-[11px] text-zinc-400 mt-0.5 tabular-nums truncate">{resume.line}</p>}
+          </div>
+          <button
+            onClick={onResume}
+            className="text-xs px-3 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-100 transition-colors flex-shrink-0"
+          >
+            Fortsetzen
+          </button>
+          <button
+            onClick={onDiscard}
+            title="Aus dem Zwischenspeicher entfernen"
+            className="text-[11px] text-zinc-400 hover:text-zinc-700 underline underline-offset-2 flex-shrink-0"
+          >
+            verwerfen
+          </button>
+        </div>
+      )}
     </div>
   );
 }
