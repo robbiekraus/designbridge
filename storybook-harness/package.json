@@ -10,9 +10,14 @@
     "storybook:ingest": "node ingest.mjs",
     "storybook:demo": "node ingest.mjs --fixture sample && storybook dev -p 6006 --no-open",
     "storybook:demo:prod": "node ingest.mjs --fixture prod && storybook dev -p 6006 --no-open",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "start": "node server.js",
+    "test": "node --test lib/*.test.js server.test.js"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
