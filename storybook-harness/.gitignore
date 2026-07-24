@@ -1,0 +1,9 @@
+node_modules/
+storybook-static/
+*.log
+
+# Ingest-Output ist flüchtig: Stories und emittierte Komponenten kommen aus dem
+# Export-Paket, nicht aus dem Repo. Nur die shadcn-Stubs (components/ui) bleiben.
+stories/
+components/*
+!components/ui/

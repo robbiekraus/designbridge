@@ -7,6 +7,7 @@ import { getImage } from '../lib/imageStore.js';
 import { getPage } from '../lib/pageStore.js';
 import { getRepo } from '../lib/repoStore.js';
 import { interpretComponents } from '../lib/interpretComponents.js';
+import { buildCatalogFromRepo } from '../lib/catalog/buildCatalogFromRepo.js';
 import { getDecomposer } from '../lib/decompose/index.js';
 
 const router = express.Router();
@@ -50,7 +51,21 @@ router.post('/components', async (req, res) => {
         ? { html: page.html, css: page.css }
         : { files: repo.files };
     const segments = await getDecomposer(kind).decompose(source, components);
-    const result = await interpretComponents(image?.path ?? null, image?.mimetype ?? null, segments);
+
+    // Scheibe 2: Bei einem Repo-Import gegen das EIGENE Design System des Repos grounden —
+    // Vokabular (echte Komponenten-Namen + cva-Varianten) lenkt das Prompt, und die Roh-Entries
+    // + Theme reisen als repoCatalogData mit, damit der web-Emit die echten Komponenten importiert
+    // und ihren echten Look rendert. Kein components/ui im Repo → leer → Default-Verhalten.
+    const interpOpts = {};
+    let repoCatalogData = null;
+    if (repo) {
+      const cat = buildCatalogFromRepo(repo.files);
+      if (cat.vocabulary.length) interpOpts.catalog = cat.vocabulary;
+      if (cat.entries.length) repoCatalogData = { entries: cat.entries, theme: cat.theme };
+    }
+
+    const result = await interpretComponents(image?.path ?? null, image?.mimetype ?? null, segments, interpOpts);
+    if (repoCatalogData) result.repoCatalogData = repoCatalogData;
     res.json(result);
   } catch (err) {
     console.error('[interpret] Error:', err.message);

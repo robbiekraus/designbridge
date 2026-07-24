@@ -84,6 +84,10 @@ export function attachInterpretations(result, data) {
   return {
     ...result,
     interpretations: map,
+    // Scheibe 2: der Server hängt bei Repo-Imports den Repo-Katalog (entries+theme) an die
+    // Antwort — hier aufs Result durchreichen (und über wiederholte Pool-Merges halten), damit
+    // emitComponents/emitFigmaComponents gegen das echte System des Users grounden.
+    repoCatalogData: data.repoCatalogData ?? result.repoCatalogData ?? null,
     interpretFailed: data.failed ?? [],
     interpretPending: false,
     interpretError: null,

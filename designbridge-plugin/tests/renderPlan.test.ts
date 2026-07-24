@@ -614,6 +614,39 @@ test('composition plan: component-ref child with absolute → positioned instanc
   assert.equal(rendered.height, 768);
 });
 
+// Bugfix „2 leere Fallback-Kästchen" (RESUME 20.07., composePlan.js §ref()): composePlan lieferte
+// bisher eine LEERE Box (kein fill/stroke/size) als fallback für component-refs, die es nicht
+// auflösen konnte — bei einer fehlgeschlagenen Auflösung (Komponente nicht gefunden) entstand so
+// ein unsichtbares, undiagnostizierbares Kästchen statt eines Hinweises. Fix: composePlan liefert
+// jetzt fallback:null (laut PlanRef-Vertrag gültig) → dieser Test belegt, dass renderComponentRef
+// dann seinen VORHANDENEN renderNotice()-Pfad nimmt (sichtbarer gestrichelter Frame mit Name im
+// Text) statt eines leeren Fallback-Baums.
+test('component-ref: unbekannter Name + fallback:null → sichtbarer renderNotice()-Hinweis, kein leeres Kästchen', async () => {
+  installFigmaStub();
+  const sections = emptySections(); // "Suche" existiert nirgends
+  const plan: PlanBox = emptyBox({
+    children: [
+      { type: 'component-ref', name: 'Suche', variant: null, fallback: null } as PlanNode,
+    ],
+  });
+  const warnings: string[] = [];
+  const frame = (await renderPlan(plan, new Map(), warnings, sections)) as unknown as FrameStub;
+
+  // Warnung erklärt, WAS fehlgeschlagen ist (statt stiller Leere).
+  assert.ok(warnings.some((w) => w.includes('Suche') && w.includes('nicht gefunden')));
+
+  // Der gerenderte Hinweis-Frame ist SICHTBAR (Hintergrund + Rahmen), nicht leer/unsichtbar.
+  const notice = frame.children[0] as unknown as FrameStub;
+  assert.equal(notice.type, 'FRAME');
+  assert.ok(notice.fills.length > 0, 'Hinweis-Frame hat einen Hintergrund');
+  assert.ok(notice.strokes.length > 0, 'Hinweis-Frame hat einen Rahmen');
+
+  // Der Hinweis nennt den fehlenden Namen (diagnostizierbar statt stumm).
+  const text = notice.children[0] as unknown as TextStub;
+  assert.match(text.characters, /Suche/);
+  assert.match(text.characters, /nicht gefunden/);
+});
+
 // ─── Composition-Fidelity v2: Instanz-Resize nur verkleinern, nie strecken ─────────────────
 // (docs/superpowers/specs/2026-07-19-composition-fidelity-v2-shrink-only-design.md)
 //
