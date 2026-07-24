@@ -1,0 +1,29 @@
+{
+  "name": "designbridge-storybook-harness",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Lauffähiges Empfangs-Storybook: frisst ein UIPrism-Export-Paket und zeigt die gescannten Komponenten live.",
+  "scripts": {
+    "sync-shadcn": "node sync-shadcn.mjs",
+    "storybook": "storybook dev -p 6006 --no-open",
+    "storybook:ingest": "node ingest.mjs",
+    "storybook:demo": "node ingest.mjs --fixture sample && storybook dev -p 6006 --no-open",
+    "storybook:demo:prod": "node ingest.mjs --fixture prod && storybook dev -p 6006 --no-open",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@storybook/addon-essentials": "^8.6.0",
+    "@storybook/react-vite": "^8.6.0",
+    "autoprefixer": "^10.4.20",
+    "jszip": "^3.10.1",
+    "postcss": "^8.4.49",
+    "storybook": "^8.6.0",
+    "tailwindcss": "^3.4.17",
+    "vite": "^5.4.11"
+  }
+}
