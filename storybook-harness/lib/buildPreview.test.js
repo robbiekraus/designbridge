@@ -53,3 +53,24 @@ test('ohne Komponenten wirft buildPreview statt ein leeres Storybook zu bauen', 
     /keine komponenten/i,
   );
 });
+
+test('kaputter Komponenten-Code → buildPreview wirft und räumt das Arbeitsverzeichnis weg', async () => {
+  const brokenComponents = {
+    'Broken.jsx': 'export function Broken( {\n  return <div>;\n}\n', // absichtlich kaputtes JSX
+  };
+  const brokenStories = {
+    'Broken.stories.jsx': `import { Broken } from '../components/Broken';
+export default { title: 'Atoms/Broken', component: Broken };
+export const Default = {};
+`,
+  };
+
+  let thrown = null;
+  try {
+    await buildPreview({ components: brokenComponents, stories: brokenStories });
+  } catch (err) {
+    thrown = err;
+  }
+  assert.ok(thrown, 'buildPreview sollte werfen, nicht ein halbes Storybook zurückgeben');
+  assert.match(thrown.message, /storybook konnte nicht gebaut werden/i);
+});

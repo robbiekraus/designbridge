@@ -52,7 +52,15 @@ export async function buildPreview({ components, stories }, { ttlMs = TTL_MS, ha
     }
     await symlink(path.join(harnessDir, 'node_modules'), path.join(workDir, 'node_modules'), 'dir');
 
-    await execFileAsync('npx', ['storybook', 'build'], { cwd: workDir, timeout: BUILD_TIMEOUT_MS });
+    // CI=true + --disable-telemetry: unterdrückt Storybooks interaktiven Crash-Report-Prompt
+    // ("Would you like to help improve Storybook..."), der bei kaputtem Input sonst mangels
+    // TTY-Stdin bis zum Timeout hängt statt sauber+schnell zu scheitern (live beobachtet: 60s
+    // Hänger bei kaputtem JSX, siehe Task-3-Test unten).
+    await execFileAsync('npx', ['storybook', 'build', '--disable-telemetry'], {
+      cwd: workDir,
+      timeout: BUILD_TIMEOUT_MS,
+      env: { ...process.env, CI: 'true' },
+    });
   } catch (err) {
     await rm(workDir, { recursive: true, force: true });
     throw new Error(`Storybook konnte nicht gebaut werden: ${err.message}`);
