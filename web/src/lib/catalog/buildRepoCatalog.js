@@ -74,6 +74,12 @@ function detectProps(source) {
  * @param {{colors?:object,vars?:object}} theme  aus themeReader
  * @returns {Array} Katalog im Format von SHADCN_DEFAULT_CATALOG
  */
+/** Wie buildRepoCatalog, aber in die Katalog-Option-Form { source, components } gebracht,
+ *  die htmlToPlan/emitComponents erwarten (analog SHADCN_DEFAULT_CATALOG_OPTION). */
+export function repoCatalogOption(entries, theme = { colors: {}, vars: {} }) {
+  return { source: 'user-repo', components: buildRepoCatalog(entries, theme) };
+}
+
 export function buildRepoCatalog(entries, theme = { colors: {}, vars: {} }) {
   if (!Array.isArray(entries)) return [];
   return entries.map((entry) => {

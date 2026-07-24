@@ -55,16 +55,20 @@ function genericStub(pascal, item) {
  *  Instanzen (die Datei ist eigenständig), planToJsx würde sie ohnehin nur als fallback rendern. */
 // Liefert { code, grounded } — grounded = Namen der gegen den Katalog aufgelösten shadcn-Komponenten
 // (leer im Stub-Fall). Das grounded-Flag reist bis in die UI (Schritt 5, Ehrlichkeit).
-function codeFromInterp(interp, pascal, item, namedColors, tokenScales) {
+function codeFromInterp(interp, pascal, item, namedColors, tokenScales, catalog) {
   const html = interp?.html;
   if (html && html.trim()) {
-    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [], catalog: SHADCN_DEFAULT_CATALOG_OPTION });
+    const { plan } = htmlToPlan(html, { tokens: { colors: namedColors }, knownComponents: [], catalog });
     if (plan) return { code: planToJsx(plan, { name: pascal, tokens: tokenScales }), grounded: groundedComponentNames(plan) };
   }
   return { code: genericStub(pascal, item), grounded: [] };
 }
 
-export function emitComponents(result, kind) {
+// Katalog-Auswahl (Scheibe 2): ein reingereichter User-Repo-Katalog (result.repoCatalog oder
+// opts.catalog) hat Vorrang; sonst der mitgelieferte shadcn-Default (Scheibe 1). So groundet der
+// Emit gegen das echte System des Users, wenn eins da ist — Verträge bleiben unverändert.
+export function emitComponents(result, kind, opts = {}) {
+  const catalog = opts.catalog ?? result?.repoCatalog ?? SHADCN_DEFAULT_CATALOG_OPTION;
   const raw = result?.raw;
   if (!raw) return [];
   const picks = pickTokens(normalizeTokens(raw.tokens));
@@ -99,7 +103,7 @@ export function emitComponents(result, kind) {
         ? { code: item.sourceCode, grounded: [] }
         : tpl
           ? { code: tpl.emit(picks, item), grounded: [] }
-          : codeFromInterp(interp, pascal, item, namedColors, tokenScales);
+          : codeFromInterp(interp, pascal, item, namedColors, tokenScales, catalog);
       out.push({
         name: item.name,
         slug,
