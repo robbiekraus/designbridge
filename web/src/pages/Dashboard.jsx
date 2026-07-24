@@ -2,6 +2,31 @@ import React from 'react';
 import ConfidencePill from '../components/library/ConfidencePill.jsx';
 import { buildExports } from '../lib/emit/index.js';
 
+const SOURCE_KIND_LABEL = { image: 'Bild', url: 'URL', repo: 'Repo', figma: 'Figma' };
+
+function stripProtocol(url) {
+  return String(url).replace(/^https?:\/\//i, '').replace(/^www\./i, '');
+}
+
+/** Menschlich lesbare Herkunft statt des reinen Import-Typs ("Quelle: url") — die echten
+ *  Werte liegen längst in raw.meta (image_filename/source_url/branch), wurden nur nie
+ *  angezeigt (RESUME-Polish „Quelle: url"-Platzierung). */
+export function describeSource(result) {
+  const kind = result?.source;
+  const label = SOURCE_KIND_LABEL[kind] ?? kind ?? null;
+  const meta = result?.raw?.meta ?? {};
+  let value = null;
+  if (kind === 'image') {
+    value = meta.image_filename ?? null;
+  } else if (kind === 'repo' && meta.source_url) {
+    const repoPath = stripProtocol(meta.source_url).replace(/^github\.com\//i, '');
+    value = meta.branch ? `${repoPath} · ${meta.branch}` : repoPath;
+  } else if (meta.source_url) {
+    value = stripProtocol(meta.source_url);
+  }
+  return { label, value };
+}
+
 function SummaryItem({ label, value }) {
   if (!value) return null;
   return (
@@ -39,6 +64,7 @@ export default function Dashboard({ result }) {
   const categories = result?.categories ?? [];
   const canExport = !!buildExports(result);
 
+  const { label: sourceLabel, value: sourceValue } = describeSource(result);
   const tokenCategories = categories.filter(cat => cat.key !== 'inventory');
   const invExtra = categories.find(cat => cat.key === 'inventory')?.extra;
   const inventoryRows = invExtra
@@ -57,7 +83,17 @@ export default function Dashboard({ result }) {
         {result?.mocked && (
           <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">PREVIEW</span>
         )}
-        <span className="text-xs text-zinc-500 ml-auto">Quelle: {result?.source}</span>
+        {sourceLabel && (
+          <span
+            className="text-xs text-zinc-500 ml-auto flex items-center gap-1.5 min-w-0"
+            title={sourceValue || undefined}
+          >
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400 shrink-0">
+              {sourceLabel}
+            </span>
+            {sourceValue && <span className="truncate max-w-[220px]">{sourceValue}</span>}
+          </span>
+        )}
       </div>
 
       {summary && (
