@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { parseCva, variantAxes } from './cvaParser.js';
+import { parseCva, variantAxes, extractBase } from './cvaParser.js';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const BUTTON = path.resolve(dirname, '../../fixtures/shadcn-repo/components/ui/button.tsx');
@@ -69,4 +69,16 @@ test('parseCva: cva nur mit base, ohne Config-Objekt', () => {
   assert.equal(parsed.base, 'just-base classes');
   assert.deepEqual(parsed.variants, {});
   assert.deepEqual(parsed.defaultVariants, {});
+});
+
+test('extractBase liest feste Klassen aus dem echten Input-Fixture (cn-Form)', async () => {
+  const source = await readFile(BUTTON.replace('button.tsx', 'input.tsx'), 'utf8');
+  const base = extractBase(source);
+  assert.match(base, /^flex h-10 w-full rounded-md border border-input bg-background px-3 py-2/);
+});
+
+test('extractBase: direktes className="…" und Leer-Fälle', () => {
+  assert.equal(extractBase('<div className="p-4 rounded" />'), 'p-4 rounded');
+  assert.equal(extractBase('const x = 1'), '');
+  assert.equal(extractBase(null), '');
 });

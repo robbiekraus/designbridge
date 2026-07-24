@@ -135,6 +135,26 @@ export function parseCva(source) {
   return { base, variants, defaultVariants };
 }
 
+/** Fixe Basis-Klassen aus einer NICHT-cva-Komponente (shadcn Input/Label ohne Varianten):
+ *  bevorzugt das erste String-Argument eines `cn("…", className)`, sonst ein direktes
+ *  className="…"/{`…`}. Leer, wenn nichts Passendes. Ergänzt parseCva (das für solche
+ *  Komponenten base:'' liefert) → buildCatalogFromRepo kann so auch sie rendern. */
+export function extractBase(source) {
+  if (typeof source !== 'string') return '';
+  const cnIdx = source.indexOf('cn(');
+  if (cnIdx !== -1) {
+    const open = cnIdx + 2; // Index des '(' hinter "cn"
+    const end = matchBracket(source, open);
+    if (end !== -1) {
+      const first = splitTopLevel(source.slice(open + 1, end))[0] || '';
+      const s = readStringValue(first);
+      if (s) return s;
+    }
+  }
+  const m = source.match(/className=\{?[`"']([^`"']*)[`"']/);
+  return m ? m[1].trim() : '';
+}
+
 /** Nur die Achsen+Optionsnamen — Format wie der Katalog (`{ variant: [...], size: [...] }`),
  *  fürs Grounding-Vokabular und den Katalog-`variants`-Slot. */
 export function variantAxes(parsed) {

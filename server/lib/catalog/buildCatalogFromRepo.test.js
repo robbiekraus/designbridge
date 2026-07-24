@@ -38,6 +38,24 @@ test('buildCatalogFromRepo: Vokabular + Entries + Theme aus echten Repo-Dateien'
   assert.equal(theme.colors.primary, '#18181b');
 });
 
+test('buildCatalogFromRepo: nicht-cva-Primitive (Input) bekommt feste Klassen als base', async () => {
+  const button = await readFile(path.join(root, 'server/fixtures/shadcn-repo/components/ui/button.tsx'), 'utf8');
+  const input = await readFile(path.join(root, 'server/fixtures/shadcn-repo/components/ui/input.tsx'), 'utf8');
+  const globals = await readFile(path.join(root, 'server/fixtures/shadcn-repo/app/globals.css'), 'utf8');
+  const { vocabulary, entries } = buildCatalogFromRepo([
+    { path: 'components/ui/button.tsx', content: button },
+    { path: 'components/ui/input.tsx', content: input },
+    { path: 'app/globals.css', content: globals },
+  ]);
+
+  const names = vocabulary.map((v) => v.name).sort();
+  assert.deepEqual(names, ['Button', 'Input']);
+  const inputEntry = entries.find((e) => e.path.endsWith('input.tsx'));
+  assert.match(inputEntry.cva.base, /rounded-md border border-input bg-background/);
+  // Input hat keine Varianten → leeres Achsen-Objekt im Vokabular.
+  assert.deepEqual(vocabulary.find((v) => v.name === 'Input').variants, {});
+});
+
 test('buildCatalogFromRepo: kein components/ui / kein Theme → leer, kein Absturz', () => {
   const r = buildCatalogFromRepo([{ path: 'src/app.tsx', content: 'x' }]);
   assert.deepEqual(r.entries, []);
