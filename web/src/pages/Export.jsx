@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { buildExports, EXPORT_FORMATS, buildLibraryZip, buildStorybookZip } from '../lib/emit/index.js';
+import { buildExports, EXPORT_FORMATS, buildLibraryZip, buildStorybookZip, storybookFiles } from '../lib/emit/index.js';
 import { downloadFile, downloadBlob } from '../lib/download.js';
 
 // Figma is a "Ziel" (destination), not a code format — kept out of the token
@@ -15,6 +15,10 @@ function ZipTag() {
     </span>
   );
 }
+
+// Dev: eigener kleiner Dienst auf Port 4400 (siehe storybook-harness/server.js).
+// Prod: über VITE_STORYBOOK_BUILDER_URL gesetzt (zweiter Railway-Service).
+const STORYBOOK_BUILDER_URL = import.meta.env.VITE_STORYBOOK_BUILDER_URL || 'http://localhost:4400';
 
 export default function Export({ result }) {
   const exports = useMemo(() => buildExports(result), [result]);
@@ -35,6 +39,7 @@ export default function Export({ result }) {
   const [sent, setSent] = useState(null);
   const [figmaJsonOpen, setFigmaJsonOpen] = useState(false);
   const [figmaCopied, setFigmaCopied] = useState(null);
+  const [storybookPreview, setStorybookPreview] = useState(null); // null | 'building' | 'error'
 
   if (!exports) {
     return (
@@ -92,6 +97,32 @@ export default function Export({ result }) {
       downloadBlob('designbridge-storybook.zip', blob);
     } catch (err) {
       console.error('Storybook-Export fehlgeschlagen:', err);
+    }
+  };
+
+  const handleOpenStorybookPreview = async () => {
+    setStorybookPreview('building');
+    try {
+      const files = storybookFiles(result);
+      const components = {};
+      const stories = {};
+      for (const [filePath, content] of Object.entries(files)) {
+        if (filePath.startsWith('components/')) components[filePath.slice('components/'.length)] = content;
+        else if (filePath.startsWith('stories/')) stories[filePath.slice('stories/'.length)] = content;
+      }
+      const res = await fetch(`${STORYBOOK_BUILDER_URL}/build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ components, stories }),
+      });
+      if (!res.ok) throw new Error('Storybook-Builder antwortete mit Fehler');
+      const { url } = await res.json();
+      window.open(`${STORYBOOK_BUILDER_URL}${url}`, '_blank');
+      setStorybookPreview(null);
+    } catch (err) {
+      console.error('Storybook-Live-Preview fehlgeschlagen:', err);
+      setStorybookPreview('error');
+      setTimeout(() => setStorybookPreview(null), 4000);
     }
   };
 
@@ -194,6 +225,16 @@ export default function Export({ result }) {
           >
             Nach Storybook exportieren
           </button>
+          <button
+            onClick={handleOpenStorybookPreview}
+            disabled={storybookPreview === 'building'}
+            className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+          >
+            {storybookPreview === 'building' ? 'Storybook wird gebaut …' : 'In Storybook öffnen'}
+          </button>
+          {storybookPreview === 'error' && (
+            <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
+          )}
         </div>
 
         <div className="border border-zinc-200 rounded-lg p-4 flex flex-col gap-3">

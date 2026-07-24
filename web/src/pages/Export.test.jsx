@@ -109,4 +109,40 @@ describe('Export page', () => {
     expect(preview).toBeInTheDocument();
     expect(preview.textContent).toContain('figma-import');
   });
+
+  it('bietet einen Live-Preview-Button, der die Bausteine an den Storybook-Builder schickt und das Ergebnis öffnet', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'abc123', url: '/preview/abc123/' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const openMock = vi.fn();
+    vi.stubGlobal('open', openMock);
+
+    render(<Export result={imageResult} />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toMatch(/\/build$/);
+    expect(opts.method).toBe('POST');
+    const body = JSON.parse(opts.body);
+    expect(Object.keys(body)).toEqual(expect.arrayContaining(['components', 'stories']));
+
+    await waitFor(() => expect(openMock).toHaveBeenCalledWith(expect.stringContaining('/preview/abc123/'), '_blank'));
+
+    vi.unstubAllGlobals();
+  });
+
+  it('zeigt eine ehrliche Fehlermeldung, wenn der Storybook-Builder nicht antwortet', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new Error('network down'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<Export result={imageResult} />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+
+    await waitFor(() => expect(screen.getByText(/konnte nicht gebaut werden/i)).toBeInTheDocument());
+
+    vi.unstubAllGlobals();
+  });
 });
