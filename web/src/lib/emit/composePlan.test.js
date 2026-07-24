@@ -20,7 +20,12 @@ describe('composePlan — spatial (bbox present)', () => {
       absolute: { x: 0, y: 0, width: 256, height: 768 },
     });
     expect(plan.children[1].absolute).toEqual({ x: 256, y: 77, width: 768, height: 691 });
-    expect(plan.children[0].fallback.type).toBe('box'); // fallback present
+  });
+
+  it('fallback ist null — bei fehlgeschlagener Auflösung zeigt das Plugin renderNotice() (sichtbarer Hinweis mit Namen) statt einer unsichtbaren leeren Box', () => {
+    const plan = composePlan(parent, kids, canvas);
+    expect(plan.children[0].fallback).toBeNull();
+    expect(plan.children[1].fallback).toBeNull();
   });
   it('clamps negative offsets to 0', () => {
     const p = { name: 'P', bbox: { x: 0.5, y: 0.5, w: 0.5, h: 0.5 } };

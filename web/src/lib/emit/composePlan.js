@@ -27,12 +27,14 @@ function boxDefaults(overrides = {}) {
   };
 }
 
-function noticeFallback() {
-  return boxDefaults({ children: [] }); // minimal; Plugin verwirft ihn bei erfolgreicher Referenz
-}
-
 function ref(name, absolute) {
-  const node = { type: 'component-ref', name, variant: null, fallback: noticeFallback() };
+  // fallback: null (PlanRef-Vertrag erlaubt PlanBox|null, s. htmlToPlan.js) statt einer leeren
+  // Box — eine leere Box wird bei erfolgreicher Referenz zwar verworfen, macht aber bei
+  // FEHLGESCHLAGENER Auflösung ein unsichtbares, undiagnostizierbares Kästchen (Bug: „Suche"-
+  // Component-Ref löste beim Figma-Import nicht auf → 2 leere Fallback-Kästchen, RESUME 20.07.).
+  // Mit fallback:null greift renderComponentRef stattdessen der bestehende renderNotice()-Pfad:
+  // ein sichtbarer gestrichelter Hinweis-Frame MIT dem fehlenden Namen im Text.
+  const node = { type: 'component-ref', name, variant: null, fallback: null };
   if (absolute) node.absolute = absolute;
   return node;
 }
