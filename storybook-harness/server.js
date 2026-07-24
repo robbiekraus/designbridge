@@ -14,6 +14,15 @@ export function buildApp() {
   const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173';
   app.use(cors({ origin: corsOrigin }));
   app.use(express.json({ limit: '5mb' }));
+  // Kaputtes JSON im Body wirft vor der Route (im body-parser) — ohne diesen Handler
+  // liefert Express' Default-Fehlerbehandlung einen Stacktrace mit absoluten Pfaden.
+  app.use((err, req, res, next) => {
+    if (err.type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'Ungültiges JSON im Request-Body.' });
+      return;
+    }
+    next(err);
+  });
 
   app.get('/health', (req, res) => {
     res.json({ ok: true });

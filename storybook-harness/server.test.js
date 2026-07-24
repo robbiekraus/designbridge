@@ -79,3 +79,40 @@ test('GET /preview/:id/ für unbekannte id → 404 mit Klartext-Meldung', async 
     assert.match(text, /abgelaufen|existiert nicht/i);
   });
 });
+
+test('POST /build mit kaputtem Komponenten-Code → 500 mit ehrlicher Meldung, kein Stacktrace', async () => {
+  await withBuilderServer(async (base) => {
+    const res = await fetch(`${base}/build`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        components: {
+          'Broken.jsx': 'export function Broken( {\n  return <div>;\n}\n', // absichtlich kaputtes JSX
+        },
+        stories: {
+          'Broken.stories.jsx': `import { Broken } from '../components/Broken';
+export default { title: 'Atoms/Broken', component: Broken };
+export const Default = {};
+`,
+        },
+      }),
+    });
+    assert.equal(res.status, 500);
+    const body = await res.json();
+    assert.equal(body.error, 'Storybook konnte nicht gebaut werden — bitte in UIPrism erneut versuchen.');
+    assert.doesNotMatch(body.error, /DeprecationWarning|node_modules|at \w|\x1b\[/);
+  });
+});
+
+test('POST /build mit kaputtem JSON-Body → 400 mit Klartext-Fehler, kein Stacktrace', async () => {
+  await withBuilderServer(async (base) => {
+    const res = await fetch(`${base}/build`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{invalid json',
+    });
+    assert.equal(res.status, 400);
+    const body = await res.json();
+    assert.match(body.error, /ungültiges json/i);
+  });
+});
