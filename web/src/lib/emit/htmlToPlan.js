@@ -824,7 +824,7 @@ function matchCatalogComponent(el, ctx) {
     if (Array.isArray(axes[axis]) && axes[axis].includes(v)) props[axis] = v;
     else ctx.warnings.add(`data-ds-${axis}="${v}" ist keine gültige ${axis}-Option für ${name} — ignoriert.`);
   }
-  return { name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props };
+  return { name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props, voidElement: Boolean(entry.voidElement) };
 }
 
 /** IoU (Intersection over Union) zweier normierter Rechtecke {x,y,w,h} (0..1, gleicher Bezugsrahmen).
@@ -1134,6 +1134,7 @@ function convertElement(el, ctx, parent = null) {
       import: catalogRef.import,
       variant: catalogRef.variant,
       props: catalogRef.props,
+      voidElement: catalogRef.voidElement,
       fallback: ensureBox(buildNormalNode(el, ctx, parent)),
     };
     return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);

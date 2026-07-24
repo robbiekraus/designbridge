@@ -57,8 +57,12 @@ export function emitStories(component) {
   const title = `${group}/${component.name}`;
 
   const stories = ['export const Default = {};'];
+  const usedIdents = new Set(['Default']);
   for (const v of component.variants || []) {
-    stories.push(`export const ${storyIdent(v)} = { args: { variant: ${sq(v)} } };`);
+    const ident = storyIdent(v);
+    if (usedIdents.has(ident)) continue; // z. B. Variante "default" kollidiert mit der Basis-Story
+    usedIdents.add(ident);
+    stories.push(`export const ${ident} = { args: { variant: ${sq(v)} } };`);
   }
 
   const groundedNote = component.grounded?.length

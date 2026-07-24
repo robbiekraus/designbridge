@@ -239,7 +239,10 @@ function walkCatalogRef(node, depth) {
   const tag = node.import?.name || node.name || 'Component';
   const attrs = catalogPropAttrs(node.props);
   const attrStr = attrs ? ` ${attrs}` : '';
-  const text = extractText(node.fallback).replace(/\s+/g, ' ').trim();
+  // Katalog-Komponenten, die ein natives HTML-Void-Element rendern (z. B. Input → <input>), dürfen
+  // NIE JSX-Children bekommen — React wirft sonst zur Laufzeit (Live-Fund 24.07., echter Prod-Scan:
+  // die KI-Interpretation hatte Platzhaltertext im Input-Fallback-HTML).
+  const text = node.voidElement ? '' : extractText(node.fallback).replace(/\s+/g, ' ').trim();
   if (!text) return `${pad}<${tag}${attrStr} />`;
   return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
 }

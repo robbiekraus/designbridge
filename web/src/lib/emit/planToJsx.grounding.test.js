@@ -41,6 +41,17 @@ describe('planToJsx — DS-Grounding: Katalog-refs als echte Komponenten', () =>
     expect(code).toContain('import { Input } from "@/components/ui/input";');
   });
 
+  it('voidElement: bleibt selbstschließend, SELBST wenn der Fallback sichtbaren Text enthält (Live-Fund 24.07.: <Input>Text</Input> crasht React zur Laufzeit — "input is a void element tag")', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Input', import: { name: 'Input', from: '@/components/ui/input' },
+      variant: null, props: {}, voidElement: true,
+      fallback: box({ children: [text('Suchen…')] }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Input />');
+    expect(code).not.toContain('<Input>');
+  });
+
   it('scan-interner Ref (ohne catalog) rendert weiterhin seinen fallback, KEIN Import', () => {
     const plan = box({ children: [{
       type: 'component-ref', name: 'Suche', variant: null,

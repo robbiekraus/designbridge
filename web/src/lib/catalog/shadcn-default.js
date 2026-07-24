@@ -169,6 +169,11 @@ export const SHADCN_DEFAULT_CATALOG = [
     props: ['disabled', 'placeholder'],
     match: { tag: 'input', hints: ['input', 'field', 'textfield'] },
     plan: inputPlan,
+    // Wie das echte shadcn-Input rendert dieser Katalog-Import ein natives <input> — ein
+    // HTML-Void-Element, das KEINE children verträgt (React wirft sonst "input is a void element
+    // tag…"). Live-Fund 24.07. (echter Prod-Scan, KI-Interpretation lieferte Platzhaltertext im
+    // Input-Fallback-HTML): walkCatalogRef darf für diesen Import nie Text als JSX-Children setzen.
+    voidElement: true,
   },
   {
     name: 'Label',

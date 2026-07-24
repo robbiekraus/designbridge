@@ -67,4 +67,16 @@ describe('emitStories', () => {
     expect(code).toContain("export const V2xl = { args: { variant: '2xl' } };");
     expect(code).toContain("export const WithIcon = { args: { variant: 'with icon' } };");
   });
+
+  it('dupliziert den Default-Export nicht, wenn eine Variante "default" heißt (Live-Fund Prod-Fixture 24.07.)', () => {
+    const { code } = emitStories({ ...base, variants: ['default', 'secondary'] });
+    expect(code.match(/export const Default/g)).toHaveLength(1);
+    expect(code).toContain('export const Default = {};');
+    expect(code).toContain("export const Secondary = { args: { variant: 'secondary' } };");
+  });
+
+  it('überspringt jede weitere Variante, deren Identifier bereits vergeben ist', () => {
+    const { code } = emitStories({ ...base, variants: ['Primary', 'primary'] });
+    expect(code.match(/export const Primary/g)).toHaveLength(1);
+  });
 });

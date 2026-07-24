@@ -92,4 +92,19 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(code).toContain('<Button variant="secondary" size="sm">Speichern</Button>');
     expect(code).toContain('export function SaveButton(');
   });
+
+  it('markiertes Input trägt voidElement (Katalog-Eintrag rendert ein natives <input>)', () => {
+    const html = '<div data-ds-component="Input" style="padding:8px">Suchen…</div>';
+    const ref = findCatalogRef(htmlToPlan(html, { catalog: CATALOG }).plan);
+    expect(ref.name).toBe('Input');
+    expect(ref.voidElement).toBe(true);
+  });
+
+  it('Durchstich HTML → plan → JSX: Input mit sichtbarem Platzhaltertext im Fallback rendert TROTZDEM selbstschließend (Live-Fund 24.07.: echter Prod-Scan legte Text ins Input-HTML, <Input>Text</Input> crasht React — void element)', () => {
+    const html = '<div data-ds-component="Input" style="display:flex;padding:12px 16px">Suchen…</div>';
+    const { plan } = htmlToPlan(html, { catalog: CATALOG });
+    const code = planToJsx(plan, { name: 'SearchBar' });
+    expect(code).toContain('<Input />');
+    expect(code).not.toContain('<Input>');
+  });
 });
