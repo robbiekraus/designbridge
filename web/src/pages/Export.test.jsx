@@ -119,7 +119,7 @@ describe('Export page', () => {
     const openMock = vi.fn();
     vi.stubGlobal('open', openMock);
 
-    render(<Export result={imageResult} />);
+    render(<Export result={placeholderResult} />);
     fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -127,7 +127,11 @@ describe('Export page', () => {
     expect(url).toMatch(/\/build$/);
     expect(opts.method).toBe('POST');
     const body = JSON.parse(opts.body);
-    expect(Object.keys(body)).toEqual(expect.arrayContaining(['components', 'stories']));
+    // placeholderResult hat einen echten Atom-Baustein — components/stories dürfen nicht leer
+    // sein, sonst prüft dieser Test nur das leere JSON.stringify-Skelett, nie die Präfix-Trennung.
+    expect(Object.keys(body.components)).toContain('CategoryOfEmissionsChart.jsx');
+    expect(Object.keys(body.stories)).toContain('CategoryOfEmissionsChart.stories.jsx');
+    expect(body.components['CategoryOfEmissionsChart.jsx']).not.toMatch(/^components\//);
 
     await waitFor(() => expect(openMock).toHaveBeenCalledWith(expect.stringContaining('/preview/abc123/'), '_blank'));
 
