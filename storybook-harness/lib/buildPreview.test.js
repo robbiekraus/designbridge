@@ -74,3 +74,9 @@ export const Default = {};
   assert.ok(thrown, 'buildPreview sollte werfen, nicht ein halbes Storybook zurückgeben');
   assert.match(thrown.message, /storybook konnte nicht gebaut werden/i);
 });
+
+test('TTL 0 räumt die Vorschau sofort ab (Muster: repoStore.js)', async () => {
+  const { id } = await buildPreview({ components: COMPONENTS, stories: STORIES }, { ttlMs: 0 });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(getPreviewDir(id), null);
+});
