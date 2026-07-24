@@ -82,3 +82,31 @@ test('extractBase: direktes className="…" und Leer-Fälle', () => {
   assert.equal(extractBase('const x = 1'), '');
   assert.equal(extractBase(null), '');
 });
+
+// Robustheit gegen reale Formatierungs-Varianten (statt nur der einen Fixture-Form).
+test('parseCva: einzeilige cva-Form', () => {
+  const parsed = parseCva('const b = cva("base", { variants: { variant: { default: "a", ghost: "b" } }, defaultVariants: { variant: "default" } })');
+  assert.equal(parsed.base, 'base');
+  assert.deepEqual(variantAxes(parsed), { variant: ['default', 'ghost'] });
+  assert.deepEqual(parsed.defaultVariants, { variant: 'default' });
+});
+
+test('parseCva: Backtick-Template als base (ohne Interpolation)', () => {
+  const parsed = parseCva('cva(`inline-flex rounded-md`, { variants: { size: { sm: `h-8` } } })');
+  assert.equal(parsed.base, 'inline-flex rounded-md');
+  assert.equal(parsed.variants.size.sm, 'h-8');
+});
+
+test('parseCva: Kommentar im Config-Objekt stört nicht', () => {
+  const src = `cva("base", {
+    // eine Achse
+    variants: { tone: { info: "bg-blue" } },
+  })`;
+  assert.deepEqual(variantAxes(parseCva(src)), { tone: ['info'] });
+});
+
+test('parseCva: tailwind-variants tv() ist Non-Goal → degradiert leer (kein cva)', () => {
+  assert.deepEqual(parseCva('const b = tv({ base: "x", variants: { a: { b: "c" } } })'), {
+    base: '', variants: {}, defaultVariants: {},
+  });
+});

@@ -22,6 +22,26 @@ function skipString(src, i) {
   return src.length - 1;
 }
 
+/** Entfernt // Zeilen- und /* Block-Kommentare, ohne in Strings hineinzuschneiden.
+ *  Nötig, weil der Scanner sonst Kommentare wie Schlüssel/Werte behandeln würde. */
+function stripComments(src) {
+  let out = '';
+  for (let i = 0; i < src.length; i += 1) {
+    const c = src[i];
+    if (QUOTES.has(c)) { const end = skipString(src, i); out += src.slice(i, end + 1); i = end; continue; }
+    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i += 1; out += '\n'; continue; }
+    if (c === '/' && src[i + 1] === '*') {
+      i += 2;
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i += 1;
+      i += 1; // schließendes '/' überspringen
+      out += ' ';
+      continue;
+    }
+    out += c;
+  }
+  return out;
+}
+
 /** src[openIdx] ist ( { oder [. Index der zugehörigen schließenden Klammer, Strings/Nester beachtet. */
 function matchBracket(src, openIdx) {
   const stack = [];
@@ -102,9 +122,10 @@ function objectEntries(objText) {
 }
 
 /** Parst einen cva-Aufruf aus Quelltext. Siehe Kopf für Format & Degradations-Verhalten. */
-export function parseCva(source) {
+export function parseCva(rawSource) {
   const empty = { base: '', variants: {}, defaultVariants: {} };
-  if (typeof source !== 'string') return empty;
+  if (typeof rawSource !== 'string') return empty;
+  const source = stripComments(rawSource);
   const idx = source.indexOf('cva(');
   if (idx === -1) return empty;
   const parenIdx = idx + 3; // Index des '(' hinter "cva"
@@ -139,8 +160,9 @@ export function parseCva(source) {
  *  bevorzugt das erste String-Argument eines `cn("…", className)`, sonst ein direktes
  *  className="…"/{`…`}. Leer, wenn nichts Passendes. Ergänzt parseCva (das für solche
  *  Komponenten base:'' liefert) → buildCatalogFromRepo kann so auch sie rendern. */
-export function extractBase(source) {
-  if (typeof source !== 'string') return '';
+export function extractBase(rawSource) {
+  if (typeof rawSource !== 'string') return '';
+  const source = stripComments(rawSource);
   const cnIdx = source.indexOf('cn(');
   if (cnIdx !== -1) {
     const open = cnIdx + 2; // Index des '(' hinter "cn"

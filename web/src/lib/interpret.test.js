@@ -156,6 +156,18 @@ describe('attachInterpretations', () => {
     expect(next.interpretations.button.demo).toBe(true);
   });
 
+  it('Scheibe 2: reicht repoCatalogData durch und hält es über Folge-Merges', () => {
+    const rcd = { entries: [{ path: 'components/ui/button.tsx' }], theme: { colors: {}, vars: {} } };
+    // Erste Pool-Antwort trägt die Repo-Daten …
+    const first = attachInterpretations({ interpretations: {} }, {
+      interpretations: [{ name: 'A', html: '<b/>' }], failed: [], repoCatalogData: rcd,
+    });
+    expect(first.repoCatalogData).toEqual(rcd);
+    // … eine spätere Antwort ohne die Daten verliert sie NICHT.
+    const second = attachInterpretations(first, { interpretations: [{ name: 'B', html: '<i/>' }], failed: [] });
+    expect(second.repoCatalogData).toEqual(rcd);
+  });
+
   it('setzt model auf null und demo auf false, wenn nicht mitgeliefert', () => {
     const result = { interpretations: {} };
     const data = { interpretations: [{ name: 'avatar', html: '<div/>', jsx: '' }], failed: [] };
