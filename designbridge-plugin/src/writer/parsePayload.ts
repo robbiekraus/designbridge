@@ -297,7 +297,7 @@ export function parseImportPayload(json: string): ImportPayload {
   try {
     data = JSON.parse(json);
   } catch {
-    throw new Error('Kein gültiges JSON — bitte den kompletten DesignBridge-Export einfügen.');
+    throw new Error('Kein gültiges JSON — bitte den kompletten UIPrism-Export einfügen.');
   }
   if (!data || typeof data !== 'object') {
     throw new Error('Leeres oder ungültiges JSON.');

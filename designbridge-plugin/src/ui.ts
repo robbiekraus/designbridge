@@ -103,7 +103,7 @@ exportBtn.addEventListener('click', () => {
 importBtn.addEventListener('click', () => {
   const json = importJson.value.trim();
   if (!json) {
-    setImportStatus('Bitte zuerst den DesignBridge-Export einfügen.', 'error');
+    setImportStatus('Bitte zuerst den UIPrism-Export einfügen.', 'error');
     return;
   }
   importBtn.disabled = true;
@@ -113,14 +113,14 @@ importBtn.addEventListener('click', () => {
 
 importFetchBtn.addEventListener('click', async () => {
   importFetchBtn.disabled = true;
-  setImportStatus('Hole Export aus DesignBridge…', 'loading');
+  setImportStatus('Hole Export aus UIPrism…', 'loading');
   try {
     const { res, usedLocalFallback } = await fetchExportWithFallback();
     if (!res.ok) {
       const msg =
         res.status === 404
-          ? 'Noch kein Export — in DesignBridge zuerst „An Figma senden" klicken.'
-          : `DesignBridge-Server antwortete mit ${res.status}.`;
+          ? 'Noch kein Export — in UIPrism zuerst „An Figma senden" klicken.'
+          : `UIPrism-Server antwortete mit ${res.status}.`;
       setImportStatus(msg, 'error');
       importFetchBtn.disabled = false;
       return;
@@ -135,7 +135,7 @@ importFetchBtn.addEventListener('click', async () => {
     parent.postMessage({ pluginMessage: { type: 'IMPORT', json } }, '*');
   } catch {
     setImportStatus(
-      'DesignBridge nicht erreichbar — weder live noch lokal (läuft „npm run dev"?).',
+      'UIPrism nicht erreichbar — weder live noch lokal (läuft „npm run dev"?).',
       'error'
     );
     importFetchBtn.disabled = false;
