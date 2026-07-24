@@ -83,6 +83,18 @@ describe('planToJsx — DS-Grounding: Katalog-refs als echte Komponenten', () =>
     expect(code.startsWith('import { Card, CardHeader } from "@/components/ui/card";')).toBe(true);
   });
 
+  it('Katalog-Name kollidiert mit dem eigenen Komponentennamen (Live-Fund 24.07., Storybook-Harness: gescanntes Atom "Avatar" wrappt shadcns <Avatar> → Import + export function hießen identisch, Vite/Babel: "Identifier \'Avatar\' has already been declared") → Import wird aliasiert, JSX-Tag nutzt denselben Alias', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Avatar', import: { name: 'Avatar', from: '@/components/ui/avatar' },
+      props: {}, fallback: box({}),
+    }) ] });
+    const code = planToJsx(plan, { name: 'Avatar' });
+    expect(code).toContain('import { Avatar as AvatarPrimitive } from "@/components/ui/avatar";');
+    expect(code).toContain('<AvatarPrimitive />');
+    expect(code).toContain('export function Avatar(');
+    expect(code).not.toMatch(/^import \{ Avatar \}/m);
+  });
+
   it('kein Katalog-ref → gar keine Import-Zeilen (unveränderte Ausgabe)', () => {
     const code = planToJsx(box({ children: [text('nur Text')] }), { name: 'X' });
     expect(code.startsWith('export function X(')).toBe(true);

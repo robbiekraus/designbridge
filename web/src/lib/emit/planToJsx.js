@@ -126,7 +126,7 @@ function boxClasses(node, tokens) {
 }
 
 /** Ein Plan-Knoten → JSX-String (mehrzeilig, mit `depth` eingerückt). */
-function walk(node, depth, tokens) {
+function walk(node, depth, tokens, componentName) {
   const pad = INDENT.repeat(depth);
   if (!node || typeof node !== 'object') return '';
   if (node.type === 'text') return walkText(node, depth, tokens);
@@ -135,14 +135,14 @@ function walk(node, depth, tokens) {
     // DS-Grounding (Spec 2026-07-23 §Q3/Schritt 3): ein Katalog-ref (trägt `catalog` + `import`)
     // rendert die ECHTE Komponente (`<Button variant=…>Text</Button>`) — Import wird in planToJsx
     // gesammelt. Scan-interne Refs (kein `catalog`) rendern wie bisher ihren fallback-Box-Baum.
-    if (node.catalog) return walkCatalogRef(node, depth);
-    return walk(node.fallback, depth, tokens);
+    if (node.catalog) return walkCatalogRef(node, depth, componentName);
+    return walk(node.fallback, depth, tokens, componentName);
   }
 
   // box
   const cls = boxClasses(node, tokens).join(' ');
   const classAttr = cls ? ` className="${cls}"` : '';
-  const kids = (node.children || []).map((c) => walk(c, depth + 1, tokens)).filter(Boolean);
+  const kids = (node.children || []).map((c) => walk(c, depth + 1, tokens, componentName)).filter(Boolean);
   if (!kids.length) return `${pad}<div${classAttr} />`;
   return `${pad}<div${classAttr}>\n${kids.join('\n')}\n${pad}</div>`;
 }
@@ -234,9 +234,18 @@ function catalogPropAttrs(props) {
     .join(' ');
 }
 
-function walkCatalogRef(node, depth) {
+/** Lokaler Bindungsname für einen Katalog-Import: kollidiert der Katalog-Name mit dem eigenen
+ *  Komponentennamen (z. B. ein gescanntes Atom "Avatar" wrappt shadcns `Avatar`), müssen Import und
+ *  `export function` unterschiedlich heißen — sonst „Identifier 'Avatar' has already been declared"
+ *  (Live-Fund 24.07., Storybook-Harness). Import + JSX-Tag nutzen denselben Alias. */
+function catalogLocalName(name, componentName) {
+  return name === componentName ? `${name}Primitive` : name;
+}
+
+function walkCatalogRef(node, depth, componentName) {
   const pad = INDENT.repeat(depth);
-  const tag = node.import?.name || node.name || 'Component';
+  const importName = node.import?.name || node.name || 'Component';
+  const tag = catalogLocalName(importName, componentName);
   const attrs = catalogPropAttrs(node.props);
   const attrStr = attrs ? ` ${attrs}` : '';
   // Katalog-Komponenten, die ein natives HTML-Void-Element rendern (z. B. Input → <input>), dürfen
@@ -283,23 +292,30 @@ export function groundedComponentNames(plan) {
   return [...names].sort();
 }
 
-/** Gesammelte Katalog-Imports → sortierte `import { … } from "…";`-Zeilen (je Modul zusammengefasst). */
-function buildImportLines(plan) {
+/** Gesammelte Katalog-Imports → sortierte `import { … } from "…";`-Zeilen (je Modul zusammengefasst).
+ *  Ein Katalog-Name, der mit `componentName` kollidiert, wird importseitig aliasiert (`catalogLocalName`)
+ *  — derselbe Alias, den `walkCatalogRef` fürs JSX-Tag verwendet. */
+function buildImportLines(plan, componentName) {
   const byModule = new Map();
   collectCatalogImports(plan, byModule);
   return [...byModule.keys()].sort().map((from) => {
-    const names = [...byModule.get(from)].sort().join(', ');
+    const names = [...byModule.get(from)].sort()
+      .map((n) => {
+        const local = catalogLocalName(n, componentName);
+        return local === n ? n : `${n} as ${local}`;
+      })
+      .join(', ');
     return `import { ${names} } from "${from}";`;
   });
 }
 
 export function planToJsx(plan, { name, tokens } = {}) {
   const componentName = name || 'Component';
-  const body = walk(plan, 3, tokens); // 3 Ebenen Einrückung: export→return→( → Wurzel-Element
+  const body = walk(plan, 3, tokens, componentName); // 3 Ebenen Einrückung: export→return→( → Wurzel-Element
   // Wurzelklassen an den className-Passthrough hängen (Spec §Wrapper): das Wurzel-<div> trägt
   // seine eigenen Klassen + ${className}. Wir hängen den Passthrough in das gerenderte Wurzel-Tag.
   const rooted = injectClassNamePassthrough(body);
-  const importLines = buildImportLines(plan);
+  const importLines = buildImportLines(plan, componentName);
   return [
     ...importLines,
     ...(importLines.length ? [''] : []),
