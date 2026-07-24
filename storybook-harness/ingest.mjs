@@ -48,7 +48,20 @@ async function clean() {
 
 async function main() {
   const zipPath = resolveZipPath(process.argv.slice(2));
-  const buf = await readFile(zipPath);
+  let buf;
+  try {
+    buf = await readFile(zipPath);
+  } catch (err) {
+    if (err.code === 'ENOENT' && zipPath === FIXTURES.prod) {
+      throw new Error(
+        'fixtures/prod-export.zip fehlt noch. So erzeugen: in UIPrism (Prod) scannen → '
+        + '"Nach Storybook exportieren" → die ZIP nach storybook-harness/fixtures/prod-export.zip legen. '
+        + 'Bis dahin: npm run storybook:demo (synthetische Fixture).',
+      );
+    }
+    if (err.code === 'ENOENT') throw new Error(`ZIP nicht gefunden: ${zipPath}`);
+    throw err;
+  }
   const zip = await JSZip.loadAsync(buf);
 
   await clean();
