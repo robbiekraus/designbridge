@@ -150,6 +150,30 @@ describe('Export page', () => {
     vi.unstubAllGlobals();
   });
 
+  // Regressionsschutz für den Live-Fund 25.07.: die Builder-Adresse kam als ins Bundle
+  // gebackene VITE_-Variable und fehlte still, wenn sie erst nach dem Build gesetzt wurde
+  // — der Klick ging dann gegen localhost statt gegen den echten Dienst.
+  it('schickt den Build an die vom Server gelieferte Laufzeit-Adresse, nicht an localhost', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'xyz789', url: '/preview/xyz789/' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const openMock = vi.fn();
+    vi.stubGlobal('open', openMock);
+
+    render(<Export result={placeholderResult} storybookBuilderUrl="https://harness.example.app" />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(fetchMock.mock.calls[0][0]).toBe('https://harness.example.app/build');
+    await waitFor(() =>
+      expect(openMock).toHaveBeenCalledWith('https://harness.example.app/preview/xyz789/', '_blank'),
+    );
+
+    vi.unstubAllGlobals();
+  });
+
   // Die schwarzen Haupt-Buttons müssen in allen drei Ziel-Karten auf derselben
   // Höhe am unteren Rand bleiben. Statusmeldungen gehören deshalb VOR den Button —
   // liegt eine Meldung dahinter, rutscht der Button in dieser Karte nach oben.

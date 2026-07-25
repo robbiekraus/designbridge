@@ -16,11 +16,14 @@ function ZipTag() {
   );
 }
 
-// Dev: eigener kleiner Dienst auf Port 4400 (siehe storybook-harness/server.js).
-// Prod: über VITE_STORYBOOK_BUILDER_URL gesetzt (zweiter Railway-Service).
-const STORYBOOK_BUILDER_URL = import.meta.env.VITE_STORYBOOK_BUILDER_URL || 'http://localhost:4400';
+// Lokaler Default: eigener kleiner Dienst auf Port 4400 (siehe storybook-harness/server.js).
+// In Prod liefert der Server die echte Adresse zur Laufzeit über /api/health
+// (storybookBuilderUrl-Prop) — eine ins Bundle gebackene VITE_-Variable fehlte still,
+// wenn sie erst nach dem Build gesetzt wurde, und der Klick ging gegen localhost.
+const STORYBOOK_BUILDER_FALLBACK = 'http://localhost:4400';
 
-export default function Export({ result }) {
+export default function Export({ result, storybookBuilderUrl = '' }) {
+  const builderUrl = storybookBuilderUrl || STORYBOOK_BUILDER_FALLBACK;
   const exports = useMemo(() => buildExports(result), [result]);
   // Export-Ehrlichkeit (Testrunde 8, Fix 2): Bausteine ohne Template-Treffer und ohne
   // KI-Interpretation laufen als placeholder:true in exports.figma mit — in Figma werden
@@ -110,14 +113,14 @@ export default function Export({ result }) {
         if (filePath.startsWith('components/')) components[filePath.slice('components/'.length)] = content;
         else if (filePath.startsWith('stories/')) stories[filePath.slice('stories/'.length)] = content;
       }
-      const res = await fetch(`${STORYBOOK_BUILDER_URL}/build`, {
+      const res = await fetch(`${builderUrl}/build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ components, stories }),
       });
       if (!res.ok) throw new Error('Storybook-Builder antwortete mit Fehler');
       const { url } = await res.json();
-      window.open(`${STORYBOOK_BUILDER_URL}${url}`, '_blank');
+      window.open(`${builderUrl}${url}`, '_blank');
       setStorybookPreview(null);
     } catch (err) {
       console.error('Storybook-Live-Preview fehlgeschlagen:', err);

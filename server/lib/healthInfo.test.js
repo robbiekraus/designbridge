@@ -30,3 +30,13 @@ test('anthropic_key_configured bleibt false bei Platzhalter-Key mit "..."', () =
   const payload = buildHealthPayload({ ANTHROPIC_API_KEY: 'sk-...' });
   assert.equal(payload.anthropic_key_configured, false);
 });
+
+test('storybook_builder_url kommt aus der Laufzeit-Umgebung', () => {
+  const payload = buildHealthPayload({ STORYBOOK_BUILDER_URL: 'https://harness.example.app' });
+  assert.equal(payload.storybook_builder_url, 'https://harness.example.app');
+});
+
+test('storybook_builder_url ist leer, wenn nichts gesetzt ist (Web fällt dann auf seinen Default zurück)', () => {
+  const payload = buildHealthPayload({});
+  assert.equal(payload.storybook_builder_url, '');
+});

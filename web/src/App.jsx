@@ -22,6 +22,7 @@ const LIBRARY_LEVELS = {
 export default function App() {
   const [page, setPage] = useState('Dashboard');
   const [serverOk, setServerOk] = useState(null);
+  const [storybookBuilderUrl, setStorybookBuilderUrl] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState('image');
   const [lastImport, setLastImport] = useState(null);
@@ -67,7 +68,10 @@ export default function App() {
   useEffect(() => {
     fetch('/api/health')
       .then(r => r.json())
-      .then(d => setServerOk(d.ai_key_configured ?? d.anthropic_key_configured))
+      .then(d => {
+        setServerOk(d.ai_key_configured ?? d.anthropic_key_configured);
+        setStorybookBuilderUrl(d.storybook_builder_url || '');
+      })
       .catch(() => setServerOk(false));
 
     // Beim (Neu-)Laden NICHT automatisch die alten Daten anzeigen — stattdessen den
@@ -174,7 +178,7 @@ export default function App() {
     }
     switch (page) {
       case 'Tokens': return <Tokens result={lastImport} />;
-      case 'Export': return <Export result={lastImport} />;
+      case 'Export': return <Export result={lastImport} storybookBuilderUrl={storybookBuilderUrl} />;
       case 'Dashboard':
       default: return <Dashboard result={lastImport} />;
     }

@@ -12,6 +12,11 @@ export function buildHealthPayload(env = process.env) {
     ai_key_configured: aiKeyConfigured(),
     ai_provider: aiProviderName(),
     demo_fallback: env.DEMO_FALLBACK === '1',
+    // Adresse des Storybook-Builder-Dienstes. Bewusst zur LAUFZEIT ausgeliefert und
+    // nicht als VITE_-Variable ins Bundle gebacken: build-time-Variablen fehlen still,
+    // wenn sie erst nach dem Build gesetzt (oder in Railway maskiert) werden — der
+    // Klick ging dann gegen den Default localhost:4400 statt gegen den echten Dienst.
+    storybook_builder_url: env.STORYBOOK_BUILDER_URL || '',
     version: '0.1.1'
   };
 }
