@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
 import express from 'express';
 import { buildApp } from './server.js';
-import { clearPreviews } from './lib/buildPreview.js';
+import { clearPreviews, getPreviewDir } from './lib/buildPreview.js';
 
 // Muster: server/routes/interpret.test.js (echter Ephemeral-Port, echter fetch).
 async function withBuilderServer(fn) {
@@ -68,6 +70,48 @@ export const Default = {};
 
     const previewRes = await fetch(`${base}${url}index.html`);
     assert.equal(previewRes.status, 200);
+  });
+});
+
+test('POST /build mit tokens/tokensCss → 200, Klassen aus den Scan-Tokens landen im gebauten CSS', async () => {
+  await withBuilderServer(async (base) => {
+    const res = await fetch(`${base}/build`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        components: {
+          'Greeting.jsx': `export function Greeting({ className = "", ...props }) {
+  return <div className={\`flex p-card-layout-padding-and-grid-gaps \${className}\`} {...props}>Hallo</div>;
+}
+`,
+        },
+        stories: {
+          'Greeting.stories.jsx': `import { Greeting } from '../components/Greeting';
+export default { title: 'Atoms/Greeting', component: Greeting };
+export const Default = {};
+`,
+        },
+        tokens: `export default {
+  spacing: {
+    'card-layout-padding-and-grid-gaps': 'var(--spacing-card-layout-padding-and-grid-gaps)',
+  },
+};
+`,
+        tokensCss: `:root {
+  --spacing-card-layout-padding-and-grid-gaps: 24px;
+}
+`,
+      }),
+    });
+    assert.equal(res.status, 200);
+    const { id } = await res.json();
+
+    const staticDir = getPreviewDir(id);
+    const assetsDir = path.join(staticDir, 'assets');
+    const cssFile = (await readdir(assetsDir)).find((f) => f.endsWith('.css'));
+    assert.ok(cssFile, 'kein CSS-Asset im gebauten Storybook gefunden');
+    const css = await readFile(path.join(assetsDir, cssFile), 'utf8');
+    assert.match(css, /\.p-card-layout-padding-and-grid-gaps/);
   });
 });
 
