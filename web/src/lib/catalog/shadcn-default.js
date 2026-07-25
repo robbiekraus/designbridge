@@ -204,6 +204,13 @@ export const SHADCN_DEFAULT_CATALOG = [
     // Vorschau); als Hülle werden nur fill/stroke/radius übernommen — shadcns echte Card hat selbst
     // kein Padding (das liegt in CardHeader/CardContent).
     container: true,
+    // Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-slots-design.md, Scheibe A): ab zwei
+    // Fallback-Kindern verteilt planToJsx den Unterbaum auf CardHeader (erstes Kind) und CardContent
+    // (Rest) statt sie flach unter <Card> zu hängen — idiomatisches Markup, ändert die Optik nicht.
+    slots: {
+      header: { name: 'CardHeader', import: { name: 'CardHeader', from: '@/components/ui/card' } },
+      content: { name: 'CardContent', import: { name: 'CardContent', from: '@/components/ui/card' } },
+    },
   },
   {
     name: 'Checkbox',

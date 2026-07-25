@@ -321,3 +321,99 @@ describe('planToJsx — Blatt-Ref Icon-Fallback: SVG als Kind statt leerem Tag (
     expect(code).toContain('M9 9');
   });
 });
+
+// Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-slots-design.md, Scheibe A): ein
+// Katalog-Container-Ref mit `slots` verteilt seinen gemessenen Unterbaum auf <CardHeader>
+// (erstes Kind) und <CardContent> (Rest) statt sie flach unter <Card> zu hängen. Nur wenn der
+// Katalog-Eintrag `slots` trägt — bestehende Grounding-Tests (oben) bauen ihre Refs ohne `slots`
+// und laufen deshalb unverändert durch den alten flachen Pfad.
+const CARD_SLOTS = {
+  header: { name: 'CardHeader', import: { name: 'CardHeader', from: '@/components/ui/card' } },
+  content: { name: 'CardContent', import: { name: 'CardContent', from: '@/components/ui/card' } },
+};
+
+function buildSlottedCardPlan(children) {
+  return catalogRef({
+    name: 'Card', import: { name: 'Card', from: '@/components/ui/card' },
+    container: true, slots: CARD_SLOTS, props: {},
+    fallback: fullBox({
+      layout: 'column', gap: 8, padding: [20, 20, 20, 20],
+      fill: { hex: '#ffffff', token: null }, stroke: { hex: '#e5e7eb', token: null }, radius: 8,
+      children,
+    }),
+  });
+}
+
+describe('planToJsx — Sub-Komponenten-Slots: Card > CardHeader/CardContent (slots-Feld)', () => {
+  it('≥2 Kinder + slots → erstes Kind in CardHeader, Rest in CardContent', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('Orders'), text('13.465'), text('Last month: 11.246')])] });
+    const code = planToJsx(plan, { name: 'KpiCard' });
+    expect(code).toMatch(/<Card className="[^"]*">\s*<CardHeader className="!p-0">\s*<span[^>]*>Orders<\/span>\s*<\/CardHeader>/);
+    expect(code).toMatch(/<CardContent className="[^"]*!p-0[^"]*">\s*<span[^>]*>13\.465<\/span>\s*<span[^>]*>Last month: 11\.246<\/span>\s*<\/CardContent>/);
+    // weiterhin genau EIN Card-Open/Close (kein doppeltes Aufklappen der Hülle)
+    expect((code.match(/<Card\b/g) || []).length).toBe(1);
+    expect((code.match(/<\/Card>/g) || []).length).toBe(1);
+  });
+
+  it('genau 1 Kind + slots → kein Split, unveränderter flacher Fall (ein Slot für ein einzelnes Kind bringt nichts)', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('Nur ein Kind')])] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).not.toContain('CardHeader');
+    expect(code).not.toContain('CardContent');
+    expect(code).toMatch(/<Card className="[^"]*">\s*<span[^>]*>Nur ein Kind<\/span>\s*<\/Card>/);
+  });
+
+  it('kein slots-Feld → unveränderter flacher Fall (Rückwärtskompatibilität, z. B. Repo-Kataloge ohne Slots)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Card', import: { name: 'Card', from: '@/components/ui/card' },
+      container: true, props: {},
+      fallback: fullBox({ layout: 'column', children: [text('A'), text('B')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).not.toContain('CardHeader');
+    expect(code).not.toContain('CardContent');
+  });
+
+  it('CardContent bekommt denselben Gap wie vorher zwischen den flachen Geschwistern (hier gap-[8px])', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('Titel'), text('Zeile 2'), text('Zeile 3')])] });
+    const code = planToJsx(plan, { name: 'X' });
+    const contentTag = code.match(/<CardContent className="([^"]*)">/)[1];
+    expect(contentTag).toContain('gap-[8px]');
+    expect(contentTag).toContain('flex-col');
+    expect(contentTag).not.toContain('p-[20px]'); // Padding bleibt am äußeren Card, nicht am Content
+  });
+
+  it('Card selbst behält seine volle gemessene Klasse (Gap+Padding) unverändert, auch mit Slots', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('Titel'), text('Inhalt')])] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Card className="flex flex-col items-start gap-[8px] p-[20px]">');
+  });
+
+  it('beide Slot-Imports werden gesammelt (gleiches Modul wie Card selbst, zusammengefasst)', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('A'), text('B')])] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('import { Card, CardContent, CardHeader } from "@/components/ui/card";');
+  });
+
+  it('Kollisions-Aliasing gilt auch für Slot-Tags, wenn die eigene Komponente "Card" heißt', () => {
+    const plan = buildSlottedCardPlan([text('A'), text('B')]);
+    const code = planToJsx(plan, { name: 'Card' });
+    expect(code).toContain('import { Card as CardPrimitive, CardContent, CardHeader } from "@/components/ui/card";');
+    expect(code).toMatch(/<CardPrimitive[^>]*>\s*<CardHeader/);
+  });
+
+  it('groundedComponentNames bleibt unverändert (Slot-Tags sind kein eigener gegroundeter Baustein)', () => {
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('A'), text('B')])] });
+    expect(groundedComponentNames(plan)).toEqual(['Card']);
+  });
+
+  it('verschachtelter Katalog-Ref (Badge) im CardContent-Teil wird weiterhin komponiert', () => {
+    const badgeRef = catalogRef({
+      name: 'Badge', import: { name: 'Badge', from: '@/components/ui/badge' },
+      props: { variant: 'secondary' }, fallback: fullBox({ children: [text('3.1%')] }),
+    });
+    const plan = fullBox({ children: [buildSlottedCardPlan([text('Orders'), badgeRef])] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toMatch(/<CardContent[^>]*>\s*<Badge variant="secondary">3\.1%<\/Badge>\s*<\/CardContent>/);
+  });
+});

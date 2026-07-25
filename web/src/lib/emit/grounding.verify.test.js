@@ -114,13 +114,17 @@ describe('DS-Grounding — Verifikation gegen reales shadcn-Target', () => {
     const { plan } = htmlToPlan(html, { catalog: SHADCN_DEFAULT_CATALOG_OPTION });
     const code = planToJsx(plan, { name: 'KpiCard' });
 
-    // Nur EIN Card- und EIN Badge-Import (nicht je Vorkommen).
+    // Nur EIN Card- und EIN Badge-Import (nicht je Vorkommen) — Card bringt jetzt außerdem seine
+    // Sub-Komponenten-Slots mit (Spec 2026-07-25-sub-komponenten-slots-design.md, Scheibe A): drei
+    // Kinder → CardHeader (erstes) + CardContent (Rest) statt flacher Kinder.
     expect((code.match(/from "@\/components\/ui\/card"/g) || []).length).toBe(1);
     expect((code.match(/from "@\/components\/ui\/badge"/g) || []).length).toBe(1);
     expect(code).toContain('import { Badge } from "@/components/ui/badge";');
-    expect(code).toContain('import { Card } from "@/components/ui/card";');
+    expect(code).toContain('import { Card, CardContent, CardHeader } from "@/components/ui/card";');
     // Card ist komponiert (öffnendes + schließendes Tag), nicht self-closing eingeschmolzen.
     expect(code).toMatch(/<Card[^>]*>[\s\S]*<\/Card>/);
+    expect(code).toMatch(/<CardHeader className="!p-0">[\s\S]*Orders[\s\S]*<\/CardHeader>/);
+    expect(code).toMatch(/<CardContent[^>]*>[\s\S]*<\/CardContent>/);
     expect(code).toContain('<Badge variant="secondary">3.1%</Badge>');
 
     const { root } = await compileAndRender(code, 'KpiCard');
@@ -130,6 +134,13 @@ describe('DS-Grounding — Verifikation gegen reales shadcn-Target', () => {
     const cardEl = root.querySelector('.rounded-lg.border.bg-card');
     expect(cardEl).not.toBeNull();
     expect(cardEl.children.length).toBeGreaterThan(1);
+
+    // Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-slots-design.md): Card hat GENAU zwei
+    // direkte Kinder (CardHeader, CardContent), nicht mehr die drei flachen Geschwister von vorher.
+    expect(cardEl.children.length).toBe(2);
+    expect(cardEl.children[0].textContent.trim()).toBe('Orders');
+    expect(cardEl.children[1].textContent).toContain('13.465');
+    expect(cardEl.children[1].textContent).toContain('Last month: 11.246');
 
     // Die drei Textstücke liegen in UNTERSCHIEDLICHEN Elementen — kein Blatt trägt alle drei
     // gemeinsam als eigenen Textinhalt (das wäre der eingeschmolzene Textklumpen).

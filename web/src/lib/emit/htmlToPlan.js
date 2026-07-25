@@ -862,6 +862,12 @@ function matchCatalogComponent(el, ctx) {
     // einzuschmelzen. Reist wie `voidElement` am Ref-Knoten mit, damit Code- und Figma-Emit dieselbe
     // Entscheidung ohne erneuten Katalog-Zugriff treffen. `voidElement` gewinnt immer.
     container: Boolean(entry.container),
+    // `slots` (Spec 2026-07-25-sub-komponenten-slots-design.md, Scheibe A): optionale Sub-Komponenten
+    // (z. B. CardHeader/CardContent), auf die der Code-Emit den Unterbaum eines Container-Refs statt
+    // flacher Kinder verteilt. Reist nur mit, wenn der Katalog-Eintrag es trägt — `undefined` für
+    // alle Kataloge ohne dieses Feld (additiv, kein Zwang). Nur planToJsx.js liest es; groundPlan.js
+    // (Figma) ignoriert es bewusst (eigene, spätere Scheibe).
+    slots: entry.slots,
   };
 }
 
@@ -1186,6 +1192,7 @@ function convertElement(el, ctx, parent = null) {
       props: catalogRef.props,
       voidElement: catalogRef.voidElement,
       container: catalogRef.container,
+      slots: catalogRef.slots,
       fallback: ensureBox(buildNormalNode(el, ctx, parent)),
     };
     return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);

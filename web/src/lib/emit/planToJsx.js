@@ -296,6 +296,43 @@ function collectSvgNodes(node) {
   return out;
 }
 
+/** Container-Fallback-Kinder in Header/Content aufteilen (Spec 2026-07-25-sub-komponenten-slots-
+ *  design.md §Entscheidung 1): erstes Kind → Header, Rest → Content. Nur ab ≥2 Kindern — bei genau
+ *  einem Kind bringt ein Slot nichts, `null` signalisiert dem Aufrufer „unveränderter flacher Fall". */
+function splitSlotChildren(children) {
+  if (!Array.isArray(children) || children.length < 2) return null;
+  return { header: [children[0]], content: children.slice(1) };
+}
+
+/** Rendert einen Katalog-Container-Ref MIT Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-
+ *  slots-design.md): der gemessene Unterbaum landet nicht mehr flach unter `<Card>`, sondern auf
+ *  `<CardHeader>` (erstes Kind) und `<CardContent>` (Rest) — idiomatisches shadcn-Markup, gleiche
+ *  Optik. Beide Slot-Tags neutralisieren ihr eigenes hartkodiertes Padding per `!`-Important — die
+ *  einzige verlässliche Art, eine fremde shadcn-Komponente von außen zu überschreiben (Tailwind
+ *  entscheidet Kollisionen gleicher Spezifität über die generierte Stylesheet-Reihenfolge, NICHT
+ *  über die Position im `class`-Attribut). `Card` selbst behält seine volle gemessene Klasse (inkl.
+ *  Gap) unverändert; `CardContent` bekommt denselben Gap erneut für seine jetzt darin
+ *  verschachtelten Geschwister (Padding/Sizing/Stretch/Grow dabei neutral, die gehören zu `Card`). */
+function walkCatalogSlots(node, split, depth, componentName, tokens, tag, classAttr, attrStr) {
+  const pad = INDENT.repeat(depth);
+  const innerPad = INDENT.repeat(depth + 1);
+  const headerTag = catalogLocalName(node.slots.header.name, componentName);
+  const contentTag = catalogLocalName(node.slots.content.name, componentName);
+
+  const headerKids = split.header.map((c) => walk(c, depth + 2, tokens, componentName)).filter(Boolean);
+  const headerBlock = `${innerPad}<${headerTag} className="!p-0">\n${headerKids.join('\n')}\n${innerPad}</${headerTag}>`;
+
+  const contentLayout = layoutClasses(
+    { ...node.fallback, padding: [0, 0, 0, 0], stretch: false, grow: false, width: null, height: null },
+    tokens,
+  );
+  const contentClasses = ['!p-0', ...contentLayout].join(' ');
+  const contentKids = split.content.map((c) => walk(c, depth + 2, tokens, componentName)).filter(Boolean);
+  const contentBlock = `${innerPad}<${contentTag} className="${contentClasses}">\n${contentKids.join('\n')}\n${innerPad}</${contentTag}>`;
+
+  return `${pad}<${tag}${classAttr}${attrStr}>\n${headerBlock}\n${contentBlock}\n${pad}</${tag}>`;
+}
+
 function walkCatalogRef(node, depth, componentName, tokens) {
   const pad = INDENT.repeat(depth);
   const importName = node.import?.name || node.name || 'Component';
@@ -312,6 +349,10 @@ function walkCatalogRef(node, depth, componentName, tokens) {
     if (node.stretch && !cls.includes('self-stretch')) cls.push('self-stretch');
     if (node.grow && !cls.includes('flex-1')) cls.push('flex-1');
     const classAttr = cls.length ? ` className="${cls.join(' ')}"` : '';
+
+    const split = node.slots && splitSlotChildren(node.fallback.children);
+    if (split) return walkCatalogSlots(node, split, depth, componentName, tokens, tag, classAttr, attrStr);
+
     const kids = (node.fallback.children || []).map((c) => walk(c, depth + 1, tokens, componentName)).filter(Boolean);
     return `${pad}<${tag}${classAttr}${attrStr}>\n${kids.join('\n')}\n${pad}</${tag}>`;
   }
@@ -334,6 +375,16 @@ function walkCatalogRef(node, depth, componentName, tokens) {
   return `${pad}<${tag}${attrStr} />`;
 }
 
+/** Einen einzelnen `{name, from}`-Import in die Modul→Namen-Map eintragen (still bei fehlenden
+ *  Feldern). Gemeinsam genutzt von collectCatalogImports fürs Katalog-Ref selbst und für dessen
+ *  Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-slots-design.md). */
+function addImport(byModule, imp) {
+  if (!imp?.name || !imp?.from) return;
+  const set = byModule.get(imp.from) || new Set();
+  set.add(imp.name);
+  byModule.set(imp.from, set);
+}
+
 /** Katalog-Imports im gerenderten Baum sammeln → Map<from, Set<name>>. Spiegelt walk: ein Katalog-ref
  *  wird als Komponente gerendert (Import zählt, kein Abstieg in seinen fallback); ein scan-interner
  *  Ref rendert seinen fallback → dort weiter absteigen. */
@@ -341,14 +392,19 @@ function collectCatalogImports(node, byModule) {
   if (!node || typeof node !== 'object') return;
   if (node.type === 'component-ref') {
     if (node.catalog && node.import?.name && node.import?.from) {
-      const set = byModule.get(node.import.from) || new Set();
-      set.add(node.import.name);
-      byModule.set(node.import.from, set);
+      addImport(byModule, node.import);
       // Container-Refs komponieren ihre Fallback-Kinder (walkCatalogRef) — deren eigene Katalog-
       // Imports (z. B. ein Badge in einer Card) müssen also mitgesammelt werden. Blatt-Refs rendern
       // ihren fallback nie (nur extrahierten Text) → dort bleibt es beim reinen Import-Zählen.
       if (isCatalogContainer(node)) {
         for (const c of node.fallback.children || []) collectCatalogImports(c, byModule);
+        // Sub-Komponenten-Slots (Spec 2026-07-25-sub-komponenten-slots-design.md): wird tatsächlich
+        // gesplittet (≥2 Kinder), rendert walkCatalogRef zusätzlich CardHeader/CardContent — deren
+        // Imports müssen mit ins Dateikopf-Set, sonst fehlt der Import zur gerenderten JSX.
+        if (node.slots && splitSlotChildren(node.fallback.children)) {
+          addImport(byModule, node.slots.header.import);
+          addImport(byModule, node.slots.content.import);
+        }
       }
       return;
     }

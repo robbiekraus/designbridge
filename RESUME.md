@@ -4,6 +4,12 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **25.07.2026 (autonome Folge-Session, nachts) — SUB-KOMPONENTEN-SLOTS (Scheibe A, Code-Emit): `Card` rendert jetzt `CardHeader`/`CardContent` statt flacher Kinder.** Robs angekündigter nächster Schritt, autonom umgesetzt (Sonnet 5, TDD). Spec: `docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md`.
+  - **Was sich ändert:** ab zwei Fallback-Kindern verteilt der Code-Emit (`planToJsx.js`) eine gegroundete `Card` auf `<CardHeader>` (erstes Kind) und `<CardContent>` (Rest) statt sie flach unter `<Card>` zu hängen — idiomatischeres shadcn-Markup, **Optik unverändert** (verifiziert, s. u.). Genau 1 Kind oder kein `slots`-Feld am Katalog-Eintrag → unveränderter flacher Fall (Rückwärtskompatibel, z. B. Repo-Kataloge).
+  - **Kernproblem gelöst:** die echten shadcn-`CardHeader`/`CardContent` bringen eigenes Padding mit (`p-6`, `p-6 pt-0`). Eine angehängte `className="p-0"` würde das NICHT verlässlich überschreiben — bei gleicher Tailwind-Spezifität entscheidet die generierte Stylesheet-Reihenfolge, nicht die Position im `class`-Attribut. Fix: Tailwinds `!`-Important-Modifier (`!p-0`) — einzige verlässliche Art, eine fremde Utility von außen zu schlagen. `Card` selbst behält seine volle gemessene Klasse (Gap+Padding); `CardContent` bekommt denselben Gap erneut für seine jetzt darin verschachtelten Geschwister.
+  - **Bewusst NICHT gebaut (dokumentierte Grenzen der Scheibe):** kein `CardTitle`/`CardDescription` (Robs Beispiel nennt es, aber das erste Kind trägt schon seine eigenen gemessenen Text-Klassen — `CardTitle`s hartkodierte Defaults müssten Zug um Zug pro Textattribut neutralisiert werden, eigenes Folge-Stück mit echtem Optik-Risiko). Kein Figma-Pfad (`groundPlan.js` liest `slots` gar nicht — Cards bleiben in Figma inline gegroundete Frames wie bisher, unverändert). Kein `slots` an Repo-Katalogen (nur der shadcn-Default-Katalog hat das Feld).
+  - **Verifiziert:** 9 neue Unit-Tests (Split ab 2 Kindern, kein Split bei 1 Kind, `!p-0` auf beiden Slots, Content-Gap = Card-Gap, Imports beider Slot-Tags, Kollisions-Aliasing, `groundedComponentNames` unverändert, verschachtelter Katalog-Ref im Content-Teil) + ein bestehender End-to-End-Test (`grounding.verify.test.js`, echter esbuild-Compile + react-dom-Render gegen das echte shadcn-Target) auf die neue Struktur angepasst. **Web 815/815 · Server 335/335 · Plugin 117/117 · Storybook-Harness 19/19**, Plugin-Typecheck sauber. **Echte Sichtprüfung im Browser** (Storybook-Harness lokal gebaut aus frisch regeneriertem `fixtures/composition-export.zip`): KPI-Karte sieht exakt wie vorher aus, `getComputedStyle` bestätigt `padding:0px` auf beiden Slot-Divs trotz hartkodierter shadcn-Defaults (Beweis, dass `!`-Important in echtem Tailwind-Build wirkt, nicht nur in der Testerwartung).
+  - **Für die nächste Session:** Figma-Instanz-Slots (Card als ◇-Instanz mit benannten Slot-Properties statt Frame) wäre die logische Folge-Scheibe, braucht aber Plugin-Unterstützung für Component-Property-Slots — ungeprüft, ob das überhaupt so funktioniert wie gedacht. `CardTitle`/`CardDescription` ist die zweite offene Folge-Scheibe (kosmetisch, aber mit echtem Optik-Risiko wenn schlampig gemacht).
 - **25.07.2026 (nachts, danach) — BUGFIX: unsichtbare Phantom-Kästchen aus `<br>`/leeren Elementen entfernt (`c31a283`, live).** Robs echter Figma-Test der DS-Library-Scheibe zeigte „wieder die seltsamen leeren Kästchen wie ganz am Anfang" — in der Sidebar UND in Card-Templates (Top Emissions, Plans). **Wichtige Entwarnung zuerst: NICHT durch den Katalog-/Instanz-Umbau verursacht** — `htmlToPlan.js` war davon unberührt; der Bug ist vorbestehend und war schon als offener Roadmap-Punkt vermerkt („`<hr>`-Trenner → leere 0×0-Boxen"), nur an einem zu engen Symptom aufgehängt.
   - **Root Cause (verifiziert in einem ECHTEN Browser, nicht nur jsdom — schließt Verifikations-Artefakt aus):** jedes Element-Kind wurde in `buildNormalNode` bedingungslos zu einem PlanNode, auch wenn es semantisch nichts trägt. `<br>` ist der Leitfall: kein Text, kein Element-Kind, kein Box-Trigger → eine komplett stilose leere Box landet sichtbar im Baum. Reproduziert 1:1 an der echten HTML-Stelle „Week to week<br/>performance" aus dem eingefrorenen CRAFTUI-Prod-Scan (Sidebar UND Conversion-History-Card betroffen — genau die zwei Stellen, die eine erste jsdom-Stichprobe zeigte, dann in einer echten Chromium-Instanz gegen den lokalen Vite-Dev-Server bestätigt).
   - **Fix (`web/src/lib/emit/htmlToPlan.js`, neue Funktion `isInvisiblePhantomBox`):** ein Element-Kind, das nach dem Bau buchstäblich nichts Sichtbares trägt (keine Kinder, kein `fill`, kein `stroke`, keine explizite Breite/Höhe), wird beim Einsammeln der Kinder verworfen. Bewusst NICHT gefiltert: absolut positionierte Knoten (Position ist ein Signal), explizite Spacer-Divs (haben eine Breite/Höhe) und alles mit `fill`/`stroke` (z. B. `<hr>` mit `border-top` — bleibt die separate, schon bekannte „Trenner hat keine Höhe"-Scheibe, kein leerer Frame).
@@ -84,15 +90,15 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 - **20.07.2026 abends:** UI-Feinschliff live gepusht (`e5d893e`, Web **598/598**): (a) Footer volle Breite / fixe App-Shell (`h-screen`, Header+Footer fixe Leisten, `main` scrollt intern); (b) Content-Seiten **Preview-First**: Atoms/Molecules/Organisms = volle-Breite-Zeilen, Vorschau immer offen [23.07 abends überholt: jetzt collapse-by-default + Filterleiste, s. oben], Code (+Kopieren/Herunterladen) hinter „Code anzeigen"-Toggle, Organism-Herkunft/Landmarke neben dem Toggle, Templates unverändert Akkordeon; Raster + Höhen-Deckel-Maschinerie entfernt; React-key-Warnung gefixt, Konsole sauber. Spec/Plan: `docs/superpowers/{specs,plans}/2026-07-20-content-pages-preview-first.md`. Nächster offener Kandidat war „T-propagate" — mit diesem Umbau erledigt.
 - Davor am selben Tag: Brand-Rollback auf zink (`c63114c`) + orchestrierter Presentation-Ready-Test 6/6 grün; UIPrism-Rebrand-Skin + Bild-Zuverlässigkeit (`628d3ca`/`eb5ecbf`); Breiten-Test Eingabetypen fertig; Architektur-Pivot Scheibe 1–3 (kanonisches `plan`-Modell) komplett; Figma-Reverse-Import v1.
 - **App LIVE:** https://designbridge-production.up.railway.app mit **Gemini PAID**. Name/Favicon: UIPrism; Look: zurück auf zink/weiß (kein Indigo/Flieder).
-- **Tests (aktuell, 25.07. nachts):** Web **806/806** · Server **335/335** · Plugin **117/117** · Storybook-Harness **19/19**, Plugin-Typecheck sauber.
+- **Tests (aktuell, 25.07. nachts):** Web **815/815** · Server **335/335** · Plugin **117/117** · Storybook-Harness **19/19**, Plugin-Typecheck sauber.
 
 ## Aktives Ziel / Nächste Schritte
 
-**▶️ LAUFENDE SESSION 25.07. nachts:** Katalog als echte Figma-Komponenten-Bibliothek gebaut,
-dann Robs erster echter Test dagegen gefahren → Phantom-Kästchen-Bugfix (`<br>` u. Ä., Details oben
-im Stand). Rob will als NÄCHSTES die Sub-Komponenten-Slots angehen (`Card > CardHeader > CardTitle`).
-Vorher: Komposition gegroundeter Bausteine → Robs Test-Runde → Icon-Fix, Export-Umsortierung,
-Vorschau-Deckel, Storybook-Token-Paket.
+**▶️ LAUFENDE SESSION 25.07. nachts (autonome Folge-Session, Robs Auftrag „bau autonom weiter"):**
+Sub-Komponenten-Slots (Scheibe A, Code-Emit) GEBAUT (Details oben im Stand). Davor in derselben
+Nacht: Katalog als echte Figma-Komponenten-Bibliothek gebaut, dann Robs erster echter Test dagegen
+gefahren → Phantom-Kästchen-Bugfix (`<br>` u. Ä.). Offen aus dieser Session: Figma-Instanz-Slots
+(Scheibe B) und `CardTitle`/`CardDescription` sind bewusst zurückgestellte Folge-Scheiben (s. Spec).
 
 ### Wiedereinstieg: erst DAS, dann weiter
 
@@ -102,9 +108,10 @@ im auf Railway GEBAUTEN Storybook sind die Scan-Token-Klassen (`.p-card-layout-p
 Tokens jetzt wirklich. Ein frischer Prod-Scan (CRAFTUI-Dashboard) liegt als `prod-scan-raw.json`
 eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
 
-0. **Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` / `CardContent`) — das ist Robs
-   angekündigter nächster Schritt. Würde nebenbei auch den letzten offenen DS-Library-Rest lösen
-   (Card als ◇-Instanz statt Frame, s. Spec §Bewusste Grenzen). Noch kein Spec/Plan dafür.
+0. **Robs Sichtprüfung der Sub-Komponenten-Slots** — lokal im Storybook-Harness bereits verifiziert
+   (KPI-Karte sieht unverändert aus, `!p-0` wirkt in echtem Tailwind-Build), aber noch nicht von Rob
+   selbst gesehen. Auch ein frischer Figma-Import lohnt (Card bleibt dort bewusst unverändert — guter
+   Regressions-Check, dass Figma vom neuen Feld nichts mitbekommt).
 0a. **Figma-Import erneut prüfen** (Dev-Plugin neu laden, dist ist wieder frisch — auch der
    Phantom-Kästchen-Fix ist drin) — bestätigt zwei Dinge auf einmal: DS-Library-Instanzen UND
    dass die leeren Kästchen weg sind.
@@ -124,9 +131,10 @@ eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
   Sektion „Design System" oben, `DS/Button` mit Varianten-Properties, ◇-Instanzen in den Bausteinen.
   Falls `rescale` in echtem Figma anders wirkt als erwartet: der Fallback greift, es sieht dann aus
   wie vorher — kein Rückschritt, aber dann lohnt eine kleine Folge-Scheibe.
-- **Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` / `CardContent`) statt flacher Kinder —
-  idiomatischeres Markup, ändert das Aussehen NICHT (bewusst zurückgestellt, Entscheidung 1 der
-  Kompositions-Spec). Die Stubs haben die Sub-Komponenten schon.
+- ~~**Sub-Komponenten-Slots** (`Card > CardHeader/CardContent`)~~ — **GEBAUT 25.07. nachts, Scheibe A
+  (Code-Emit)** (s. Stand oben). Offen als Folge-Scheiben: Figma-Instanz-Slots (Scheibe B, braucht
+  Plugin-Component-Property-Slots) und `CardTitle`/`CardDescription` (bewusst zurückgestellt, echtes
+  Optik-Risiko bei schlampiger Umsetzung, s. Spec §Entscheidung 3).
 - **`shadow-sm` fehlt im kanonischen Plan-Modell** → Figma zeigt keinen Schatten, Storybook schon.
   Kleine Scheibe (Plan-Feld + Figma-Writer + Emit), wenn der Unterschied störfähig wird.
 - **jsdom-Grenze der Verifikations-Kette:** `reemit-from-raw.mjs` läuft ohne Layout-Engine → `gap`
@@ -148,11 +156,9 @@ eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
   braucht ein OFFENES Fenster (`count of windows` = 0 → `⌘N` greift nicht, `activate` hängt), und
   das Dev-Plugin heißt **UIPrism**, nicht mehr „DesignBridge" (alter Name wirft `-1728`).
 
-- **NÄCHSTER SCHRITT (Rob-Ansage): Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` /
-  `CardContent`) — idiomatischeres Markup, würde nebenbei auch den letzten DS-Library-Rest lösen
-  (Card als ◇-Instanz statt Frame). Noch kein Spec/Plan — nächste Session startet dort mit
-  Brainstorming/Spec (Design-Entscheidungen: Slots vs. flache Kinder, wie der gemessene Inhalt in
-  die Slots wandert).
+- ~~NÄCHSTER SCHRITT (Rob-Ansage): Sub-Komponenten-Slots~~ — **GEBAUT 25.07. nachts, Scheibe A**
+  (s. Stand oben). Figma-Instanz-Slots (würde den DS-Library-Rest lösen: Card als ◇-Instanz statt
+  Frame) bleibt eine spätere Folge-Scheibe.
 - **Ein Klick von Rob bleibt sinnvoll (nicht mehr Pflicht, aber lohnt):** Figma-Import mit neu
   geladenem Dev-Plugin (dist ist wieder frisch — Phantom-Kästchen-Fix ist mit drin) → bestätigt DS-
   Library-Instanzen UND dass die leeren Kästchen weg sind, in einem Durchgang. Danach lohnt der

@@ -41,6 +41,7 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 - [docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md](docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md) — Scheibe 1 (Grounding gegen shadcn/Tailwind-Default-Katalog). **KOMPLETT** 23.07.
 - [docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md](docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md) — Komposition INNERHALB gegroundeter Bausteine (Hülle aus dem Katalog, Layout/Inhalt aus der Messung). **KOMPLETT** 25.07.
 - [docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md](docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md) — Katalog als echte Figma-Komponenten-Bibliothek (`DS/…`-Komponenten + ◇-Instanzen). **GEBAUT** 25.07. nachts, Robs Plugin-Reload + Sichtprüfung offen.
+- [docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md](docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md) — Sub-Komponenten-Slots, Scheibe A (Code-Emit: `Card` → `CardHeader`/`CardContent`). **GEBAUT** 25.07. nachts. Figma-Instanz-Slots + `CardTitle`/`CardDescription` bewusst zurückgestellt.
 
 ## Current goal
 
