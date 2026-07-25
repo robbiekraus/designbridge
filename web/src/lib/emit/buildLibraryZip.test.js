@@ -22,4 +22,12 @@ describe('buildLibraryZip', () => {
     expect(names).toContain('components/Button.jsx');
     expect(names).toContain('README.md');
   });
+
+  it('bringt zusätzlich die eigenständigen Storybook-Token-Quellen mit', async () => {
+    const blob = await buildLibraryZip(result);
+    const zip = await JSZip.loadAsync(blob);
+    const names = Object.keys(zip.files);
+    expect(names).toContain('tailwind.tokens.js');
+    expect(names).toContain('tokens.css');
+  });
 });

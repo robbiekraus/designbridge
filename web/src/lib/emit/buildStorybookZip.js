@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { emitComponents } from './emitComponents.js';
 import { emitStories } from './emitStories.js';
+import { buildTokenSourceFiles } from './buildTokenSourceFiles.js';
 
 const STORYBOOK_MAIN = `// Von DesignBridge erzeugt — in ein Storybook-Projekt kippen (Storybook 8, react-vite).
 export default {
@@ -10,7 +11,7 @@ export default {
 };
 `;
 
-function buildReadme(comps) {
+function buildReadme(comps, tokenFiles) {
   const lines = [
     '# DesignBridge — Storybook-Paket',
     '',
@@ -22,9 +23,16 @@ function buildReadme(comps) {
     '2. `components/` und `stories/` sowie `.storybook/main.js` übernehmen.',
     '3. `npm run storybook` — die Bausteine erscheinen nach Ebene gruppiert.',
     '',
-    '## Inhalt',
-    '',
   ];
+  if (tokenFiles) {
+    lines.push(
+      '## Tokens',
+      '',
+      '`tailwind.tokens.js` (ES-Modul mit Default-Export) in die eigene `tailwind.config.js` unter `theme.extend` mergen. `tokens.css` einmal global importieren (z. B. `.storybook/preview.js`) — erst damit lösen Klassen wie `bg-background-card` oder `p-card-layout-padding-and-grid-gaps` tatsächlich einen Wert auf.',
+      '',
+    );
+  }
+  lines.push('## Inhalt', '');
   for (const c of comps) {
     const story = emitStories(c).filename;
     const grounded = c.grounded?.length ? ` — shadcn: ${c.grounded.join(', ')}` : '';
@@ -45,7 +53,12 @@ export function storybookFiles(result) {
     files[`stories/${story.filename}`] = story.code;
   }
   files['.storybook/main.js'] = STORYBOOK_MAIN;
-  files['README-storybook.md'] = buildReadme(comps);
+  const tokenFiles = buildTokenSourceFiles(result);
+  if (tokenFiles) {
+    files['tailwind.tokens.js'] = tokenFiles.tailwindTokensJs;
+    files['tokens.css'] = tokenFiles.tokensCss;
+  }
+  files['README-storybook.md'] = buildReadme(comps, tokenFiles);
   return files;
 }
 

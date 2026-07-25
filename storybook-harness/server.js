@@ -29,13 +29,13 @@ export function buildApp() {
   });
 
   app.post('/build', async (req, res) => {
-    const { components, stories } = req.body || {};
+    const { components, stories, tokens, tokensCss } = req.body || {};
     if (!components || Object.keys(components).length === 0) {
       res.status(400).json({ error: 'Keine Komponenten übergeben.' });
       return;
     }
     try {
-      const { id, expiresAt } = await buildPreview({ components, stories });
+      const { id, expiresAt } = await buildPreview({ components, stories, tokens, tokensCss });
       res.json({ id, url: `/preview/${id}/`, expiresAt });
     } catch (err) {
       // Ehrliche deutsche Meldung an den Client, kein Stacktrace/Stderr — die echte

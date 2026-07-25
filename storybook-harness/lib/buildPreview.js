@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, writeFile, cp, rm, symlink } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, cp, rm, symlink } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const execFileAsync = promisify(execFile);
@@ -17,7 +17,9 @@ const HARNESS_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const TTL_MS = 30 * 60 * 1000;
 const BUILD_TIMEOUT_MS = 60_000;
 
-const SCAFFOLD_FILES = ['package.json', 'globals.css', 'tailwind.config.js', 'postcss.config.js'];
+// lib/tailwindTokens.js muss mit rein: tailwind.config.js importiert es relativ
+// (`./lib/tailwindTokens.js`) und dieser Import wird erst im Arbeitsordner aufgelöst.
+const SCAFFOLD_FILES = ['package.json', 'globals.css', 'tailwind.config.js', 'postcss.config.js', 'lib/tailwindTokens.js'];
 const SCAFFOLD_DIRS = [
   ['.storybook', '.storybook'],
   ['components/ui', 'components/ui'],
@@ -25,7 +27,10 @@ const SCAFFOLD_DIRS = [
 
 const entries = new Map(); // id -> { workDir, staticDir, timer }
 
-export async function buildPreview({ components, stories }, { ttlMs = TTL_MS, harnessDir = HARNESS_DIR } = {}) {
+export async function buildPreview(
+  { components, stories, tokens, tokensCss },
+  { ttlMs = TTL_MS, harnessDir = HARNESS_DIR } = {},
+) {
   if (!components || Object.keys(components).length === 0) {
     throw new Error('Keine Komponenten übergeben — nichts zu bauen.');
   }
@@ -36,6 +41,7 @@ export async function buildPreview({ components, stories }, { ttlMs = TTL_MS, ha
   try {
     await mkdir(path.join(workDir, 'components'), { recursive: true });
     await mkdir(path.join(workDir, 'stories'), { recursive: true });
+    await mkdir(path.join(workDir, 'lib'), { recursive: true });
 
     for (const [filename, code] of Object.entries(components)) {
       await writeFile(path.join(workDir, 'components', filename), code, 'utf8');
@@ -51,6 +57,20 @@ export async function buildPreview({ components, stories }, { ttlMs = TTL_MS, ha
       await cp(path.join(harnessDir, src), path.join(workDir, dest), { recursive: true });
     }
     await symlink(path.join(harnessDir, 'node_modules'), path.join(workDir, 'node_modules'), 'dir');
+
+    // Scan-Tokens des Imports (optional — Preview-Importe ohne Rohdaten liefern beides
+    // nicht mit): tailwind.config.js im Arbeitsordner liest tailwind.tokens.js, WENN sie da
+    // ist (s. tailwind.config.js/lib/tailwindTokens.js) — ohne die beiden Felder bleibt das
+    // Verhalten exakt wie heute (nur das shadcn-Default-Theme, kein tokens.css-Import).
+    if (tokens) {
+      await writeFile(path.join(workDir, 'tailwind.tokens.js'), tokens, 'utf8');
+    }
+    if (tokensCss) {
+      await writeFile(path.join(workDir, 'tokens.css'), tokensCss, 'utf8');
+      const previewJsPath = path.join(workDir, '.storybook', 'preview.js');
+      const previewJs = await readFile(previewJsPath, 'utf8');
+      await writeFile(previewJsPath, `import '../tokens.css';\n${previewJs}`, 'utf8');
+    }
 
     // CI=true + --disable-telemetry: unterdrückt Storybooks interaktiven Crash-Report-Prompt
     // ("Would you like to help improve Storybook..."), der bei kaputtem Input sonst mangels

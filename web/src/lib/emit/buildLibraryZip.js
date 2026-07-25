@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { buildExports } from './index.js';
 import { emitComponents } from './emitComponents.js';
 import { emitStories } from './emitStories.js';
+import { buildTokenSourceFiles } from './buildTokenSourceFiles.js';
 
 function buildReadme(exports, comps) {
   const lines = ['# DesignBridge Library Export', ''];
@@ -22,6 +23,14 @@ export async function buildLibraryZip(result) {
     zip.file('tokens/tokens.css', exports.css);
     zip.file('tokens/tailwind.config.tokens.js', exports.tailwind);
     zip.file('tokens/tokens.json', exports.json);
+  }
+  // Selbstständig lauffähige Storybook-Token-Quellen (dieselben wie im Storybook-Paket,
+  // s. buildTokenSourceFiles.js) — falls die Library in ein Empfangs-Storybook wandert,
+  // bringt sie dieselben zwei Dateien mit, die dort erwartet werden.
+  const tokenFiles = buildTokenSourceFiles(result);
+  if (tokenFiles) {
+    zip.file('tailwind.tokens.js', tokenFiles.tailwindTokensJs);
+    zip.file('tokens.css', tokenFiles.tokensCss);
   }
   const comps = emitComponents(result);
   for (const c of comps) {

@@ -4,7 +4,9 @@ import { storybookFiles } from './buildStorybookZip.js';
 const result = {
   raw: {
     tokens: { colors: [{ hex: '#022d2c', role: 'primary', confidence: 'high' }],
-      typography: [], spacing: [], border_radius: [], shadows: [] },
+      typography: [],
+      spacing: [{ value: 24, usage: 'card layout padding and grid gaps', confidence: 'high' }],
+      border_radius: [], shadows: [] },
     atoms: [{ name: 'Button', variants: ['primary'], confidence: 'high' }],
     molecules: [],
     organisms: [{ name: 'Hero section', variants: [], confidence: 'low' }],
@@ -36,5 +38,29 @@ describe('storybookFiles', () => {
     const readme = storybookFiles(result)['README-storybook.md'];
     expect(readme).toContain('stories/Button.stories.jsx');
     expect(readme).toContain('# DesignBridge — Storybook-Paket');
+  });
+
+  it('bringt tailwind.tokens.js und tokens.css mit den Scan-Tokens mit', () => {
+    const files = storybookFiles(result);
+    expect(files['tailwind.tokens.js']).toContain('export default {');
+    expect(files['tailwind.tokens.js']).toContain("'primary': 'var(--color-primary)',");
+    expect(files['tailwind.tokens.js']).toContain(
+      "'card-layout-padding-and-grid-gaps': 'var(--spacing-card-layout-padding-and-grid-gaps)',",
+    );
+    expect(files['tokens.css']).toContain('--color-primary: #022d2c;');
+    expect(files['tokens.css']).toContain('--spacing-card-layout-padding-and-grid-gaps: 24px;');
+  });
+
+  it('README erklärt das Einbinden von tailwind.tokens.js und tokens.css', () => {
+    const readme = storybookFiles(result)['README-storybook.md'];
+    expect(readme).toContain('tailwind.tokens.js');
+    expect(readme).toContain('tokens.css');
+    expect(readme).toMatch(/theme\.extend/);
+  });
+
+  it('keine Token-Dateien für Preview-Importe ohne Rohdaten', () => {
+    const files = storybookFiles({ raw: null });
+    expect(files['tailwind.tokens.js']).toBeUndefined();
+    expect(files['tokens.css']).toBeUndefined();
   });
 });
