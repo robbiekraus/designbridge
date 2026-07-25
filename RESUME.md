@@ -4,6 +4,16 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **25.07.2026 (spätabends) — ROBS TEST-RUNDE NACH DEM KOMPOSITIONS-FIX: Figma ✅, Storybook-Ursachen gefunden & gefixt, 2 UI-Wünsche umgesetzt.** Commits `2dae5a3` (Icons + Export-Umsortierung + Vorschau-Deckel) und `c7ecca9` (Token-Paket) auf `main`. Tests: **Web 758/758 · Harness 18/18 · Server 335/335 · Plugin 99/99**, Typecheck sauber.
+  - **Robs Befund Figma ✅:** Import lief, und er hat einen **Button innerhalb eines Organismus/Moleküls** gesehen — die Atomic-Verschachtelung kommt also in Figma an. Damit ist der offene Sichtprüfungs-Punkt vom Nachmittag erledigt.
+  - **Robs Befund Storybook („kommt nur Scheiße an") — Ursache war NICHT der Builder.** Der Bau-Weg ist intakt: Export-Paket durch den echten Railway-Builder geschickt, gebautes Storybook im Browser angesehen → rendert korrekt. Was Rob sah, war der **Vor-Fix-Stand** (reproduziert: die alte eingefrorene `prod-export.zip` zeigt die KPI-Karte als flache Pille `Orders 13.465 3.1% Last month: 11.246`). **Falsche Zwischendiagnose von mir, hier korrigiert:** ich hatte erst behauptet, dem Build fehle das Stylesheet — das gebaute CSS ist vollständig da (alle Utilities inkl. `p-[20px]`, `bg-card`, `rounded-full`), Vite lädt es per JS statt per `<link>`, deshalb griff mein erster grep daneben.
+  - **Dafür zwei ECHTE, bisher unbekannte Fehler an einem frischen Prod-Scan gefunden** (Robs CRAFTUI-Dashboard `Testdaten/Reports/02.png`, 15 Bausteine, 0 Stub-Fallbacks):
+    1. **Icons gingen verloren** — Icon-Buttons kamen als leere `<Button variant="ghost" size="icon" />` an (die ganze Sidebar = Reihe leerer Kästchen), weil der Blatt-Zweig nur TEXT übernahm. Gefixt in `planToJsx.walkCatalogRef` (SVGs aus dem Fallback werden Kinder, auch aus Fallbacks verschachtelter Refs) UND in `groundPlan` für Figma (echtes SVG gewinnt über den generischen Katalog-Plus-Glyph). `voidElement` bleibt in beiden Fällen selbstschließend. An echten Daten bewiesen.
+    2. **Token-Klassen existieren im Empfangs-Storybook nicht** — der Emit bindet Spacing/Farben an die Token-NAMEN des Scans (`p-card-layout-padding-and-grid-gaps`, `bg-background-card`). In Robs Repo mit exportierter Tailwind-Config korrekt, im Harness-Storybook fehlen die Definitionen → Karten ohne Padding, Farben ohne Wirkung. **Gefixt: das Export-Paket bringt seine Tokens jetzt selbst mit** (`c7ecca9`): neu `web/src/lib/emit/buildTokenSourceFiles.js` erzeugt `tailwind.tokens.js` (Theme-Erweiterung) + `tokens.css` (`:root`-Variablen); `storybookFiles`/`buildLibraryZip` legen beide ins Paket; `storybook-harness/tailwind.config.js` mergt sie über das shadcn-Default-Theme (fehlt die Datei → heutiges Verhalten); `/build` nimmt `tokens`/`tokensCss` an, `buildPreview` schreibt sie und hängt den `tokens.css`-Import in `.storybook/preview.js`; Export.jsx schickt beides mit. **Beweis:** Harness-Test baut ein echtes Storybook mit Scan-Tokens und belegt `.p-card-layout-padding-and-grid-gaps` im gebauten CSS; am echten Scan sind `card-layout-padding-and-grid-gaps` (11 Verwendungen) und `background-card` (26) in beiden Token-Dateien definiert.
+    3. **Harness-Suite war unzuverlässig:** `npm test` startete mehrere echte `storybook build`-Prozesse parallel, die über den geteilten Vite-Cache kollidierten → 6 sporadische Fehlschläge, einzeln alle grün. Jetzt `node --test --test-concurrency=1` (der Flag heißt `--test-concurrency`, `--concurrency` kennt node 24 nicht). Harness **18/18**.
+  - **Robs UI-Wunsch 1 — Export-Seite umsortiert** (`web/src/pages/Export.jsx`): ZIELE (Figma · Storybook · Ganze Library) stehen jetzt OBEN, Tokens/Code darunter, Code-Fenster von `max-h-[60vh]` auf `max-h-[280px]` gedeckelt. Im Browser verifiziert, 15 Export-Tests grün.
+  - **Robs UI-Wunsch 2 — Vorschaugrößen** (`web/src/components/library/InterpretedPreview.jsx`): Die Vorschau rendert im iframe mit virtueller Breite `PREVIEW_VIRTUAL_WIDTH` = 1024 (gleiche Konstante wie die Figma-Vermessung) und skalierte mit `containerBreite / 1024` **ohne Obergrenze** → auf breiten Bildschirmen ÜBER 1:1. Gemessen bei 1920px Fenster: **1,56×, Zeilenhöhe 665px**. Fix: `scale = min(1, containerBreite/1024, 420/Inhaltshöhe)` — nie über 1:1, Zeilendeckel 420px, zu hohe Bausteine werden weiter herunterskaliert statt abgeschnitten (Vollbild-Modal bleibt für Details). Nachgemessen bei 1920px: 0,99× / 420px.
+  - **Fixture-Script gehärtet (echter Verlust erlebt):** `build-prod-storybook-fixture.mjs` hat beim ersten Lauf ~15 bezahlte Gemini-Calls verloren, weil ein DNS-Aussetzer in der Retry-Runde das Script abbrach, BEVOR irgendetwas geschrieben war. Jetzt: `prod-scan-raw.json` wird nach JEDEM erfolgreichen Baustein geschrieben, und Netzfehler beenden nur diesen einen Baustein statt den Lauf. **Die eingefrorenen Rohdaten sind jetzt echte Prod-Daten des CRAFTUI-Scans** → jeder weitere Emit-Vergleich läuft ohne KI-Kosten (`node verification/reemit-from-raw.mjs ../storybook-harness/fixtures/prod-scan-raw.json`).
 - **25.07.2026 (abends) — KOMPOSITION GEGROUNDETER BAUSTEINE FERTIG: Karten kommen als Karten an, Code und Figma rendern dieselbe Wahrheit** (Web 743/743 · Server 335/335 · Plugin 99/99, Typecheck sauber). Spec: `docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md`, Plan: `docs/superpowers/plans/2026-07-25-komposition-gegroundeter-bausteine.md`.
   - **Robs erweiterter Auftrag (Zielbild):** shadcn/ui + Tailwind + React ist das Fundament; Figma UND Storybook sind Ableitungen davon und müssen **visuell identisch** aussehen. Diese Regel hat alle offenen Entscheidungen entschieden. Autonom umgesetzt (kein Brainstorming, Rob-Vorgabe), Orchestrierung Opus 5 + 3 Sonnet-Subagents.
   - **Regel, die überall gilt:** ein gegroundeter Knoten = **Hülle aus dem Katalog** (fill/stroke/radius = shadcn) + **Layout/Abstände/Größe/Inhalt aus der Messung** + Kinder rekursiv weitergegroundet. Doppelte Rahmen/Radien sind damit strukturell unmöglich (die Fallback-Wurzel gibt ihre visuellen Klassen ab).
@@ -57,20 +67,53 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 - **20.07.2026 abends:** UI-Feinschliff live gepusht (`e5d893e`, Web **598/598**): (a) Footer volle Breite / fixe App-Shell (`h-screen`, Header+Footer fixe Leisten, `main` scrollt intern); (b) Content-Seiten **Preview-First**: Atoms/Molecules/Organisms = volle-Breite-Zeilen, Vorschau immer offen [23.07 abends überholt: jetzt collapse-by-default + Filterleiste, s. oben], Code (+Kopieren/Herunterladen) hinter „Code anzeigen"-Toggle, Organism-Herkunft/Landmarke neben dem Toggle, Templates unverändert Akkordeon; Raster + Höhen-Deckel-Maschinerie entfernt; React-key-Warnung gefixt, Konsole sauber. Spec/Plan: `docs/superpowers/{specs,plans}/2026-07-20-content-pages-preview-first.md`. Nächster offener Kandidat war „T-propagate" — mit diesem Umbau erledigt.
 - Davor am selben Tag: Brand-Rollback auf zink (`c63114c`) + orchestrierter Presentation-Ready-Test 6/6 grün; UIPrism-Rebrand-Skin + Bild-Zuverlässigkeit (`628d3ca`/`eb5ecbf`); Breiten-Test Eingabetypen fertig; Architektur-Pivot Scheibe 1–3 (kanonisches `plan`-Modell) komplett; Figma-Reverse-Import v1.
 - **App LIVE:** https://designbridge-production.up.railway.app mit **Gemini PAID**. Name/Favicon: UIPrism; Look: zurück auf zink/weiß (kein Indigo/Flieder).
-- **Tests (aktuell):** Server **307/307** · Web **677/677** · Plugin **98/98**.
+- **Tests (aktuell, 25.07. spätabends):** Web **758/758** · Server **335/335** · Plugin **99/99** · Storybook-Harness **18/18**, Typecheck sauber.
 
 ## Aktives Ziel / Nächste Schritte
 
-**⏭️ SESSION GESCHNITTEN 25.07. abends — sauberer Zustand:** 3 Commits auf `main` gepusht
-(`18472d5` Feature · `4332c0a` Werkzeug/Doku · `a599f78` Plan), **Deploy live und verifiziert**
-(Prod-Bundle enthält die neue Emit-Logik), Arbeitsbaum ohne offene Änderungen, alle Suiten grün
-(Web 743 · Server 335 · Plugin 99). Es liegt **kein Branch und kein Worktree** herum.
+**⏭️ SESSION GESCHNITTEN 25.07. spätabends (Rob-Entscheid: hier schneiden, neue Session danach).**
+Alles auf `main` gepusht und deployt, Arbeitsbaum ohne offene Änderungen, kein Branch/Worktree offen.
+Der Tagesertrag in Reihenfolge: Komposition gegroundeter Bausteine → Robs Test-Runde → Icon-Fix,
+Export-Umsortierung, Vorschau-Deckel, Storybook-Token-Paket (Details oben im Stand).
 
-**Genau EINE Sache wartet auf Rob (1 Klick):** der fertige Figma-Payload liegt auf Prod.
-Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen".
-Zum Vergleichen daneben das Storybook: `cd storybook-harness && npm run storybook:demo:composition`
-(Port 6006). Das ist der „Figma = Storybook"-Beweis, den ich in dieser Session nicht mehr fahren
-konnte (Figma Desktop hatte kein offenes Fenster).
+### Wiedereinstieg: erst DAS, dann weiter
+
+1. **Robs Sicht-Check der neuen Runde** (er hat den Vor-Fix-Stand gesehen, deshalb lohnt ein
+   frischer Blick): Export-Seite (ZIELE oben, Code kompakt), Vorschaugrößen auf seinem breiten
+   Bildschirm (max 1:1, Zeilen ≤ 420px), und **„In Storybook öffnen" erneut klicken** — jetzt mit
+   Komposition, Icons und mitgeliefertem Token-Paket. Als Vergleichsstand liegt eine echte
+   Prod-Fixture bereit (CRAFTUI-Dashboard, 15 Bausteine): `cd storybook-harness && npm run storybook:demo:prod`.
+2. **Figma ↔ Storybook nebeneinander vergleichen** — der eigentliche Beweis für Robs Zielbild
+   („shadcn = Fundament, beide Ableitungen identisch"). Figma-Import hat Rob bestätigt (inkl.
+   Button in einem Organismus); der direkte Vergleich der beiden Ansichten fehlt noch.
+
+### Offene Aufgaben (priorisiert, Stand 25.07. spätabends)
+
+- **Katalog als echte Figma-Komponenten-Bibliothek** — die naheliegende nächste Scheibe. Heute
+  löst der Figma-Weg Katalog-Refs zu gegroundeten Frames auf (visuell identisch, aber keine
+  ◇-Instanzen von `Card`/`Button`). Für „das Design System liegt als Library in Figma" braucht es:
+  Katalog-Einträge als eigene Figma-Komponenten im Payload, `parsePayload.ts` muss das Feld
+  `catalog` lernen, Namespacing gegen Kollisionen mit gescannten Bausteinen, Plugin-Reload durch Rob.
+  Spec dafür fehlt noch.
+- **Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` / `CardContent`) statt flacher Kinder —
+  idiomatischeres Markup, ändert das Aussehen NICHT (bewusst zurückgestellt, Entscheidung 1 der
+  Kompositions-Spec). Die Stubs haben die Sub-Komponenten schon.
+- **`shadow-sm` fehlt im kanonischen Plan-Modell** → Figma zeigt keinen Schatten, Storybook schon.
+  Kleine Scheibe (Plan-Feld + Figma-Writer + Emit), wenn der Unterschied störfähig wird.
+- **jsdom-Grenze der Verifikations-Kette:** `reemit-from-raw.mjs` läuft ohne Layout-Engine → `gap`
+  fehlt in Fixture-Builds (Karten sitzen enger als live) und der Composition-Splice ist dort ganz
+  aus (`refRect` 0×0). Struktur/Hülle/Texte/Grounding sind aussagekräftig, Abstände nicht. Wenn das
+  stört: Fixture-Emit in einem echten Browser fahren statt in jsdom.
+- **Icon-Buttons MIT Label** bekommen weiterhin nur den Text (kein Icon daneben) — bewusst
+  ausgelassene Scheibe beim Icon-Fix, damit Label-Buttons sich nicht ändern.
+- **Alte Roadmap-Punkte, unverändert offen:** Chart-Trend-Linien-Breiten-Determinismus (Ursache
+  belegt, delikat) · UI-Layout-Redesign · Umbenennung DesignBridge → UIPrism in Code/Repo/URL
+  (URL ist im Plugin hartkodiert, deshalb ganz zuletzt) · Margins vom Konverter ignoriert ·
+  `<hr>`-Trenner/Storage-Progress-Höhe · Tabellen-Spaltenraster · Figma-Seiten-Namespacing pro
+  Import · Export-Zahl-Diskrepanz kommunizieren (Tokens vs. Figma-Styles).
+- **Zwei Skill-Fallen sind dokumentiert** (`.claude/skills/figma-e2e-test/SKILL.md`): Figma Desktop
+  braucht ein OFFENES Fenster (`count of windows` = 0 → `⌘N` greift nicht, `activate` hängt), und
+  das Dev-Plugin heißt **UIPrism**, nicht mehr „DesignBridge" (alter Name wirft `-1728`).
 
 - **NÄCHSTER SCHRITT (ein Klick von Rob): den fertigen Figma-Payload sichten.** Er liegt auf Prod. Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen". Erwartung: KPI-Karten mit shadcn-Hülle (radius 8), echte `secondary`-Badges, schmaler Outline-Button „Details", und der Organismus „Dashboard Cards Row" mit **◇-Instanzen** beider Karten. Danach lohnt der Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-Beweis.
 - **Danach als nächste Scheibe:** Katalog als echte Figma-Komponenten-Bibliothek (Refs als ◇-Instanzen statt gegroundeter Frames) — braucht Plugin-Änderung + Namespacing. Optional: Sub-Komponenten-Slots (`CardHeader`/`CardTitle`), `shadow-sm` im Plan-Modell.

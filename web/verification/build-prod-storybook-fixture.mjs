@@ -49,6 +49,16 @@ console.log(`[2/4] ${todo.length} Bausteine brauchen KI-Interpretation (Rest dec
 // Plus genau eine Auto-Retry-Runde für Fehlschläge (gleiches Verhalten wie runInterpretation im Client —
 // vereinzelte JSON-Parse-Fehler des Modells sind meist beim zweiten Versuch weg).
 const CONCURRENCY = 4;
+// Jede bezahlte Interpretation sofort sichern (Live-Fund 25.07.: ein DNS-Aussetzer in der
+// Retry-Runde hat das Script abgebrochen, NACHDEM ~15 Gemini-Calls durch waren — geschrieben wurde
+// erst am Ende, also war alles Bezahlte verloren). Jetzt: nach jedem Erfolg das Roh-Ergebnis auf die
+// Platte, und Netzfehler beenden nur DIESEN Baustein, nicht den Lauf.
+let rawOutPath;
+async function persistRaw() {
+  if (!rawOutPath) return;
+  await writeFile(rawOutPath, `${JSON.stringify(result, null, 2)}\n`);
+}
+
 async function runRound(items) {
   const failed = [];
   let idx = 0;
@@ -56,17 +66,25 @@ async function runRound(items) {
     for (;;) {
       const item = items[idx++];
       if (!item) return;
-      const res = await fetch(`${prodUrl}/api/interpret/components`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ import_id: raw.meta.import_id, components: [item] }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        result = attachInterpretations(result, data);
-        console.log(`  ✓ ${item.name}`);
-      } else {
-        console.warn(`  ⚠ ${item.name}: ${data.error ?? res.status}`);
+      try {
+        const res = await fetch(`${prodUrl}/api/interpret/components`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ import_id: raw.meta.import_id, components: [item] }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          result = attachInterpretations(result, data);
+          console.log(`  ✓ ${item.name}`);
+          await persistRaw();
+        } else {
+          console.warn(`  ⚠ ${item.name}: ${data.error ?? res.status}`);
+          failed.push(item);
+        }
+      } catch (err) {
+        // Netz-/DNS-Aussetzer (auf diesem Rechner real beobachtet): als Fehlschlag dieses Bausteins
+        // behandeln, nicht als Abbruch des Laufs — sonst verfällt alles bereits Interpretierte.
+        console.warn(`  ⚠ ${item.name}: Netzfehler (${err.cause?.code ?? err.message})`);
         failed.push(item);
       }
     }
@@ -74,6 +92,13 @@ async function runRound(items) {
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, worker));
   return failed;
 }
+
+// Ziel-Pfad für die Rohdaten VOR der ersten Interpretation festlegen, damit persistRaw() ab dem
+// ersten Erfolg schreiben kann.
+const outDirEarly = path.resolve(dirname, '../../storybook-harness/fixtures');
+await mkdir(outDirEarly, { recursive: true });
+rawOutPath = path.join(outDirEarly, 'prod-scan-raw.json');
+await persistRaw(); // Scan-Ergebnis (Inventar+Tokens) allein ist schon wertvoll
 
 const round1Failed = await runRound(todo);
 if (round1Failed.length) {
@@ -95,12 +120,12 @@ await mkdir(outDir, { recursive: true });
 const outPath = path.join(outDir, 'prod-export.zip');
 await writeFile(outPath, buffer);
 
-// Rohdaten mit einfrieren (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+// Rohdaten final schreiben (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
 // §Verifikation 4): der KI-Teil dieses Scans kostet Gemini-Kontingent, der Emit darüber nicht.
 // Mit dem eingefrorenen result-Objekt baut `reemit-from-raw.mjs` das Paket jederzeit KOSTENLOS neu
-// — nötig für jeden Vorher/Nachher-Vergleich am Emitter, ohne erneut zu scannen.
-const rawOutPath = path.join(outDir, 'prod-scan-raw.json');
-await writeFile(rawOutPath, `${JSON.stringify(result, null, 2)}\n`);
+// — nötig für jeden Vorher/Nachher-Vergleich am Emitter, ohne erneut zu scannen. (Zwischenstände
+// liegen dank persistRaw() schon nach jedem einzelnen Baustein auf der Platte.)
+await persistRaw();
 
 console.log(`[4/4] Fixture geschrieben: ${outPath}`);
 console.log(`      Rohdaten eingefroren: ${rawOutPath} (Neu-Emit ohne KI: node verification/reemit-from-raw.mjs ${rawOutPath})`);
