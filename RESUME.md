@@ -61,6 +61,17 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Aktives Ziel / Nächste Schritte
 
+**⏭️ SESSION GESCHNITTEN 25.07. abends — sauberer Zustand:** 3 Commits auf `main` gepusht
+(`18472d5` Feature · `4332c0a` Werkzeug/Doku · `a599f78` Plan), **Deploy live und verifiziert**
+(Prod-Bundle enthält die neue Emit-Logik), Arbeitsbaum ohne offene Änderungen, alle Suiten grün
+(Web 743 · Server 335 · Plugin 99). Es liegt **kein Branch und kein Worktree** herum.
+
+**Genau EINE Sache wartet auf Rob (1 Klick):** der fertige Figma-Payload liegt auf Prod.
+Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen".
+Zum Vergleichen daneben das Storybook: `cd storybook-harness && npm run storybook:demo:composition`
+(Port 6006). Das ist der „Figma = Storybook"-Beweis, den ich in dieser Session nicht mehr fahren
+konnte (Figma Desktop hatte kein offenes Fenster).
+
 - **NÄCHSTER SCHRITT (ein Klick von Rob): den fertigen Figma-Payload sichten.** Er liegt auf Prod. Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen". Erwartung: KPI-Karten mit shadcn-Hülle (radius 8), echte `secondary`-Badges, schmaler Outline-Button „Details", und der Organismus „Dashboard Cards Row" mit **◇-Instanzen** beider Karten. Danach lohnt der Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-Beweis.
 - **Danach als nächste Scheibe:** Katalog als echte Figma-Komponenten-Bibliothek (Refs als ◇-Instanzen statt gegroundeter Frames) — braucht Plugin-Änderung + Namespacing. Optional: Sub-Komponenten-Slots (`CardHeader`/`CardTitle`), `shadow-sm` im Plan-Modell.
 - ~~Komposition in gegroundeten Bausteinen~~ — **ERLEDIGT 25.07. abends** (s. Stand oben). Robs „vielleicht noch eine andere Baustelle" hat sich als das Zielbild „shadcn = Fundament, Figma + Storybook identisch" + „Atomic-Verschachtelung in Figma prüfen" herausgestellt; beides ist in dieser Scheibe adressiert.
