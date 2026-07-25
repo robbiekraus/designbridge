@@ -21,6 +21,10 @@ const COMPONENTS_DIR = path.join(dirname, 'components');
 const FIXTURES = {
   sample: path.join(dirname, 'fixtures', 'sample-export.zip'),
   prod: path.join(dirname, 'fixtures', 'prod-export.zip'),
+  // Kompositions-Fixture (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md): gegroundete
+  // Container (KPI-Karten mit Titel/Wert/Badge). Wird ohne KI-Call gebaut:
+  //   cd web && node verification/reemit-from-raw.mjs verification/fixtures/composition-raw.json
+  composition: path.join(dirname, 'fixtures', 'composition-export.zip'),
 };
 
 function resolveZipPath(argv) {

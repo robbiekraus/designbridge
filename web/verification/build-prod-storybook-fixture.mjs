@@ -95,5 +95,13 @@ await mkdir(outDir, { recursive: true });
 const outPath = path.join(outDir, 'prod-export.zip');
 await writeFile(outPath, buffer);
 
+// Rohdaten mit einfrieren (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+// §Verifikation 4): der KI-Teil dieses Scans kostet Gemini-Kontingent, der Emit darüber nicht.
+// Mit dem eingefrorenen result-Objekt baut `reemit-from-raw.mjs` das Paket jederzeit KOSTENLOS neu
+// — nötig für jeden Vorher/Nachher-Vergleich am Emitter, ohne erneut zu scannen.
+const rawOutPath = path.join(outDir, 'prod-scan-raw.json');
+await writeFile(rawOutPath, `${JSON.stringify(result, null, 2)}\n`);
+
 console.log(`[4/4] Fixture geschrieben: ${outPath}`);
+console.log(`      Rohdaten eingefroren: ${rawOutPath} (Neu-Emit ohne KI: node verification/reemit-from-raw.mjs ${rawOutPath})`);
 console.log(`Enthaltene Dateien:\n  ${Object.keys(files).join('\n  ')}`);

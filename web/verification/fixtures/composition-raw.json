@@ -1,0 +1,63 @@
+{
+  "_hinweis": "Deterministische Kompositions-Fixture (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Verifikation 3). Form = das result-Objekt des Web-Clients ({raw, interpretations}), damit reemit-from-raw.mjs den ECHTEN Emit-Pfad darüber fahren kann — ohne einen einzigen KI-Call. Das HTML ist der realen Prod-Interpretation nachgebildet (Textfolge der KPI-Karte identisch zum eingefrorenen prod-export.zip: 'Orders 13.465 3.1% Last month: 11.246').",
+  "source": "image",
+  "raw": {
+    "tokens": {
+      "colors": [
+        { "hex": "#18181b", "role": "primary", "confidence": "high" },
+        { "hex": "#e4e4e7", "role": "border", "confidence": "high" }
+      ],
+      "typography": [],
+      "spacing": [],
+      "border_radius": [],
+      "shadows": []
+    },
+    "atoms": [
+      { "name": "Primary Action", "variants": [], "confidence": "high", "source": "ai" }
+    ],
+    "molecules": [
+      { "name": "KPI Card Orders", "variants": [], "confidence": "high", "source": "ai", "bbox": { "x": 0.064, "y": 0.1234, "w": 0.2285, "h": 0.2033 } },
+      { "name": "KPI Card Revenue", "variants": [], "confidence": "high", "source": "ai", "bbox": { "x": 0.3137, "y": 0.1234, "w": 0.2285, "h": 0.2033 } },
+      { "name": "Login Form", "variants": [], "confidence": "high", "source": "ai" }
+    ],
+    "organisms": [
+      {
+        "name": "Dashboard Cards Row",
+        "variants": [],
+        "confidence": "high",
+        "source": "ai",
+        "bbox": { "x": 0.05, "y": 0.1, "w": 0.9, "h": 0.25 }
+      }
+    ],
+    "templates": [],
+    "composition": {
+      "roots": ["Dashboard Cards Row", "Login Form", "Primary Action"],
+      "children": {
+        "Dashboard Cards Row": ["KPI Card Orders", "KPI Card Revenue"]
+      }
+    },
+    "meta": { "kind": "image", "value": "composition-fixture.png", "image_width": 1440, "image_height": 900 }
+  },
+  "interpretations": {
+    "Primary Action": {
+      "html": "<button data-ds-component=\"Button\" data-ds-variant=\"default\" style=\"background:#18181b;color:#fafafa;padding:8px 16px;border-radius:6px\">Speichern</button>",
+      "model": "fixture"
+    },
+    "KPI Card Orders": {
+      "html": "<div data-ds-component=\"Card\" style=\"display:flex;flex-direction:column;gap:8px;padding:20px;background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;width:260px\"><span style=\"font-size:14px;color:#71717a\">Orders</span><div style=\"display:flex;align-items:center;gap:8px\"><span style=\"font-size:28px;font-weight:700;color:#18181b\">13.465</span><span data-ds-component=\"Badge\" data-ds-variant=\"secondary\" style=\"padding:2px 8px;background:#f4f4f5;color:#18181b;font-size:12px;border-radius:9999px\">3.1%</span></div><span style=\"font-size:12px;color:#a1a1aa\">Last month: 11.246</span></div>",
+      "model": "fixture"
+    },
+    "KPI Card Revenue": {
+      "html": "<div data-ds-component=\"Card\" style=\"display:flex;flex-direction:column;gap:8px;padding:20px;background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;width:260px\"><span style=\"font-size:14px;color:#71717a\">Revenue</span><span style=\"font-size:28px;font-weight:700;color:#18181b\">$ 96.534</span><div style=\"display:flex;align-items:center;gap:8px\"><span data-ds-component=\"Badge\" data-ds-variant=\"secondary\" style=\"padding:2px 8px;background:#f4f4f5;color:#18181b;font-size:12px;border-radius:9999px\">+8.2%</span><span style=\"font-size:12px;color:#a1a1aa\">vs. last month</span></div><button data-ds-component=\"Button\" data-ds-variant=\"outline\" data-ds-size=\"sm\" style=\"padding:6px 12px;border:1px solid #e4e4e7;border-radius:6px;color:#18181b\">Details</button></div>",
+      "model": "fixture"
+    },
+    "Dashboard Cards Row": {
+      "html": "<div style=\"display:flex;gap:24px;padding:16px\"><div style=\"display:flex;flex-direction:column;gap:8px;padding:20px;background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;width:260px\"><span style=\"font-size:14px;color:#71717a\">Orders</span><span style=\"font-size:28px;font-weight:700\">13.465</span><span style=\"font-size:12px\">3.1% Last month: 11.246</span></div><div style=\"display:flex;flex-direction:column;gap:8px;padding:20px;background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;width:260px\"><span style=\"font-size:14px;color:#71717a\">Revenue</span><span style=\"font-size:28px;font-weight:700\">$ 96.534</span><span style=\"font-size:12px\">+8.2% vs. last month Details</span></div></div>",
+      "model": "fixture"
+    },
+    "Login Form": {
+      "html": "<div style=\"display:flex;flex-direction:column;gap:12px;padding:24px;background:#ffffff;border:1px solid #e4e4e7;border-radius:8px\"><label data-ds-component=\"Label\" style=\"font-size:14px;font-weight:500;color:#09090b\">E-Mail</label><input data-ds-component=\"Input\" style=\"padding:8px 12px;border:1px solid #e4e4e7;border-radius:6px\" /><button data-ds-component=\"Button\" data-ds-variant=\"default\" style=\"background:#18181b;color:#fafafa;padding:8px 16px;border-radius:6px\">Anmelden</button></div>",
+      "model": "fixture"
+    }
+  }
+}

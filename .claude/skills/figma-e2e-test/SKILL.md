@@ -12,8 +12,16 @@ Kompletter Import-Beweis-Test ohne Robs Zutun. Erstmals erfolgreich gefahren als
 
 1. **Bedienungshilfen-Freigabe** für „Claude" (macOS Systemeinstellungen → Datenschutz &
    Sicherheit → Bedienungshilfen). Ohne sie: osascript-Fehler `-1719`.
-2. **Figma Desktop läuft** (Prozessname `Figma`, deutsche Menüs!).
-3. Dev-Plugin „DesignBridge" ist in Figma geladen (Plugins → Entwicklung).
+2. **Figma Desktop läuft** (Prozessname `Figma`, deutsche Menüs!) **UND hat mindestens ein offenes
+   Fenster.** ⚠️ Vor dem Start prüfen:
+   `osascript -e 'tell application "System Events" to tell process "Figma" to return count of windows'`
+   → **0 = Abbruch, Rob muss ein Figma-Fenster öffnen.** Bei 0 Fenstern läuft `⌘N` ins Nichts
+   (kein Fehler, es passiert einfach nichts), `tell application "Figma" to activate` hängt bis zum
+   Timeout und `open -a Figma` erzeugt kein Fenster (Fund 25.07.).
+3. Dev-Plugin ist in Figma geladen (Plugins → Entwicklung). ⚠️ **Es heißt inzwischen „UIPrism",
+   nicht mehr „DesignBridge"** (Fund 25.07. — der alte Name wirft `-1728`). Menüeinträge im Zweifel
+   erst auflisten, statt den Namen zu raten:
+   `repeat with mi in menu items of menu 1 of menu item "Entwicklung" of menu 1 of menu bar item "Plugins" of menu bar 1`
 4. ⚠️ `screencapture` hat KEINE Freigabe (Bildschirmaufnahme) — nicht verwenden;
    alles läuft über den Accessibility-Baum.
 
@@ -62,7 +70,7 @@ tell application "System Events" to tell process "Figma"
   delay 0.4
   click menu item "Entwicklung" of menu 1 of menu bar item "Plugins" of menu bar 1
   delay 0.4
-  click menu item "DesignBridge" of menu 1 of menu item "Entwicklung" of menu 1 of menu bar item "Plugins" of menu bar 1
+  click menu item "UIPrism" of menu 1 of menu item "Entwicklung" of menu 1 of menu bar item "Plugins" of menu bar 1
 end tell
 ```
 

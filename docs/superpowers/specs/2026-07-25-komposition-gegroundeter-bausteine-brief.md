@@ -111,3 +111,58 @@ Nicht „Tests grün" allein — das Ergebnis ist visuell:
   (`.vscode/tasks.json` im Worktree als Muster), keine Terminal-Anleitungen erwarten.
 - Rob hat am 25.07. „vielleicht noch eine andere Baustelle" angedeutet, ohne sie zu benennen —
   beim Wiedereinstieg nachfragen.
+
+---
+
+## Nachtrag 25.07. abends (Robs Wiedereinstieg) — Auftrag erweitert
+
+**1. Zielbild explizit gemacht (das ist die eigentliche Messlatte):** Alles fundiert auf der
+technischen Basis **shadcn/ui + Tailwind + React**. Figma leitet sich daraus ab, Storybook leitet
+sich daraus ab — **beide Ableitungen müssen visuell identisch aussehen.** Nicht „ähnlich": ein
+gegroundeter Baustein sieht in Figma aus wie derselbe Baustein in Storybook, weil beide dieselbe
+Katalog-Wahrheit rendern. Diese Regel entscheidet die offenen Fragen unten (insbesondere „welche
+Stile gewinnen").
+
+**2. Zu prüfen und zu notieren:** die **Atomic-Design-Verschachtelung in Figma** ist noch nicht
+verifiziert — kommen Molekül-Instanzen tatsächlich in Organismen und Organismen in Templates an
+(◇-Instanzen statt neu gezeichneter Kopien)? Gehört in die Figma-Verifikation dieser Arbeit.
+
+**3. Arbeitsweise für diese Session (Rob-Vorgabe, überschreibt Schritt 2 „Brainstorming" oben):**
+autonom durchziehen, keine Brainstorm-Runden. Entscheidungen trifft Claude und dokumentiert sie in
+der Spec. Orchestrierung Opus 5, Implementierung per Sonnet-Subagents; Gemini-Kontingent und Tokens
+sparsam.
+
+## Messung 25.07. abends — Befund an Daten bestätigt, ohne einen einzigen KI-Call
+
+Zwei Quellen, beide reale Daten, null Gemini-Kosten:
+
+**(a) Eingefrorene Prod-Fixture** (`storybook-harness/fixtures/prod-export.zip`, echter Sunstone-Scan
+vom 24.07.) — der emittierte Code, den Rob im Storybook gesehen hat:
+
+```jsx
+// components/KpiStatCard.jsx
+import { Card } from "@/components/ui/card";
+export function KpiStatCard(…) { return <div className={`flex …`}><Card>Orders 13.465 3.1% Last month: 11.246</Card></div>; }
+```
+
+7 von 16 Bausteinen der Fixture sind solche `<Card>flacher Text</Card>`-Zeilen. Befund bestätigt.
+
+**(b) Nachgestellte KPI-Karten-Interpretation durch die echte Emit-Kette** (gleiche Textfolge wie
+oben, `data-ds-component="Card"` mit verschachteltem `data-ds-component="Badge"`) — drei Ergebnisse:
+
+1. **Der Plan hat die Struktur komplett** (Card-ref → fallback-Box `column` mit 3 Kindern, darin die
+   Zahl + ein Badge-ref). Bestätigt: nichts geht vor dem Emit verloren.
+2. **Der Code-Emit verliert MEHR als bekannt:** `extractText` steigt nur in `children` ab, ein
+   verschachtelter Katalog-ref hat aber nur `fallback` → **der Badge-Text „3.1%" verschwindet
+   komplett** (`<Card>Orders 13.465 Last month: 11.246</Card>`). Nicht nur Struktur-, auch
+   Inhaltsverlust.
+3. **Der Figma-Weg hat die Grenze NICHT — aber ein anderes Problem** (die im Briefing offene Frage,
+   damit beantwortet): Der Figma-Payload trägt den `fallback` intakt, das Plugin rendert ihn also
+   strukturiert. Aber: das Plugin kennt das Feld `catalog` überhaupt nicht (`parsePayload.ts`
+   verwirft es), und `emitFigmaComponents` legt **keine Figma-Komponente für Katalog-Einträge an** —
+   `findComponentByName('Card')` schlägt darum **immer** fehl → `renderComponentRef` rendert den
+   Fallback plus Warnung „Komponente „Card" nicht gefunden". Ergebnis heute:
+   **Figma = Struktur ohne Grounding (+ Warnungsrauschen), Code = Grounding ohne Struktur.**
+   Genau die Asymmetrie, die Robs Zielbild aus Punkt 1 verbietet.
+
+Entscheidungen und Umbau: `2026-07-25-komposition-gegroundeter-bausteine-design.md`.
