@@ -2407,3 +2407,94 @@ describe('htmlToPlan — Splice-Wurzel-Schutz in Phase 2 (Live-Fund 25.07., Figm
     expect(names).toContain('Beta Widget');
   });
 });
+
+describe('htmlToPlan — unsichtbare Phantom-Kästchen (Live-Fund 25.07. nachts, Robs echter Figma-Test)', () => {
+  // Rob nach dem Katalog-Umbau: „wieder die seltsamen leeren Kästchen wie ganz am Anfang" — in der
+  // Sidebar UND in Karten (Top Emissions/Plans). Root Cause: jedes Element-Kind wurde bedingungslos
+  // zu einem PlanNode, auch wenn es NICHTS beiträgt — <br> ist der Leitfall (kein Text, kein
+  // Element-Kind, kein Box-Trigger → komplett stilose leere Box landet sichtbar im Baum). Reproduziert
+  // in einem ECHTEN Browser (nicht nur jsdom) an Robs frozen Prod-Scan, unabhängig vom
+  // Katalog-/Grounding-Umbau (htmlToPlan.js war davon nicht berührt — vorbestehender Bug).
+  it('<br> zwischen zwei Textzeilen erzeugt KEINEN leeren Box-Node mehr', () => {
+    const { plan } = htmlToPlan('<p style="font-size:13px">Week to week<br/>performance</p>');
+    expect(plan.children).toHaveLength(2);
+    expect(plan.children.every((c) => c.type === 'text')).toBe(true);
+    expect(plan.children.map((c) => c.content)).toEqual(['Week to week', 'performance']);
+  });
+
+  it('<br> ohne umgebendes Element (loses Textknoten-Paar) ebenso', () => {
+    const { plan } = htmlToPlan('<div>Hello<br/>World</div>');
+    expect(plan.children).toHaveLength(2);
+    expect(plan.children.every((c) => c.type === 'text')).toBe(true);
+  });
+
+  it('<hr> mit explizit entferntem Rahmen (kein border/background) wird ebenfalls verworfen', () => {
+    // Ein nackter <hr/> hat im UA-Stylesheet einen Default-Rahmen (deshalb ist er im Alltag selten
+    // der Auslöser) — hier wird er explizit weggenommen, um den Filter isoliert zu prüfen.
+    const { plan } = htmlToPlan('<div><hr style="border:none"/></div>');
+    expect(plan.children).toHaveLength(0);
+  });
+
+  it('<hr> MIT border-top bleibt erhalten (bekannte separate Scheibe: Trenner ohne Höhe, kein leerer Frame)', () => {
+    const { plan } = htmlToPlan('<div><hr style="border-top:1px solid #ccc"/></div>');
+    expect(plan.children).toHaveLength(1);
+    expect(plan.children[0].stroke).toEqual({ token: null, hex: '#cccccc' });
+  });
+
+  it('ein bewusster Spacer-Div (explizite Breite, keine Farbe) bleibt erhalten — kein Overreach des Filters', () => {
+    const { plan } = htmlToPlan('<div style="display:flex"><div>A</div><div style="width:16px"></div><div>B</div></div>');
+    expect(plan.children).toHaveLength(3);
+    const spacer = plan.children[1];
+    expect(spacer.type).toBe('box');
+    expect(spacer.width).toBe(16);
+  });
+
+  it('eine leere Box MIT fill bleibt erhalten (z. B. ein farbiger Notification-Dot ohne Kinder)', () => {
+    const { plan } = htmlToPlan('<div style="width:6px;height:6px;background-color:#ef4444;border-radius:50%"></div>');
+    expect(plan.type).toBe('box');
+    expect(plan.fill).toEqual({ token: null, hex: '#ef4444' });
+  });
+
+  it('absolute positionierte leere Boxen werden NICHT gefiltert (Position ist ein bewusstes Signal)', () => {
+    const orig = Element.prototype.getBoundingClientRect;
+    let call = 0;
+    Element.prototype.getBoundingClientRect = function mockedRect() {
+      call += 1;
+      // erster Aufruf = Elternteil (Referenzpunkt für die Differenz), zweiter = das absolute Kind.
+      return call === 1
+        ? { x: 0, y: 0, left: 0, top: 0, width: 200, height: 100, right: 200, bottom: 100 }
+        : { x: 10, y: 10, left: 10, top: 10, width: 20, height: 20, right: 30, bottom: 30 };
+    };
+    try {
+      const { plan } = htmlToPlan('<div style="position:relative"><div style="position:absolute;top:10px;left:10px"></div></div>');
+      expect(plan.children).toHaveLength(1);
+      expect(plan.children[0].absolute).toBeTruthy();
+    } finally {
+      Element.prototype.getBoundingClientRect = orig;
+    }
+  });
+
+  it('Regression an Robs echtem eingefrorenen Prod-Scan: keine unsichtbaren Phantom-Boxen mehr', () => {
+    // Ausschnitt aus dem echten Sidebar-Scan (storybook-harness/fixtures/prod-scan-raw.json):
+    // "Week to week<br/>performance" war exakt die Stelle, an der der leere Frame auftauchte.
+    const html =
+      '<div style="display:flex;flex-direction:column">' +
+      '<h2 style="font-weight:700">Conversion history</h2>' +
+      '<p style="font-size:13px;line-height:1.3">Week to week<br/>performance</p>' +
+      '</div>';
+    const { plan, warnings } = htmlToPlan(html);
+    expect(warnings).toEqual([]);
+    function collectEmpties(node, path, out) {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'component-ref') return collectEmpties(node.fallback, path, out);
+      if (node.type === 'box') {
+        const children = node.children || [];
+        if (children.length === 0 && !node.fill && !node.stroke) out.push(path);
+        children.forEach((c, i) => collectEmpties(c, `${path}/${i}`, out));
+      }
+    }
+    const empties = [];
+    collectEmpties(plan, 'root', empties);
+    expect(empties).toEqual([]);
+  });
+});

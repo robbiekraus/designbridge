@@ -533,6 +533,36 @@ function ensureBox(node) {
   return { ...emptyBoxNode(), children: [node] };
 }
 
+/** Live-Fund 25.07. abends (Rob, echter Figma-Test nach dem Katalog-Umbau — „wieder die seltsamen
+ *  leeren Kästchen wie ganz am Anfang"): jedes Element-Kind wird bedingungslos zu einem PlanNode
+ *  (Zeile „nodeType === 1" unten), auch wenn es semantisch NICHTS beiträgt. `<br>` ist der Leitfall:
+ *  kein Text, kein Element-Kind, kein Box-Trigger (hasBoxTrigger) → `buildNormalNode` liefert eine
+ *  komplett stilose leere Box (kein fill/stroke/width/height), die als sichtbarer leerer Frame
+ *  zwischen den beiden Textzeilen landet — genau der Bug, den Rob beschreibt, und schon dokumentiert
+ *  unter „`<hr>`-Trenner → leere 0×0-Boxen" (RESUME, offener Punkt, dort aber am `<hr>`-Symptom
+ *  aufgehängt statt an der allgemeinen Ursache). Reproduziert für `<br>` UND lose stehende `<hr>` OHNE
+ *  sichtbaren Rahmen; ein `<hr>` MIT `border-top` bekommt einen `stroke` und bleibt unangetastet (das
+ *  ist die separate, bereits bekannte „Trenner hat keine Höhe"-Scheibe, kein leerer Frame).
+ *
+ *  Fix: ein Kind, das NACH dem Bau buchstäblich nichts Sichtbares trägt — keine Kinder, kein fill,
+ *  kein stroke, keine explizit gesetzte Breite/Höhe (HUG bleibt HUG) — wird beim Einsammeln der
+ *  Kinder VERWORFEN statt in den Baum aufgenommen. Bewusst NICHT gefiltert: `absolute` positionierte
+ *  Knoten (eigene Position ist ein Signal, dass das Element absichtlich da ist, auch wenn es gerade
+ *  unsichtbar ist) — der Filter greift nur im normalen Fluss. Ein bewusster Spacer-Div
+ *  (`<div style="width:16px">`) hat eine explizite Größe und bleibt daher erhalten. */
+function isInvisiblePhantomBox(node) {
+  return (
+    node &&
+    node.type === 'box' &&
+    !node.absolute &&
+    node.children.length === 0 &&
+    node.fill == null &&
+    node.stroke == null &&
+    node.width == null &&
+    node.height == null
+  );
+}
+
 /** Scheibe A (Spec §Scheibe A): `position:absolute|fixed` → zusätzliches `absolute`-Feld mit
  *  Koordinaten/Größe relativ zum DIREKTEN Eltern-Element (bewusste Vereinfachung ggü. dem
  *  nächsten POSITIONIERTEN Vorfahren — abweichend nur bei dazwischenliegenden nicht-
@@ -1098,7 +1128,8 @@ function buildNormalNode(el, ctx, parent) {
   const children = [];
   for (const node of el.childNodes) {
     if (node.nodeType === 1) {
-      children.push(convertElement(node, ctx, childParent));
+      const built = convertElement(node, ctx, childParent);
+      if (!isInvisiblePhantomBox(built)) children.push(built);
     } else if (node.nodeType === 3) {
       const text = (node.textContent || '').trim();
       // Loser Textknoten hat kein eigenes Element → erbt die berechneten Font-Stile seines
