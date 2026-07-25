@@ -203,14 +203,14 @@ export default function Export({ result }) {
           <p className="text-xs text-zinc-500 leading-relaxed flex-1">
             Legt Paint- und Text-Styles sowie erkannte Komponenten direkt im Figma-Plugin an.
           </p>
+          {sent === 'ok' && <span className="text-[11px] text-emerald-600">bereit — jetzt im Plugin „Aus DesignBridge übernehmen"</span>}
+          {sent === 'fail' && <span className="text-[11px] text-red-600">fehlgeschlagen — läuft der Server?</span>}
           <button
             onClick={handleSendToFigma}
             className="w-full text-xs px-2.5 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
           >
             An Figma senden
           </button>
-          {sent === 'ok' && <span className="text-[11px] text-emerald-600">bereit — jetzt im Plugin „Aus DesignBridge übernehmen"</span>}
-          {sent === 'fail' && <span className="text-[11px] text-red-600">fehlgeschlagen — läuft der Server?</span>}
         </div>
 
         <div className="border border-zinc-200 rounded-lg p-4 flex flex-col gap-3">
