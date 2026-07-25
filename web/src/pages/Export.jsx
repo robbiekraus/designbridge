@@ -225,6 +225,9 @@ export default function Export({ result }) {
           >
             {storybookPreview === 'building' ? 'Storybook wird gebaut …' : 'In Storybook öffnen'}
           </button>
+          {storybookPreview === 'error' && (
+            <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
+          )}
           <button
             onClick={handleExportStorybook}
             title="Komponenten + Stories + .storybook/main.js als Handoff-Paket"
@@ -232,9 +235,6 @@ export default function Export({ result }) {
           >
             Nach Storybook exportieren
           </button>
-          {storybookPreview === 'error' && (
-            <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
-          )}
         </div>
 
         <div className="border border-zinc-200 rounded-lg p-4 flex flex-col gap-3">
