@@ -149,4 +149,23 @@ describe('Export page', () => {
 
     vi.unstubAllGlobals();
   });
+
+  // Die schwarzen Haupt-Buttons müssen in allen drei Ziel-Karten auf derselben
+  // Höhe am unteren Rand bleiben. Statusmeldungen gehören deshalb VOR den Button —
+  // liegt eine Meldung dahinter, rutscht der Button in dieser Karte nach oben.
+  it('hält den schwarzen Haupt-Button als letztes Element der Karte, auch bei Fehlermeldung', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+
+    render(<Export result={imageResult} />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+    await waitFor(() => expect(screen.getByText(/konnte nicht gebaut werden/i)).toBeInTheDocument());
+
+    const blackButton = screen.getByRole('button', { name: /nach storybook exportieren/i });
+    expect(blackButton.parentElement.lastElementChild).toBe(blackButton);
+
+    const figmaButton = screen.getByRole('button', { name: 'An Figma senden' });
+    expect(figmaButton.parentElement.lastElementChild).toBe(figmaButton);
+
+    vi.unstubAllGlobals();
+  });
 });
