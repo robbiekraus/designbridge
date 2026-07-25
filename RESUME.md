@@ -4,6 +4,11 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **25.07.2026 (nachts, danach) — BUGFIX: unsichtbare Phantom-Kästchen aus `<br>`/leeren Elementen entfernt (`c31a283`, live).** Robs echter Figma-Test der DS-Library-Scheibe zeigte „wieder die seltsamen leeren Kästchen wie ganz am Anfang" — in der Sidebar UND in Card-Templates (Top Emissions, Plans). **Wichtige Entwarnung zuerst: NICHT durch den Katalog-/Instanz-Umbau verursacht** — `htmlToPlan.js` war davon unberührt; der Bug ist vorbestehend und war schon als offener Roadmap-Punkt vermerkt („`<hr>`-Trenner → leere 0×0-Boxen"), nur an einem zu engen Symptom aufgehängt.
+  - **Root Cause (verifiziert in einem ECHTEN Browser, nicht nur jsdom — schließt Verifikations-Artefakt aus):** jedes Element-Kind wurde in `buildNormalNode` bedingungslos zu einem PlanNode, auch wenn es semantisch nichts trägt. `<br>` ist der Leitfall: kein Text, kein Element-Kind, kein Box-Trigger → eine komplett stilose leere Box landet sichtbar im Baum. Reproduziert 1:1 an der echten HTML-Stelle „Week to week<br/>performance" aus dem eingefrorenen CRAFTUI-Prod-Scan (Sidebar UND Conversion-History-Card betroffen — genau die zwei Stellen, die eine erste jsdom-Stichprobe zeigte, dann in einer echten Chromium-Instanz gegen den lokalen Vite-Dev-Server bestätigt).
+  - **Fix (`web/src/lib/emit/htmlToPlan.js`, neue Funktion `isInvisiblePhantomBox`):** ein Element-Kind, das nach dem Bau buchstäblich nichts Sichtbares trägt (keine Kinder, kein `fill`, kein `stroke`, keine explizite Breite/Höhe), wird beim Einsammeln der Kinder verworfen. Bewusst NICHT gefiltert: absolut positionierte Knoten (Position ist ein Signal), explizite Spacer-Divs (haben eine Breite/Höhe) und alles mit `fill`/`stroke` (z. B. `<hr>` mit `border-top` — bleibt die separate, schon bekannte „Trenner hat keine Höhe"-Scheibe, kein leerer Frame).
+  - **Verifiziert:** 0 verbleibende leere Boxen über alle 16 Bausteine des eingefrorenen CRAFTUI-Scans (vorher 2, per `node verification/figma-payload-from-raw.mjs` nachgezählt). 8 neue Regressionstests in `htmlToPlan.test.js` (br zwischen Textzeilen, loser br, hr ohne/mit Rahmen, bewusster Spacer bleibt, farbiger Dot ohne Kinder bleibt, absolute leere Box bleibt, Regression an Robs realer Sidebar-HTML-Stelle). **Web 806/806**, Build sauber. Server/Plugin/Harness unberührt (reine Web-Emit-Datei) — kein neuer Testlauf dort nötig.
+  - **Auf Prod deployed und verifiziert** (neuer Bundle-Hash live). Rob sollte im nächsten Figma-Import KEINE leeren Kästchen mehr sehen — außer echten `<hr>`-Trennern, die weiterhin die bekannte (kleine, separate) Höhen-Macke haben.
 - **25.07.2026 (nachts) — KATALOG ALS ECHTE FIGMA-KOMPONENTEN-BIBLIOTHEK GEBAUT (autonome Session).** Spec: `docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md`. Tests: **Web 791/791 · Plugin 117/117 · Server 335/335 · Harness 19/19**, Plugin-Typecheck sauber, Web-Build sauber. **⚠️ Ein Klick von Rob offen: Dev-Plugin NEU LADEN (dist ist neu gebaut) und importieren.**
   - **Was jetzt in Figma landet:** eine neue, oberste Sektion **`DB/Design System`** mit dem Design System als echten Komponenten (`DS/Button` als Component Set mit 24 echten Varianten-Properties `variant=…, size=…`, dazu `DS/Card`, `DS/Badge`, `DS/Input`, `DS/Checkbox`, `DS/Avatar`, `DS/Separator`). Gescannte Bausteine referenzieren die Bibliothek als **◇-Instanzen** statt als inline gegroundete Frames.
   - **Die drei Entscheidungen, die das tragen:**
@@ -79,12 +84,13 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 - **20.07.2026 abends:** UI-Feinschliff live gepusht (`e5d893e`, Web **598/598**): (a) Footer volle Breite / fixe App-Shell (`h-screen`, Header+Footer fixe Leisten, `main` scrollt intern); (b) Content-Seiten **Preview-First**: Atoms/Molecules/Organisms = volle-Breite-Zeilen, Vorschau immer offen [23.07 abends überholt: jetzt collapse-by-default + Filterleiste, s. oben], Code (+Kopieren/Herunterladen) hinter „Code anzeigen"-Toggle, Organism-Herkunft/Landmarke neben dem Toggle, Templates unverändert Akkordeon; Raster + Höhen-Deckel-Maschinerie entfernt; React-key-Warnung gefixt, Konsole sauber. Spec/Plan: `docs/superpowers/{specs,plans}/2026-07-20-content-pages-preview-first.md`. Nächster offener Kandidat war „T-propagate" — mit diesem Umbau erledigt.
 - Davor am selben Tag: Brand-Rollback auf zink (`c63114c`) + orchestrierter Presentation-Ready-Test 6/6 grün; UIPrism-Rebrand-Skin + Bild-Zuverlässigkeit (`628d3ca`/`eb5ecbf`); Breiten-Test Eingabetypen fertig; Architektur-Pivot Scheibe 1–3 (kanonisches `plan`-Modell) komplett; Figma-Reverse-Import v1.
 - **App LIVE:** https://designbridge-production.up.railway.app mit **Gemini PAID**. Name/Favicon: UIPrism; Look: zurück auf zink/weiß (kein Indigo/Flieder).
-- **Tests (aktuell, 25.07. nachts):** Web **791/791** · Server **335/335** · Plugin **117/117** · Storybook-Harness **19/19**, Plugin-Typecheck sauber.
+- **Tests (aktuell, 25.07. nachts):** Web **806/806** · Server **335/335** · Plugin **117/117** · Storybook-Harness **19/19**, Plugin-Typecheck sauber.
 
 ## Aktives Ziel / Nächste Schritte
 
-**▶️ LAUFENDE SESSION 25.07. nachts:** Katalog als echte Figma-Komponenten-Bibliothek gebaut
-(Spec + Web-Emit + Plugin + Tests + KI-freie Verifikation, Details oben im Stand).
+**▶️ LAUFENDE SESSION 25.07. nachts:** Katalog als echte Figma-Komponenten-Bibliothek gebaut,
+dann Robs erster echter Test dagegen gefahren → Phantom-Kästchen-Bugfix (`<br>` u. Ä., Details oben
+im Stand). Rob will als NÄCHSTES die Sub-Komponenten-Slots angehen (`Card > CardHeader > CardTitle`).
 Vorher: Komposition gegroundeter Bausteine → Robs Test-Runde → Icon-Fix, Export-Umsortierung,
 Vorschau-Deckel, Storybook-Token-Paket.
 
@@ -96,8 +102,12 @@ im auf Railway GEBAUTEN Storybook sind die Scan-Token-Klassen (`.p-card-layout-p
 Tokens jetzt wirklich. Ein frischer Prod-Scan (CRAFTUI-Dashboard) liegt als `prod-scan-raw.json`
 eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
 
-0. **Figma-Import mit NEU GELADENEM Dev-Plugin** — der einzige echte Blocker der DS-Library
-   (s. Stand 25.07. nachts). Ohne Reload verhält sich alles wie vorher.
+0. **Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` / `CardContent`) — das ist Robs
+   angekündigter nächster Schritt. Würde nebenbei auch den letzten offenen DS-Library-Rest lösen
+   (Card als ◇-Instanz statt Frame, s. Spec §Bewusste Grenzen). Noch kein Spec/Plan dafür.
+0a. **Figma-Import erneut prüfen** (Dev-Plugin neu laden, dist ist wieder frisch — auch der
+   Phantom-Kästchen-Fix ist drin) — bestätigt zwei Dinge auf einmal: DS-Library-Instanzen UND
+   dass die leeren Kästchen weg sind.
 1. **Robs Sicht-Check der neuen Runde** (er hat den Vor-Fix-Stand gesehen, deshalb lohnt ein
    frischer Blick): Export-Seite (ZIELE oben, Code kompakt), Vorschaugrößen auf seinem breiten
    Bildschirm (max 1:1, Zeilen ≤ 420px), und **„In Storybook öffnen" erneut klicken** — jetzt mit
@@ -128,14 +138,26 @@ eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
 - **Alte Roadmap-Punkte, unverändert offen:** Chart-Trend-Linien-Breiten-Determinismus (Ursache
   belegt, delikat) · UI-Layout-Redesign · Umbenennung DesignBridge → UIPrism in Code/Repo/URL
   (URL ist im Plugin hartkodiert, deshalb ganz zuletzt) · Margins vom Konverter ignoriert ·
-  `<hr>`-Trenner/Storage-Progress-Höhe · Tabellen-Spaltenraster · Figma-Seiten-Namespacing pro
-  Import · Export-Zahl-Diskrepanz kommunizieren (Tokens vs. Figma-Styles).
+  **`<hr>`-Trenner hat keine Höhe** (der ANDERE Teil vom „leere Boxen"-Punkt, absichtlich NICHT mit
+  dem Phantom-Kästchen-Fix miterledigt — ein `<hr>` mit `border-top` bekommt jetzt korrekt einen
+  sichtbaren `stroke`, bleibt aber ein HUG-Frame ohne Höhe/Breite, rendert also als winziges
+  Quadrat statt einer Linie; eigene kleine Scheibe: Trenner-Höhe aus dem gemessenen Rect einfrieren
+  oder auf den `Separator`-Katalogeintrag groundnen) · Tabellen-Spaltenraster · Figma-Seiten-
+  Namespacing pro Import · Export-Zahl-Diskrepanz kommunizieren (Tokens vs. Figma-Styles).
 - **Zwei Skill-Fallen sind dokumentiert** (`.claude/skills/figma-e2e-test/SKILL.md`): Figma Desktop
   braucht ein OFFENES Fenster (`count of windows` = 0 → `⌘N` greift nicht, `activate` hängt), und
   das Dev-Plugin heißt **UIPrism**, nicht mehr „DesignBridge" (alter Name wirft `-1728`).
 
-- **NÄCHSTER SCHRITT (ein Klick von Rob): Figma-Import mit NEU GELADENEM Dev-Plugin.** Das ist jetzt Pflicht, nicht optional — die DS-Bibliothek braucht den neuen `dist` (Plugins → Entwicklung → **UIPrism**; ohne Reload rendert alles wie vorher plus „Komponente nicht gefunden"-Warnungen). Erwartung: Sektion „Design System" oben mit `DS/Button` (Varianten-Umschalter), darunter die Bausteine mit ◇-Instanzen; KPI-Karten weiter mit shadcn-Hülle (radius 8), echte `secondary`-Badges, Outline-Button „Details". Danach lohnt der Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-Beweis.
-- **Danach als nächste Scheibe:** Sub-Komponenten-Slots (`CardHeader`/`CardTitle`) — würde auch den einzigen echten Rest der DS-Library lösen (Card als ◇-Instanz statt Frame). Optional: `shadow-sm` im Plan-Modell.
+- **NÄCHSTER SCHRITT (Rob-Ansage): Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` /
+  `CardContent`) — idiomatischeres Markup, würde nebenbei auch den letzten DS-Library-Rest lösen
+  (Card als ◇-Instanz statt Frame). Noch kein Spec/Plan — nächste Session startet dort mit
+  Brainstorming/Spec (Design-Entscheidungen: Slots vs. flache Kinder, wie der gemessene Inhalt in
+  die Slots wandert).
+- **Ein Klick von Rob bleibt sinnvoll (nicht mehr Pflicht, aber lohnt):** Figma-Import mit neu
+  geladenem Dev-Plugin (dist ist wieder frisch — Phantom-Kästchen-Fix ist mit drin) → bestätigt DS-
+  Library-Instanzen UND dass die leeren Kästchen weg sind, in einem Durchgang. Danach lohnt der
+  Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-
+  Beweis.
 - ~~Komposition in gegroundeten Bausteinen~~ — **ERLEDIGT 25.07. abends** (s. Stand oben). Robs „vielleicht noch eine andere Baustelle" hat sich als das Zielbild „shadcn = Fundament, Figma + Storybook identisch" + „Atomic-Verschachtelung in Figma prüfen" herausgestellt; beides ist in dieser Scheibe adressiert.
 - **DS-Grounding Scheibe 1 (in main, 23.07.):** Interpretation wird jetzt gegen einen shadcn/ui-Default-Katalog gegroundet statt freihändig nachgebaut. Kette: Katalog (`web/src/lib/catalog/shadcn-default.js`) → `htmlToPlan` promotet `data-ds-component`-Marker zu Katalog-`component-ref`s → `planToJsx` emittiert echten shadcn-Code (`import { Button } … <Button variant=…>`) → Server-Prompt (`server/lib/catalog/shadcnVocabulary.js`) lehrt das Vokabular → Emit-Verdrahtung → **Verifikation** (`web/verification/`: Emit kompiliert via esbuild + rendert via react-dom gegen ein reales shadcn-Target) → `grounded`-Flag als `GroundedPill` in der UI. Tests: Server 296, Web 646. Specs: `docs/superpowers/specs/2026-07-23-*`. Der Kern der These (Scan → gegen shadcn interpretiert → echter kompilierender Code) ist end-to-end belegt.
   - **So anschauen:** (a) echten Emit sehen → `node web/verification/generate-sample.mjs`; (b) Kompilier-+Render-Beweis → `cd web && npx vitest run src/lib/emit/grounding.verify.test.js`; (c) alle Grounding-Tests → `npx vitest run` (Suche „grounding"); (d) UI-Pille → `GroundedPill` erscheint in den Content-Seiten (Atoms/Molecules/Organisms) neben den Source-Pillen, sobald ein Baustein gegroundet ist. **Achtung:** frischer Clone braucht `npm install` (Root + `web/`) — sonst fehlen `@anthropic-ai/sdk` (Server) bzw. vitest-Deps (Web).
