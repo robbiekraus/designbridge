@@ -138,6 +138,29 @@ describe('Export page', () => {
     vi.unstubAllGlobals();
   });
 
+  // Live-Fund 25.07.: Klassen wie `bg-background-card` waren im Empfangs-Storybook nicht
+  // definiert, weil dessen Tailwind-Config die Scan-Tokens nicht kannte — der Build-Request
+  // muss sie deshalb mitschicken.
+  it('schickt die Scan-Tokens (tailwind.tokens.js/tokens.css) im Build-Request mit', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'abc123', url: '/preview/abc123/' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('open', vi.fn());
+
+    render(<Export result={imageResult} />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.tokens).toContain('export default {');
+    expect(body.tokens).toContain('primary-button');
+    expect(body.tokensCss).toContain('--color-primary-button: #022d2c;');
+
+    vi.unstubAllGlobals();
+  });
+
   it('zeigt eine ehrliche Fehlermeldung, wenn der Storybook-Builder nicht antwortet', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('network down'));
     vi.stubGlobal('fetch', fetchMock);

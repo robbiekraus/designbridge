@@ -283,6 +283,19 @@ function isCatalogContainer(node) {
   return Boolean(node.container) && !node.voidElement && (node.fallback?.children?.length > 0);
 }
 
+/** Sichtbare SVG-Knoten eines (fallback-)Subtrees einsammeln (Dokumentreihenfolge, beliebig tief,
+ *  steigt auch in Fallbacks verschachtelter Refs ab) — spiegelt extractText strukturell. Live-Fund
+ *  25.07. (Prod-Scan): ein Icon-Button-Fallback trägt NUR ein SVG, keinen Text; ohne diese Sammlung
+ *  verschwindet das Icon spurlos (leeres, selbstschließendes Tag). */
+function collectSvgNodes(node) {
+  if (!node || typeof node !== 'object') return [];
+  if (node.type === 'svg') return [node];
+  if (node.type === 'component-ref') return collectSvgNodes(node.fallback);
+  const out = [];
+  for (const c of node.children || []) out.push(...collectSvgNodes(c));
+  return out;
+}
+
 function walkCatalogRef(node, depth, componentName, tokens) {
   const pad = INDENT.repeat(depth);
   const importName = node.import?.name || node.name || 'Component';
@@ -307,8 +320,18 @@ function walkCatalogRef(node, depth, componentName, tokens) {
   // NIE JSX-Children bekommen — React wirft sonst zur Laufzeit (Live-Fund 24.07., echter Prod-Scan:
   // die KI-Interpretation hatte Platzhaltertext im Input-Fallback-HTML).
   const text = node.voidElement ? '' : extractText(node.fallback).replace(/\s+/g, ' ').trim();
-  if (!text) return `${pad}<${tag}${attrStr} />`;
-  return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
+  if (text) return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
+  // Kein sichtbarer Text — Live-Fund 25.07. (Prod-Scan): trägt der Fallback stattdessen ein Icon
+  // (SVG), rendern wir es als Kind statt das Tag leer zu lassen (Spec 2026-07-25 §Blatt-Zweig). Ein
+  // voidElement bleibt IMMER selbstschließend, auch wenn sein Fallback ein SVG enthält.
+  if (!node.voidElement) {
+    const svgNodes = collectSvgNodes(node.fallback);
+    if (svgNodes.length) {
+      const kids = svgNodes.map((s) => walkSvg(s, depth + 1)).join('\n');
+      return `${pad}<${tag}${attrStr}>\n${kids}\n${pad}</${tag}>`;
+    }
+  }
+  return `${pad}<${tag}${attrStr} />`;
 }
 
 /** Katalog-Imports im gerenderten Baum sammeln → Map<from, Set<name>>. Spiegelt walk: ein Katalog-ref

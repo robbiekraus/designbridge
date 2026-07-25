@@ -102,14 +102,30 @@ function groundContainer(node, entry, sel, catalogOption) {
   return result;
 }
 
+/** Sichtbare SVG-Knoten eines Fallback-Subtrees einsammeln (Dokumentreihenfolge, beliebig tief,
+ *  steigt auch in fallbacks verschachtelter Refs ab) — spiegelt collectFallbackText strukturell.
+ *  Live-Fund 25.07. (Prod-Scan): ein Icon-Blatt (z. B. Button mit `size:'icon'`) hat im Fallback
+ *  KEINEN Text, nur ein SVG; ohne diese Sammlung bliebe der generische Platzhalter-Glyph des
+ *  Katalogs stehen statt des echten Icons der Vorlage. */
+function collectFallbackSvgNodes(node) {
+  if (!node || typeof node !== 'object') return [];
+  if (node.type === 'svg') return [node];
+  if (node.type === 'component-ref') return collectFallbackSvgNodes(node.fallback);
+  if (Array.isArray(node.children)) return node.children.flatMap((c) => collectFallbackSvgNodes(c));
+  return [];
+}
+
 /** Blatt-Zweig (Spec §Entscheidung 4, zweiter Spiegelstrich): der Knoten aus `entry.plan(sel)`
  *  (echte shadcn-Optik je Variante), dessen ersten Textknoten der ECHTE, sichtbare Fallback-Text
- *  ersetzt (Whitespace kollabiert + getrimmt). Kein sichtbarer Text im Fallback (Icon-Button,
- *  Checkbox, Separator, `voidElement`) ODER Katalog-Plan hat gar keinen Textknoten → Katalog-Plan
- *  unverändert. `absolute`/`stretch`/`grow` vom Ref-Knoten übernehmen. */
+ *  ersetzt (Whitespace kollabiert + getrimmt). Kein sichtbarer Text im Fallback, aber ein SVG (Icon-
+ *  Button & Co.) → die Kinder der Katalog-Plan-Wurzel werden durch die ECHTEN SVG-Knoten aus dem
+ *  Fallback ersetzt (Live-Fund 25.07., Spec 2026-07-25 §Blatt-Zweig Figma-Weg): der Katalog rendert
+ *  für `size:'icon'` nur ein generisches Plus-Zeichen, das echte Icon der Vorlage im Fallback soll
+ *  gewinnen. Weder Text noch SVG im Fallback ODER Katalog-Plan hat gar keinen Textknoten/keine
+ *  Kinder → Katalog-Plan unverändert. `absolute`/`stretch`/`grow` vom Ref-Knoten übernehmen. */
 function groundLeaf(node, entry, sel) {
   const planNode = entry.plan(sel);
-  // voidElement (Input & Co.) bekommt NIE Text injiziert — auch nicht, wenn der Fallback
+  // voidElement (Input & Co.) bekommt NIE Text ODER SVG injiziert — auch nicht, wenn der Fallback
   // (fälschlich) welchen trägt (Live-Fund 24.07., s. htmlToPlan.js-Kommentar zu voidElement).
   const skipText = Boolean(node.voidElement) || Boolean(entry.voidElement);
   const fallbackText = skipText ? '' : collectFallbackText(node.fallback).replace(/\s+/g, ' ').trim();
@@ -118,6 +134,11 @@ function groundLeaf(node, entry, sel) {
   if (fallbackText) {
     const replaced = replaceFirstTextNode(planNode, fallbackText);
     if (replaced.changed) finalPlan = replaced.node;
+  } else if (!skipText) {
+    const svgNodes = collectFallbackSvgNodes(node.fallback);
+    if (svgNodes.length && Array.isArray(planNode.children)) {
+      finalPlan = { ...planNode, children: svgNodes };
+    }
   }
 
   const result = { ...finalPlan };

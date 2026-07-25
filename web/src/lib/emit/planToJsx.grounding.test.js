@@ -240,3 +240,84 @@ describe('planToJsx — Komposition gegroundeter Container-Bausteine (container:
     expect(code).toContain('<Badge variant="secondary">3.1%</Badge>');
   });
 });
+
+// Task 3 (Live-Fund 25.07., Prod-Scan): ein Blatt-Katalog-Ref (z. B. Icon-Button), dessen Fallback
+// NUR ein SVG und keinen sichtbaren Text trägt, verlor sein Icon komplett — `walkCatalogRef`
+// übernahm bislang nur den TEXT des Fallbacks, ein reiner Icon-Fallback lieferte leeren String →
+// selbstschließendes, leeres Tag (`<Button variant="ghost" size="icon" />`). Real gesehen an einem
+// gescannten Dashboard: die komplette Sidebar-Navigation kam im Storybook als Reihe leerer Kästchen
+// an. Spec 2026-07-25 §Blatt-Zweig: SVGs aus dem Fallback werden jetzt als Kinder gerendert.
+const svgNode = (markup) => ({ type: 'svg', markup });
+
+describe('planToJsx — Blatt-Ref Icon-Fallback: SVG als Kind statt leerem Tag (Live-Fund 25.07.)', () => {
+  it('Icon-Button (Fallback = Box mit einem SVG, kein Text) → SVG wird als Kind gerendert, Tag schließt regulär', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' },
+      props: { variant: 'ghost', size: 'icon' },
+      fallback: fullBox({ children: [svgNode('<svg width="16" height="16"><path d="M5 12h14"/></svg>')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Button variant="ghost" size="icon">');
+    expect(code).toContain('<path d="M5 12h14"/>');
+    expect(code).toContain('</Button>');
+    expect(code).not.toContain('<Button variant="ghost" size="icon" />');
+  });
+
+  it('Label-Button mit Text bleibt <Button>Speichern</Button> (Regression: kein Icon-Verhalten, wenn Text vorhanden ist)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' }, props: {},
+      fallback: fullBox({ children: [text('Speichern')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Button>Speichern</Button>');
+  });
+
+  it('voidElement (Input) mit SVG im Fallback bleibt selbstschließend (Regression: voidElement gewinnt IMMER)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Input', import: { name: 'Input', from: '@/components/ui/input' },
+      voidElement: true, props: {},
+      fallback: fullBox({ children: [svgNode('<svg><path d="M0 0"/></svg>')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Input />');
+    expect(code).not.toContain('<Input>');
+    expect(code).not.toContain('<svg');
+  });
+
+  it('Blatt ohne Text und ohne SVG bleibt selbstschließend (Regression)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Input', import: { name: 'Input', from: '@/components/ui/input' }, props: {},
+      fallback: fullBox({}),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Input />');
+  });
+
+  it('mehrere SVGs im Fallback → alle als Kinder, in Dokumentreihenfolge', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' },
+      props: { size: 'icon' },
+      fallback: fullBox({ children: [
+        svgNode('<svg><path d="M1 1"/></svg>'),
+        svgNode('<svg><path d="M2 2"/></svg>'),
+      ] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    const i1 = code.indexOf('M1 1');
+    const i2 = code.indexOf('M2 2');
+    expect(i1).toBeGreaterThan(-1);
+    expect(i2).toBeGreaterThan(i1);
+  });
+
+  it('SVG in verschachteltem Katalog-Ref im Fallback wird ebenfalls gefunden (steigt wie extractText in Sub-Fallbacks ab)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' }, props: { size: 'icon' },
+      fallback: fullBox({ children: [catalogRef({
+        name: 'Badge', import: { name: 'Badge', from: '@/components/ui/badge' }, props: {},
+        fallback: fullBox({ children: [svgNode('<svg><path d="M9 9"/></svg>')] }),
+      })] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('M9 9');
+  });
+});

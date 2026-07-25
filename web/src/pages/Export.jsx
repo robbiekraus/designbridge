@@ -113,10 +113,18 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
         if (filePath.startsWith('components/')) components[filePath.slice('components/'.length)] = content;
         else if (filePath.startsWith('stories/')) stories[filePath.slice('stories/'.length)] = content;
       }
+      // Scan-Tokens (tailwind.tokens.js / tokens.css) mitschicken, damit die Live-Vorschau
+      // dieselben Klassen (bg-background-card, p-card-layout-…) auflöst wie der ZIP-Export —
+      // fehlen sie (Preview-Import ohne Rohdaten), bleiben die Felder einfach weg.
       const res = await fetch(`${builderUrl}/build`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ components, stories }),
+        body: JSON.stringify({
+          components,
+          stories,
+          tokens: files['tailwind.tokens.js'],
+          tokensCss: files['tokens.css'],
+        }),
       });
       if (!res.ok) throw new Error('Storybook-Builder antwortete mit Fehler');
       const { url } = await res.json();
@@ -141,63 +149,8 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
 
   return (
     <div className="max-w-4xl">
-      {/* ── Tokens: Formate als Tabs über dem Code (statt separater Format-Liste) ── */}
-      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">Tokens</div>
-      <p className="text-xs text-zinc-500 mb-3">
-        Design-Tokens aus dem Import — Farben, Schrift, Spacing, Radius, Shadows.
-      </p>
-
-      <div className="border border-zinc-200 rounded-lg overflow-hidden">
-        <div className="flex gap-1 px-3 border-b border-zinc-200">
-          {FORMAT_LIST.map(f => (
-            <button
-              key={f.id}
-              onClick={() => setActiveId(f.id)}
-              className={`text-sm px-3 py-2 -mb-px border-b-2 transition-colors ${
-                activeId === f.id
-                  ? 'border-primary text-zinc-900 font-medium'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-900'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-        <pre
-          data-testid="export-preview"
-          className="text-xs font-mono bg-zinc-50 p-4 overflow-auto max-h-[60vh] whitespace-pre"
-        >
-          {code}
-        </pre>
-        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-zinc-100">
-          <span className="text-[11px] font-mono text-zinc-400">{current.filename}</span>
-          {copied === 'ok' && <span className="text-[10px] text-emerald-600">kopiert</span>}
-          {copied === 'fail' && <span className="text-[10px] text-red-600">nicht verfügbar</span>}
-          <span className="ml-auto" />
-          <button
-            onClick={handleCopy}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
-          >
-            Kopieren
-          </button>
-          <button
-            onClick={() => downloadFile(current.filename, code, current.mime)}
-            className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
-          >
-            Herunterladen
-          </button>
-        </div>
-      </div>
-
-      <button
-        onClick={handleDownloadAllTokens}
-        className="mt-3 text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
-      >
-        Alle Token-Formate herunterladen
-      </button>
-
       {/* ── Ziele: Figma · Storybook · Ganze Library gleichwertig nebeneinander ── */}
-      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mt-8 mb-1">Ziele</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1">Ziele</div>
       <p className="text-xs text-zinc-500 mb-3">Wohin mit der Extraktion?</p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -307,6 +260,60 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
           </div>
         )}
       </div>
+      {/* ── Tokens: Formate als Tabs über dem Code (statt separater Format-Liste) ── */}
+      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mt-8 mb-1">Tokens</div>
+      <p className="text-xs text-zinc-500 mb-3">
+        Design-Tokens aus dem Import — Farben, Schrift, Spacing, Radius, Shadows.
+      </p>
+
+      <div className="border border-zinc-200 rounded-lg overflow-hidden">
+        <div className="flex gap-1 px-3 border-b border-zinc-200">
+          {FORMAT_LIST.map(f => (
+            <button
+              key={f.id}
+              onClick={() => setActiveId(f.id)}
+              className={`text-sm px-3 py-2 -mb-px border-b-2 transition-colors ${
+                activeId === f.id
+                  ? 'border-primary text-zinc-900 font-medium'
+                  : 'border-transparent text-zinc-500 hover:text-zinc-900'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <pre
+          data-testid="export-preview"
+          className="text-xs font-mono bg-zinc-50 p-4 overflow-auto max-h-[280px] whitespace-pre"
+        >
+          {code}
+        </pre>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t border-zinc-100">
+          <span className="text-[11px] font-mono text-zinc-400">{current.filename}</span>
+          {copied === 'ok' && <span className="text-[10px] text-emerald-600">kopiert</span>}
+          {copied === 'fail' && <span className="text-[10px] text-red-600">nicht verfügbar</span>}
+          <span className="ml-auto" />
+          <button
+            onClick={handleCopy}
+            className="text-xs px-2.5 py-1 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
+          >
+            Kopieren
+          </button>
+          <button
+            onClick={() => downloadFile(current.filename, code, current.mime)}
+            className="text-xs px-2.5 py-1 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
+          >
+            Herunterladen
+          </button>
+        </div>
+      </div>
+
+      <button
+        onClick={handleDownloadAllTokens}
+        className="mt-3 text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors"
+      >
+        Alle Token-Formate herunterladen
+      </button>
     </div>
   );
 }

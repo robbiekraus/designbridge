@@ -20,7 +20,10 @@ import { PREVIEW_VIRTUAL_WIDTH } from '../../lib/previewWidth.js';
 const THUMB_VIRTUAL_WIDTH = PREVIEW_VIRTUAL_WIDTH;
 const THUMB_VIRTUAL_HEIGHT = 640;
 const THUMB_FALLBACK_WIDTH = 672; // jsdom / erster Render ohne Layout: Fallback statt scale(0)
-const THUMB_MAX_HEIGHT = 800;
+// Höhen-Deckel der Zeilen-Vorschau (Rob 25.07.: „die Vorschau sind riesig … nimmt den ganzen
+// Bildschirm"). Ist der Inhalt höher, wird WEITER HERUNTERSKALIERT statt abgeschnitten — der Baustein
+// bleibt vollständig sichtbar, nur kleiner; fürs Detail gibt es das Vollbild.
+const THUMB_MAX_HEIGHT = 420;
 const THUMB_MIN_HEIGHT = 40;
 const HEIGHT_MESSAGE_TYPE = 'designbridge-preview-height';
 
@@ -97,7 +100,6 @@ export default function InterpretedPreview({ html, title }) {
   const [contentHeight, setContentHeight] = useState(null);
   const instanceId = useId();
   const thumbFrameRef = useRef(null);
-  const scale = containerWidth / THUMB_VIRTUAL_WIDTH;
   const thumbSrcDoc = buildSrcdoc(html, instanceId);
   const modalSrcDoc = buildSrcdoc(html);
 
@@ -116,9 +118,22 @@ export default function InterpretedPreview({ html, title }) {
     return () => window.removeEventListener('message', onMessage);
   }, [instanceId]);
 
-  const frameHeight = contentHeight == null
-    ? THUMB_VIRTUAL_HEIGHT
-    : Math.max(THUMB_MIN_HEIGHT, Math.min(contentHeight, THUMB_MAX_HEIGHT));
+  // Höhe = gemeldete Inhaltshöhe (ungedeckelt), der Deckel wirkt über die Skalierung.
+  const frameHeight = Math.max(
+    THUMB_MIN_HEIGHT,
+    contentHeight == null ? THUMB_VIRTUAL_HEIGHT : contentHeight,
+  );
+
+  // Maßstab (Rob 25.07.): NIE über 1 — vorher war `containerWidth / 1024` ungedeckelt, auf breiten
+  // Bildschirmen (Inhaltsspalte > 1024px) wurde die Vorschau also größer als das Original gerendert.
+  // Jetzt: höchstens 1:1, schmaler Container skaliert wie bisher herunter (damit ein 1024 breiter
+  // Organismus überhaupt hineinpasst), und zu hohe Bausteine werden zusätzlich so weit
+  // heruntergerechnet, dass die Zeile THUMB_MAX_HEIGHT nicht überschreitet.
+  const scale = Math.min(
+    1,
+    containerWidth / THUMB_VIRTUAL_WIDTH,
+    THUMB_MAX_HEIGHT / frameHeight,
+  );
 
   useEffect(() => {
     if (!open) return;

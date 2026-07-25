@@ -133,7 +133,7 @@ describe('groundPlan — Blatt-Eintrag (Button/Badge)', () => {
     expect(result.grow).toBe(true);
   });
 
-  it('Icon-Button (size:icon, Fallback ohne Text) → Katalog-Plan bleibt unverändert inkl. SVG-Glyph', () => {
+  it('Icon-Button (size:icon, Fallback ohne Text, aber mit SVG) → Katalog-Hülle bleibt, aber das ECHTE Fallback-SVG gewinnt gegen den Katalog-Plus-Glyph (Live-Fund 25.07., Prod-Scan)', () => {
     const iconButtonRef = catalogRef({
       name: 'Button',
       props: { size: 'icon' },
@@ -141,10 +141,26 @@ describe('groundPlan — Blatt-Eintrag (Button/Badge)', () => {
     });
     const result = groundPlan(iconButtonRef, CATALOG);
     expect(result.type).toBe('box');
-    // Katalog-Icon-Glyph (Plus-Icon aus buttonPlan), kein Text-Kind.
+    // Katalog-Hülle (radius/Sizing) bleibt (Button-Icon-Padding [10,10,10,10] aus dem Katalog).
+    expect(result.padding).toEqual([10, 10, 10, 10]);
+    // Genau ein Kind: das ECHTE SVG aus dem Fallback, NICHT der Katalog-Plus-Glyph.
     expect(result.children).toHaveLength(1);
     expect(result.children[0].type).toBe('svg');
+    expect(result.children[0].markup).toBe('<svg><path d="M0 0"/></svg>');
+    expect(result.children[0].markup).not.toContain('M12 5v14M5 12h14'); // Katalog-Plus-Glyph
     expect(result.children.some((c) => c.type === 'text')).toBe(false);
+  });
+
+  it('Blatt mit Text bleibt unverändert (Regression: Text-Ersetzung hat weiterhin Vorrang vor SVG-Ersetzung)', () => {
+    const buttonRef = catalogRef({
+      name: 'Button',
+      props: { variant: 'secondary' },
+      fallback: box({ children: [text('Speichern')] }),
+    });
+    const result = groundPlan(buttonRef, CATALOG);
+    const label = result.children.find((c) => c.type === 'text');
+    expect(label.content).toBe('Speichern');
+    expect(result.children.some((c) => c.type === 'svg')).toBe(false);
   });
 });
 
