@@ -147,6 +147,10 @@ export function formatImportSummary(s: ImportSummary): string {
     // "davon" macht klar: die Platzhalter sind in "X Bausteine neu" bereits ENTHALTEN,
     // keine zusätzlichen Bausteine (Testrunde 8, Fix 2 — sonst liest sich "13, 1" wie 13+1).
     s.placeholders ? `davon ${s.placeholders} Platzhalter` : '',
+    // DS-Bibliothek separat (2026-07-25): eigene Zählung, damit „Bausteine" weiter nur gescannte
+    // Bausteine meint.
+    s.catalogCreated ? `${s.catalogCreated} DS-Komponenten neu` : '',
+    s.catalogUpdated ? `${s.catalogUpdated} DS-Komponenten aktualisiert` : '',
   ]
     .filter(Boolean)
     .join(', ');

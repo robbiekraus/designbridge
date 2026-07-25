@@ -74,6 +74,32 @@ describe('scalePlan', () => {
     expect(r.name).toBe('Btn');
   });
 
+  // Katalog-Instanzen (Spec 2026-07-25-katalog-als-figma-library-design.md §Entscheidung 1):
+  // die DS-Library liegt bei 1× in Figma, die Instanz trägt den Faktor als `scale` und das Plugin
+  // ruft rescale() — nur Knoten, die sich per `catalogInstance` dafür melden.
+  it('component-ref mit catalogInstance: bekommt scale = Faktor', () => {
+    const r = scalePlan({ type: 'component-ref', name: 'DS/Button', variant: null, catalogInstance: true,
+      fallback: box({ padding: [2, 2, 2, 2] }) }, 2.5);
+    expect(r.scale).toBe(2.5);
+    expect(r.fallback.padding).toEqual([5, 5, 5, 5]);
+  });
+
+  it('component-ref mit catalogInstance: vorhandenes scale wird multipliziert', () => {
+    const r = scalePlan({ type: 'component-ref', name: 'DS/Button', variant: null, catalogInstance: true, scale: 2,
+      fallback: null }, 3);
+    expect(r.scale).toBe(6);
+  });
+
+  it('component-ref OHNE catalogInstance bekommt kein scale (scan-interne Instanz)', () => {
+    const r = scalePlan({ type: 'component-ref', name: 'Kpi Card', variant: null, fallback: null }, 2);
+    expect(r.scale).toBeUndefined();
+  });
+
+  it('Faktor 1 lässt den Baum identisch (auch Katalog-Instanzen bleiben ohne scale)', () => {
+    const node = { type: 'component-ref', name: 'DS/Button', variant: null, catalogInstance: true, fallback: null };
+    expect(scalePlan(node, 1)).toBe(node);
+  });
+
   it('verschachtelt tief skaliert', () => {
     const r = scalePlan(box({ gap: 5, children: [text({ fontSize: 10 }), box({ width: 30, children: [text({ fontSize: 8 })] })] }), 2);
     expect(r.gap).toBe(10);

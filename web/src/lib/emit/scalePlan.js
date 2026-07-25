@@ -46,6 +46,12 @@ function scaleNode(node, f) {
     const out = { ...node };
     if (node.absolute) out.absolute = scaleAbsolute(node.absolute, f);
     if (node.fallback) out.fallback = scaleNode(node.fallback, f);
+    // Katalog-Instanz (Spec 2026-07-25-katalog-als-figma-library-design.md §Entscheidung 1): die
+    // DS-Library liegt bei 1× in Figma, eine Instanz kann ihren Inhalt nicht selbst skalieren →
+    // der Faktor reist als `scale` mit und das Plugin ruft instance.rescale(scale). NUR Knoten, die
+    // sich per `catalogInstance` dafür melden; scan-interne Instanzen sind schon in ihrem eigenen
+    // Maßstab gebaut (shrink-only via absolute) und bleiben unberührt.
+    if (node.catalogInstance) out.scale = (typeof node.scale === 'number' ? node.scale : 1) * f;
     return out;
   }
   // box

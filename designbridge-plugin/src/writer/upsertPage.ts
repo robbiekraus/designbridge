@@ -5,6 +5,9 @@ import type { SectionFrames } from './buildComponents';
 export const PAGE_NAME = '🌉 DesignBridge';
 
 const SECTIONS: Array<{ key: keyof SectionFrames; title: string }> = [
+  // Das Fundament zuerst (Spec 2026-07-25-katalog-als-figma-library-design.md): die DS-Bibliothek,
+  // auf deren Komponenten die Bausteine darunter als ◇-Instanzen zeigen.
+  { key: 'catalog', title: 'Design System' },
   { key: 'atom', title: 'Atoms' },
   { key: 'molecule', title: 'Molecules' },
   { key: 'organism', title: 'Organisms' },

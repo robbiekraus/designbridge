@@ -39,6 +39,8 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 - [docs/superpowers/specs/2026-06-11-import-modal-design.md](docs/superpowers/specs/2026-06-11-import-modal-design.md) — Initial Import Modal (Image / URL / Repo / Figma)
 - [docs/superpowers/specs/2026-07-23-design-system-grounded-interpretation-architecture.md](docs/superpowers/specs/2026-07-23-design-system-grounded-interpretation-architecture.md) — Interpretation gegen ein Design System groundnen (Katalog als Vokabular; Figma↔Repo-Verbindung). Richtungsdokument.
 - [docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md](docs/superpowers/specs/2026-07-23-slice1-ds-grounding-default-catalog-design.md) — Scheibe 1 (Grounding gegen shadcn/Tailwind-Default-Katalog). **KOMPLETT** 23.07.
+- [docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md](docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md) — Komposition INNERHALB gegroundeter Bausteine (Hülle aus dem Katalog, Layout/Inhalt aus der Messung). **KOMPLETT** 25.07.
+- [docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md](docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md) — Katalog als echte Figma-Komponenten-Bibliothek (`DS/…`-Komponenten + ◇-Instanzen). **GEBAUT** 25.07. nachts, Robs Plugin-Reload + Sichtprüfung offen.
 
 ## Current goal
 

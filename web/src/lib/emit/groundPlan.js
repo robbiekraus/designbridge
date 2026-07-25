@@ -12,6 +12,15 @@
 // Scan-interne component-refs (OHNE `catalog`-Feld — Atomic-Design-Verschachtelung, echte Figma-
 // Instanzen) werden NICHT angefasst; nur ihr `fallback` wird weiter abgestiegen, weil darin
 // verschachtelte Katalog-Refs stecken können (ein Molekül mit einem Badge z. B.).
+//
+// INSTANZ-MODUS (`{ instances: true }`, Spec 2026-07-25-katalog-als-figma-library-design.md): liegt der
+// Katalog zusätzlich als echte Figma-Library im Payload (`emitFigmaCatalog`), wird ein BLATT-Ref nicht
+// mehr inline aufgelöst, sondern zu einem `component-ref` auf `DS/<Name>` — echte ◇-Instanz in Figma.
+// Der inline gegroundete Plan wandert dabei unverändert in den `fallback`, damit ein altes Plugin (und
+// jeder Fehlerfall im neuen) genau das heutige Bild rendert. Container (Card) und Icon-Blätter bleiben
+// inline — Figma-Instanzen nehmen keine neuen Kinder an.
+
+import { catalogFigmaName, variantSelectionKey, catalogEntryHasFigmaComponent } from './emitFigmaCatalog.js';
 
 /** Katalog-Eintrag per Name aus der (Array-)components-Liste der Option. Kein Katalog/keine Liste/
  *  kein Treffer → undefined (Aufrufer behandelt das als „Knoten unverändert lassen"). */
@@ -71,10 +80,10 @@ function replaceFirstTextNode(node, text) {
  *  radius) aus der Wurzel von `entry.plan(sel)`, Layout/Maße/Inhalt aus `node.fallback`, Kinder
  *  rekursiv gegroundet. `absolute`/`stretch`/`grow` vom Ref-Knoten, sonst von der Fallback-Wurzel
  *  (Spec §Vertrag). */
-function groundContainer(node, entry, sel, catalogOption) {
+function groundContainer(node, entry, sel, catalogOption, opts) {
   const shell = entry.plan(sel);
   const fb = node.fallback;
-  const groundedChildren = (fb.children || []).map((c) => groundNode(c, catalogOption));
+  const groundedChildren = (fb.children || []).map((c) => groundNode(c, catalogOption, opts));
 
   const result = {
     type: 'box',
@@ -131,27 +140,64 @@ function groundLeaf(node, entry, sel) {
   const fallbackText = skipText ? '' : collectFallbackText(node.fallback).replace(/\s+/g, ' ').trim();
 
   let finalPlan = planNode;
+  // mode dokumentiert, WORAUS das Blatt sein Aussehen bezieht — der Instanz-Modus (s. u.) darf nur
+  // 'text' und 'plain' instanzieren: 'svg' hieße, echte Icon-Kinder in eine Figma-Instanz zu legen.
+  let mode = 'plain';
   if (fallbackText) {
     const replaced = replaceFirstTextNode(planNode, fallbackText);
-    if (replaced.changed) finalPlan = replaced.node;
+    if (replaced.changed) {
+      finalPlan = replaced.node;
+      mode = 'text';
+    }
   } else if (!skipText) {
     const svgNodes = collectFallbackSvgNodes(node.fallback);
     if (svgNodes.length && Array.isArray(planNode.children)) {
       finalPlan = { ...planNode, children: svgNodes };
+      mode = 'svg';
     }
   }
 
-  const result = { ...finalPlan };
+  return { plan: finalPlan, mode, text: fallbackText, skipText };
+}
+
+/** `absolute`/`stretch`/`grow` des Ref-Knotens auf das Ergebnis übernehmen (Spec §Vertrag). Gilt für
+ *  den Inline-Plan genauso wie für einen Instanz-Ref — der `fallback` bleibt bewusst OHNE diese
+ *  Felder, sonst würde das Plugin sie beim Fallback-Rendern doppelt anwenden. */
+function withRefFlags(node, plan) {
+  const result = { ...plan };
   if (node.absolute) result.absolute = node.absolute;
   if (node.stretch) result.stretch = true;
   if (node.grow) result.grow = true;
   return result;
 }
 
+/** Blatt → echte Figma-Instanz der DS-Library (Spec §Entscheidung 2/3/5). Nur wenn
+ *  (a) der Instanz-Modus an ist, (b) der Eintrag überhaupt eine Figma-Komponente hat (Box-Wurzel)
+ *  und (c) das Aussehen ohne neue Kinder erreichbar ist: entweder echter Text zum Überschreiben oder
+ *  ein voidElement (Input), das per Vertrag nie Inhalt bekommt. Sonst null → Inline-Plan. */
+function instanceRefFor(node, entry, sel, leaf) {
+  if (!catalogEntryHasFigmaComponent(entry)) return null;
+  const canInstance = leaf.mode === 'text' || (leaf.mode === 'plain' && leaf.skipText);
+  if (!canInstance) return null;
+
+  const key = variantSelectionKey(entry, sel);
+  const ref = {
+    type: 'component-ref',
+    name: catalogFigmaName(entry.name),
+    // 'default' heißt „Eintrag ohne Varianten-Achsen" → einzelne COMPONENT, kein Set: variant null,
+    // damit das Plugin direkt instanziert statt eine Variante zu suchen.
+    variant: key === 'default' ? null : key,
+    catalogInstance: true,
+    fallback: leaf.plan,
+  };
+  if (leaf.mode === 'text') ref.overrideText = leaf.text;
+  return withRefFlags(node, ref);
+}
+
 /** Ein einzelner Knoten. box/text/svg unverändert (box steigt in Kinder ab), component-ref läuft
  *  über die beiden Zweige oben (Katalog-Ref) oder bleibt selbst unangetastet und steigt nur in
  *  seinen `fallback` ab (scan-interner Ref). */
-function groundNode(node, catalogOption) {
+function groundNode(node, catalogOption, opts) {
   if (!node || typeof node !== 'object') return node;
 
   if (node.type === 'component-ref') {
@@ -159,7 +205,7 @@ function groundNode(node, catalogOption) {
       // Scan-interner Ref (Atomic-Design-Verschachtelung, echte Figma-Instanz) — NICHT antasten,
       // aber in seinem Fallback können Katalog-Refs stecken (das Plugin rendert den Fallback, wenn
       // die Instanz-Auflösung selbst fehlschlägt — Spec §Vertrag).
-      return node.fallback ? { ...node, fallback: groundNode(node.fallback, catalogOption) } : node;
+      return node.fallback ? { ...node, fallback: groundNode(node.fallback, catalogOption, opts) } : node;
     }
     const entry = findCatalogEntry(node.name, catalogOption);
     if (!entry) return node; // unbekannter Name / kein Katalog übergeben → unverändert, kein Wurf.
@@ -167,11 +213,18 @@ function groundNode(node, catalogOption) {
     const sel = buildVariantSelection(entry, node.props);
     const fallbackHasChildren = Array.isArray(node.fallback?.children) && node.fallback.children.length > 0;
     const isContainer = Boolean(entry.container) && !entry.voidElement && fallbackHasChildren;
-    return isContainer ? groundContainer(node, entry, sel, catalogOption) : groundLeaf(node, entry, sel);
+    if (isContainer) return groundContainer(node, entry, sel, catalogOption, opts);
+
+    const leaf = groundLeaf(node, entry, sel);
+    if (opts?.instances) {
+      const ref = instanceRefFor(node, entry, sel, leaf);
+      if (ref) return ref;
+    }
+    return withRefFlags(node, leaf.plan);
   }
 
   if (Array.isArray(node.children)) {
-    return { ...node, children: node.children.map((c) => groundNode(c, catalogOption)) };
+    return { ...node, children: node.children.map((c) => groundNode(c, catalogOption, opts)) };
   }
 
   // text/svg (oder jeder andere Blatttyp ohne children) — unverändert.
@@ -188,8 +241,11 @@ function groundNode(node, catalogOption) {
  * @param {{ source: string, components: Array<object> }|null|undefined} [catalogOption] Dieselbe
  *   Katalog-Option, die `htmlToPlan` bekommt. Fehlend/leer → `plan` unverändert (kein Katalog-Ref
  *   kann dann aufgelöst werden, jeder findet `entry === undefined`).
- * @returns {object} Neuer Plan-Baum ohne Katalog-`component-ref`s.
+ * @param {{ instances?: boolean }} [opts] `instances: true` → Blatt-Refs werden `component-ref`s auf
+ *   die DS-Library (`DS/<Name>`) mit dem Inline-Plan als `fallback` (Spec 2026-07-25-katalog-als-
+ *   figma-library-design.md). Ohne das Flag bleibt alles wie bisher inline.
+ * @returns {object} Neuer Plan-Baum; ohne `instances` ohne jeden Katalog-`component-ref`.
  */
-export function groundPlan(plan, catalogOption) {
-  return groundNode(plan, catalogOption);
+export function groundPlan(plan, catalogOption, opts) {
+  return groundNode(plan, catalogOption, opts);
 }

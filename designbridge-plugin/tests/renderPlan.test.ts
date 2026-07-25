@@ -211,6 +211,9 @@ function installFigmaStub(options: { withSvg?: boolean } = {}): {
 
 function emptySections(): SectionFrames {
   return {
+    // 'catalog' = DS-Bibliothek (Spec 2026-07-25-katalog-als-figma-library-design.md); hier leer,
+    // diese Tests prüfen nur gescannte Bausteine.
+    catalog: { children: [] } as unknown as SectionFrames['catalog'],
     atom: { children: [] } as unknown as SectionFrames['atom'],
     molecule: { children: [] } as unknown as SectionFrames['molecule'],
     organism: { children: [] } as unknown as SectionFrames['organism'],
@@ -272,6 +275,7 @@ function sectionsWithComponent(
     },
   };
   const sections = {
+    catalog: { children: [] } as unknown as SectionFrames['catalog'],
     atom: { children: [] } as unknown as SectionFrames['atom'],
     molecule: { children: [] } as unknown as SectionFrames['molecule'],
     organism: { children: [stubComponent] } as unknown as SectionFrames['organism'],

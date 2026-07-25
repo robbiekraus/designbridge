@@ -89,6 +89,14 @@ export interface PlanRef {
   /** s. PlanText.stretch/grow. */
   stretch?: true;
   grow?: true;
+  /** DS-Library (docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md
+   *  §Verträge/PlanRef): echter, sichtbarer Text der Vorlage — überschreibt den ersten
+   *  TEXT-Node der Instanz (die Komponente selbst trägt nur den Katalog-Platzhalter).
+   *  Nur gesetzt, wenn er gilt (PINNED, gleiche Konvention wie stretch/grow). */
+  overrideText?: string;
+  /** DS-Library: die Bibliothek liegt bei 1× in Figma, der Baustein ist auf echte Bildpixel
+   *  skaliert → `instance.rescale(scale)`. Nur gesetzt, wenn ≠ 1. */
+  scale?: number;
 }
 
 export type PlanNode = PlanBox | PlanText | PlanSvg | PlanRef;
@@ -108,10 +116,22 @@ export interface ImportComponent {
   variants: ImportVariant[];
 }
 
+/** Ein Eintrag der Design-System-Bibliothek (docs/superpowers/specs/2026-07-25-katalog-als-figma-
+ *  library-design.md §Verträge/Payload). `name` ist der FERTIGE Figma-Name inkl. Namespace
+ *  (`DS/Button`) — der Web-Emit ist die Quelle der Wahrheit, das Plugin nimmt ihn wörtlich, genau wie
+ *  bei gescannten Bausteinen. Eine Variante namens `default` UND keine weitere → einzelne Komponente. */
+export interface ImportCatalogEntry {
+  name: string;
+  catalogName: string | null;
+  source: string | null;
+  variants: ImportVariant[];
+}
+
 export interface ImportPayload {
   colors: ImportColor[];
   text: ImportText[];
   components: ImportComponent[];
+  catalog: ImportCatalogEntry[];
 }
 
 export interface RGB {
@@ -189,6 +209,16 @@ function parseSvgNode(r: Record<string, unknown>): PlanSvg | null {
   return { type: 'svg', markup: r.markup, absolute: parseAbsolute(r.absolute), ...parseStretchGrow(r) };
 }
 
+/** overrideText/scale defensiv parsen (DS-Library, 2026-07-25): nur gültige Werte übernehmen, sonst
+ *  das Feld GANZ WEGLASSEN — ein kaputter Wert darf den Ref nicht invalidieren, er verliert nur die
+ *  Zusatzinformation und die Instanz zeigt ihren Katalog-Zustand (bzw. bleibt unskaliert). */
+function parseInstanceOverrides(r: Record<string, unknown>): { overrideText?: string; scale?: number } {
+  const out: { overrideText?: string; scale?: number } = {};
+  if (typeof r.overrideText === 'string') out.overrideText = r.overrideText;
+  if (typeof r.scale === 'number' && Number.isFinite(r.scale) && r.scale > 0) out.scale = r.scale;
+  return out;
+}
+
 /** component-ref-Node validieren: name Pflicht, variant optional, fallback rekursiv über den Box-Parser. */
 function parseRefNode(r: Record<string, unknown>): PlanRef | null {
   if (typeof r.name !== 'string' || !r.name) return null;
@@ -199,6 +229,7 @@ function parseRefNode(r: Record<string, unknown>): PlanRef | null {
     fallback: parsePlan(r.fallback),
     absolute: parseAbsolute(r.absolute),
     ...parseStretchGrow(r),
+    ...parseInstanceOverrides(r),
   };
 }
 
@@ -291,6 +322,34 @@ function parseComponents(raw: unknown): ImportComponent[] {
   return out;
 }
 
+/** DS-Bibliothek parsen. Ein Eintrag braucht einen Namen UND mindestens eine Variante mit gültigem
+ *  Bauplan — sonst entstünde in Figma eine leere Komponente, auf die Refs zeigen. */
+function parseCatalog(raw: unknown): ImportCatalogEntry[] {
+  const out: ImportCatalogEntry[] = [];
+  for (const c of Array.isArray(raw) ? raw : []) {
+    if (!c || typeof c !== 'object') continue;
+    const r = c as Record<string, unknown>;
+    if (typeof r.name !== 'string' || !r.name) continue;
+    const variants: ImportVariant[] = [];
+    for (const v of Array.isArray(r.variants) ? r.variants : []) {
+      if (!v || typeof v !== 'object') continue;
+      const vr = v as Record<string, unknown>;
+      if (typeof vr.name !== 'string' || !vr.name) continue;
+      const plan = parsePlan(vr.plan);
+      if (!plan) continue; // Katalog-Komponente ohne Bauplan wäre eine leere Hülle
+      variants.push({ name: vr.name, plan });
+    }
+    if (variants.length === 0) continue;
+    out.push({
+      name: r.name,
+      catalogName: typeof r.catalogName === 'string' ? r.catalogName : null,
+      source: typeof r.source === 'string' ? r.source : null,
+      variants,
+    });
+  }
+  return out;
+}
+
 /** Parse and validate the pasted JSON. Throws readable German errors. */
 export function parseImportPayload(json: string): ImportPayload {
   let data: unknown;
@@ -333,10 +392,11 @@ export function parseImportPayload(json: string): ImportPayload {
   }
 
   const components = parseComponents(obj.components);
+  const catalog = parseCatalog(obj.catalog);
 
-  if (colors.length === 0 && text.length === 0 && components.length === 0) {
+  if (colors.length === 0 && text.length === 0 && components.length === 0 && catalog.length === 0) {
     throw new Error('Keine Farben, Textstile oder Komponenten im Export gefunden.');
   }
 
-  return { colors, text, components };
+  return { colors, text, components, catalog };
 }

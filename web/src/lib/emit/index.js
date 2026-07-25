@@ -3,7 +3,7 @@ import { emitCss } from './emitCss.js';
 import { emitTailwind } from './emitTailwind.js';
 import { emitTokensJson } from './emitTokensJson.js';
 import { emitFigma } from './emitFigma.js';
-import { emitFigmaComponents } from './emitFigmaComponents.js';
+import { emitFigmaComponents, emitFigmaLibrary } from './emitFigmaComponents.js';
 
 export { emitComponents } from './emitComponents.js';
 export { emitStories } from './emitStories.js';
@@ -26,6 +26,8 @@ export function buildExports(result) {
     css: emitCss(tokens),
     tailwind: emitTailwind(tokens),
     json: emitTokensJson(tokens),
-    figma: emitFigma(tokens, emitFigmaComponents(result)),
+    // Reihenfolge: Bausteine zuerst (schreiben Konverter-Warnungen), dann die DS-Library — beide
+    // lesen denselben Katalog, damit die `DS/…`-Refs der Bausteine in der Library landen.
+    figma: emitFigma(tokens, emitFigmaComponents(result), emitFigmaLibrary(result)),
   };
 }

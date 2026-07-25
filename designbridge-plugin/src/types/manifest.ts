@@ -128,6 +128,11 @@ export interface ImportSummary {
   componentsCreatedByKind?: Record<ImportComponentKind, number>;
   componentsUpdatedByKind?: Record<ImportComponentKind, number>;
   placeholders: number;
+  // Design-System-Bibliothek (DS/…, Spec 2026-07-25-katalog-als-figma-library-design.md).
+  // Bewusst NICHT in componentsCreated/…ByKind mitgezählt: DS-Komponenten sind das Fundament,
+  // keine gescannten Bausteine. Optional/abwärtskompatibel.
+  catalogCreated?: number;
+  catalogUpdated?: number;
   skipped: string[];
 }
 

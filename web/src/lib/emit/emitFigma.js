@@ -1,6 +1,9 @@
 // Emits the DesignBridge → Figma import envelope consumed by the Figma plugin
 // (designbridge-plugin/src/writer/parsePayload.ts). v2 = colors + typography + components.
-export function emitFigma(tokens, components = []) {
+// `catalog` (optional, Spec 2026-07-25-katalog-als-figma-library-design.md) trägt das Design System
+// selbst als Komponenten-Bibliothek. Additiv: leerer Katalog → Feld fehlt ganz, ältere Plugins sehen
+// exakt das bisherige Envelope.
+export function emitFigma(tokens, components = [], catalog = []) {
   const colors = [];
   const text = [];
 
@@ -17,8 +20,8 @@ export function emitFigma(tokens, components = []) {
     }
   }
 
-  return JSON.stringify(
-    { designbridge: 'figma-import', version: 2, colors, text, components },
-    null, 2
-  ) + '\n';
+  const envelope = { designbridge: 'figma-import', version: 2, colors, text, components };
+  if (Array.isArray(catalog) && catalog.length > 0) envelope.catalog = catalog;
+
+  return JSON.stringify(envelope, null, 2) + '\n';
 }

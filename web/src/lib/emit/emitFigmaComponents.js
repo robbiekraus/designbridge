@@ -12,6 +12,7 @@ import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 import { scalePlan, scaleFactor } from './scalePlan.js';
 import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 import { resolveCatalog } from './emitComponents.js';
+import { emitFigmaCatalog } from './emitFigmaCatalog.js';
 
 // Export-Reihenfolge sichert die Atomic-Design-Hierarchie: Atome existieren in Figma,
 // bevor ihre Verwender (Moleküle/Organismen/Templates) als component-ref auf sie zeigen
@@ -22,6 +23,24 @@ const KINDS = [
   ['organisms', 'organism'],
   ['templates', 'template'],
 ];
+
+/**
+ * Das Design System selbst als Figma-Komponenten-Bibliothek (`catalog` im Payload, Spec
+ * 2026-07-25-katalog-als-figma-library-design.md). Nutzt EXAKT denselben Katalog wie
+ * `emitFigmaComponents` (Repo-Katalog wenn vorhanden, sonst shadcn-Default) — sonst würden die
+ * `DS/…`-Refs der Bausteine auf Komponenten zeigen, die es in der Library nicht gibt.
+ * Warnungen (gedeckelte Varianten) laufen in den bestehenden `raw.warnings`-Kanal.
+ */
+export function emitFigmaLibrary(result, opts = {}) {
+  const catalog = resolveCatalog(result, opts);
+  const warnings = [];
+  const entries = emitFigmaCatalog(catalog, { warnings });
+  if (warnings.length && result?.raw) {
+    const existing = Array.isArray(result.raw.warnings) ? result.raw.warnings : [];
+    result.raw.warnings = Array.from(new Set([...existing, ...warnings]));
+  }
+  return entries;
+}
 
 export function emitFigmaComponents(result, opts = {}) {
   // Scheibe 2: derselbe Katalog wie im Code-Emit — Repo-Katalog (echter Look) wenn vorhanden,
@@ -130,7 +149,7 @@ export function emitFigmaComponents(result, opts = {}) {
             // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
             // §Entscheidung 4): Katalog-Refs VOR dem Skalieren auflösen, damit Figma dieselbe
             // Hülle+Komposition wie Storybook rendert (kein „Komponente nicht gefunden").
-            const grounded = groundPlan(plan, catalog);
+            const grounded = groundPlan(plan, catalog, { instances: true });
             const scaled = scalePlan(grounded, scaleFactor(item.bbox, iw, naturalWidth));
             out.push({
               ...meta,
@@ -169,7 +188,7 @@ export function emitFigmaComponents(result, opts = {}) {
         if (plan) {
           // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
           // §Entscheidung 4): s. Kommentar im composed-spliced-Zweig oben.
-          const grounded = groundPlan(plan, catalog);
+          const grounded = groundPlan(plan, catalog, { instances: true });
           const scaled = scalePlan(grounded, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);
           out.push({
             ...meta,

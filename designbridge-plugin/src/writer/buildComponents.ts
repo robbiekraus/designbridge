@@ -15,6 +15,9 @@ export interface BuildResult {
 }
 
 export interface SectionFrames {
+  /** Design-System-Bibliothek (DS/…), Spec 2026-07-25-katalog-als-figma-library-design.md.
+   *  Wird VOR den Baustein-Sektionen gebaut, damit component-refs sie finden. */
+  catalog: FrameNode;
   atom: FrameNode;
   molecule: FrameNode;
   organism: FrameNode;

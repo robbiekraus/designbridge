@@ -4,6 +4,18 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **25.07.2026 (nachts) — KATALOG ALS ECHTE FIGMA-KOMPONENTEN-BIBLIOTHEK GEBAUT (autonome Session).** Spec: `docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md`. Tests: **Web 791/791 · Plugin 117/117 · Server 335/335 · Harness 19/19**, Plugin-Typecheck sauber, Web-Build sauber. **⚠️ Ein Klick von Rob offen: Dev-Plugin NEU LADEN (dist ist neu gebaut) und importieren.**
+  - **Was jetzt in Figma landet:** eine neue, oberste Sektion **`DB/Design System`** mit dem Design System als echten Komponenten (`DS/Button` als Component Set mit 24 echten Varianten-Properties `variant=…, size=…`, dazu `DS/Card`, `DS/Badge`, `DS/Input`, `DS/Checkbox`, `DS/Avatar`, `DS/Separator`). Gescannte Bausteine referenzieren die Bibliothek als **◇-Instanzen** statt als inline gegroundete Frames.
+  - **Die drei Entscheidungen, die das tragen:**
+    1. **Die Bibliothek liegt bei 1×** (das ist die Wahrheit des Systems: Button 14px, Card radius 8). Ein Bild-Scan ist aber auf echte Bildpixel skaliert (2296px-Screenshot ≈ 2,24×) und eine Instanz kann ihren Inhalt nicht selbst skalieren → der Faktor reist als neues Ref-Feld `scale` mit, das Plugin ruft `instance.rescale(scale)`. Ohne das wäre die Karte 2,24× und der Button darin 1× — genau die Regression, die das verhindert.
+    2. **Nur Blätter werden Instanzen.** Eine Figma-Instanz nimmt keine neuen Kinder an — ein Container (`Card`, `container:true`) trägt aber genau den gemessenen Unterbaum. Container bleiben deshalb inline gegroundete Frames (unverändert). Ebenso **Icon-Blätter**: das echte Icon der Vorlage würde als Instanz verloren gehen (am echten Prod-Scan geprüft: **87 SVG-Knoten, alle weiter inline, 0 Icons in DS-Refs**).
+    3. **Text per Override:** der Ref trägt `overrideText`, das Plugin setzt damit den ersten TEXT-Node der Instanz (die Komponente selbst hat nur den Katalog-Platzhalter „Button").
+  - **Abwärtskompatibel by design:** jeder DS-Ref trägt als `fallback` EXAKT den Plan, der heute inline emittiert würde (ein Test vergleicht beide Modi direkt). Ein **nicht neu geladenes Plugin** findet `DS/Button` nicht → rendert den Fallback → heutiges Bild plus eine „Komponente nicht gefunden"-Warnung. Dasselbe greift, falls `rescale` oder der Text-Override in echtem Figma wirft: Instanz wird entfernt, Fallback gerendert, Warnung. **Kein Fehlerpfad kann schlechter aussehen als der Stand von heute.**
+  - **Neu/geändert — Web:** `web/src/lib/emit/emitFigmaCatalog.js` (Namensvertrag `DS/<Name>` + Varianten-Schlüssel `variant=…, size=…` + Kreuzprodukt, Deckel 32/Eintrag mit Warnung; Einträge mit Text-Wurzel wie `Label` werden übersprungen, da es dafür keinen Frame gibt) · `groundPlan(plan, catalog, { instances: true })` (Blatt → DS-Ref, Inline-Plan in den Fallback) · `scalePlan` multipliziert `scale` an Knoten mit `catalogInstance` · `emitFigma(tokens, components, catalog)` (Feld fehlt bei leerem Katalog ganz) · `emitFigmaLibrary(result)` in `emitFigmaComponents.js` (nutzt DENSELBEN Katalog wie die Bausteine — Repo-Katalog vor shadcn-Default).
+  - **Neu/geändert — Plugin:** `parsePayload` kennt `catalog` + die Ref-Felder `overrideText`/`scale` (defensiv: kaputte Werte werden weggelassen, nicht durchgereicht) · neu `src/writer/buildCatalog.ts` (eine Variante „default" → einzelne COMPONENT, sonst Component Set; Create-or-update hält Position und Set-Identität) · `upsertPage` legt die Sektion „Design System" als erste an · `renderComponentRef` instanziert, rescaled, überschreibt Text und matcht Varianten per ROHEM Namen ODER `Variant=<name>` (beide Namensschemata an einer Stelle) · `SectionFrames` hat einen 5. Eintrag `catalog` · Summary zählt DS-Komponenten SEPARAT („N DS-Komponenten neu"), damit „Bausteine" weiter nur gescannte Bausteine meint.
+  - **Verifikation ohne einen einzigen KI-Call** (neues Werkzeug, bleibt nutzbar): `cd web && node verification/figma-payload-from-raw.mjs ../storybook-harness/fixtures/prod-scan-raw.json [payload.json]` emittiert den Figma-Payload aus den eingefrorenen echten Prod-Rohdaten und prüft ihn. Ergebnis am CRAFTUI-Scan: **16 Bausteine · 7 Bibliothek-Einträge · 16 DS-Instanzen (alle mit Text-Override) · jeder Ref hat einen Fallback und zeigt auf eine existierende Komponente+Variante**. Grenze wie bei `reemit-from-raw.mjs`: jsdom hat keine Layout-Engine → dort ist `scale` immer 1; der Skalierungspfad ist per Unit-Test + Integrationstest mit gemockten Rects abgedeckt (Faktor 2 → `scale: 2`).
+  - **Was NICHT gebaut ist (bewusst, im Spec begründet):** Card als Instanz mit Slots (bräuchte Sub-Komponenten-Slots + einen Weg, gemessene Inhalte in Instanz-Slots zu legen) · Icon-Blätter als Instanzen · `Label` als DS-Komponente · Figma-**Team-Library-Publish** (das ist ein manueller Figma-Schritt, kein Plugin-API-Feature — die Komponenten liegen in der Datei).
+  - **Ungeprüft bleibt (kein Figma-Fenster in dieser Session, gleiche Lücke wie nachmittags):** ob `instance.rescale()` in echtem Figma auf einer Auto-Layout-Instanz so wirkt wie erwartet. Genau dafür ist der Fallback-Pfad da. **Robs Klickweg:** Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen". Erwartung: Sektion „Design System" oben, `DS/Button` mit Varianten-Umschalter im rechten Panel, in den Bausteinen ◇-Instanzen statt Frames.
 - **25.07.2026 (spätabends) — ROBS TEST-RUNDE NACH DEM KOMPOSITIONS-FIX: Figma ✅, Storybook-Ursachen gefunden & gefixt, 2 UI-Wünsche umgesetzt.** Commits `2dae5a3` (Icons + Export-Umsortierung + Vorschau-Deckel) und `c7ecca9` (Token-Paket) auf `main`. Tests: **Web 758/758 · Harness 19/19 · Server 335/335 · Plugin 99/99**, Typecheck sauber.
   - **Robs Befund Figma ✅:** Import lief, und er hat einen **Button innerhalb eines Organismus/Moleküls** gesehen — die Atomic-Verschachtelung kommt also in Figma an. Damit ist der offene Sichtprüfungs-Punkt vom Nachmittag erledigt.
   - **Robs Befund Storybook („kommt nur Scheiße an") — Ursache war NICHT der Builder.** Der Bau-Weg ist intakt: Export-Paket durch den echten Railway-Builder geschickt, gebautes Storybook im Browser angesehen → rendert korrekt. Was Rob sah, war der **Vor-Fix-Stand** (reproduziert: die alte eingefrorene `prod-export.zip` zeigt die KPI-Karte als flache Pille `Orders 13.465 3.1% Last month: 11.246`). **Falsche Zwischendiagnose von mir, hier korrigiert:** ich hatte erst behauptet, dem Build fehle das Stylesheet — das gebaute CSS ist vollständig da (alle Utilities inkl. `p-[20px]`, `bg-card`, `rounded-full`), Vite lädt es per JS statt per `<link>`, deshalb griff mein erster grep daneben.
@@ -67,14 +79,14 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 - **20.07.2026 abends:** UI-Feinschliff live gepusht (`e5d893e`, Web **598/598**): (a) Footer volle Breite / fixe App-Shell (`h-screen`, Header+Footer fixe Leisten, `main` scrollt intern); (b) Content-Seiten **Preview-First**: Atoms/Molecules/Organisms = volle-Breite-Zeilen, Vorschau immer offen [23.07 abends überholt: jetzt collapse-by-default + Filterleiste, s. oben], Code (+Kopieren/Herunterladen) hinter „Code anzeigen"-Toggle, Organism-Herkunft/Landmarke neben dem Toggle, Templates unverändert Akkordeon; Raster + Höhen-Deckel-Maschinerie entfernt; React-key-Warnung gefixt, Konsole sauber. Spec/Plan: `docs/superpowers/{specs,plans}/2026-07-20-content-pages-preview-first.md`. Nächster offener Kandidat war „T-propagate" — mit diesem Umbau erledigt.
 - Davor am selben Tag: Brand-Rollback auf zink (`c63114c`) + orchestrierter Presentation-Ready-Test 6/6 grün; UIPrism-Rebrand-Skin + Bild-Zuverlässigkeit (`628d3ca`/`eb5ecbf`); Breiten-Test Eingabetypen fertig; Architektur-Pivot Scheibe 1–3 (kanonisches `plan`-Modell) komplett; Figma-Reverse-Import v1.
 - **App LIVE:** https://designbridge-production.up.railway.app mit **Gemini PAID**. Name/Favicon: UIPrism; Look: zurück auf zink/weiß (kein Indigo/Flieder).
-- **Tests (aktuell, 25.07. spätabends):** Web **758/758** · Server **335/335** · Plugin **99/99** · Storybook-Harness **19/19**, Typecheck sauber.
+- **Tests (aktuell, 25.07. nachts):** Web **791/791** · Server **335/335** · Plugin **117/117** · Storybook-Harness **19/19**, Plugin-Typecheck sauber.
 
 ## Aktives Ziel / Nächste Schritte
 
-**⏭️ SESSION GESCHNITTEN 25.07. spätabends (Rob-Entscheid: hier schneiden, neue Session danach).**
-Alles auf `main` gepusht und deployt, Arbeitsbaum ohne offene Änderungen, kein Branch/Worktree offen.
-Der Tagesertrag in Reihenfolge: Komposition gegroundeter Bausteine → Robs Test-Runde → Icon-Fix,
-Export-Umsortierung, Vorschau-Deckel, Storybook-Token-Paket (Details oben im Stand).
+**▶️ LAUFENDE SESSION 25.07. nachts:** Katalog als echte Figma-Komponenten-Bibliothek gebaut
+(Spec + Web-Emit + Plugin + Tests + KI-freie Verifikation, Details oben im Stand).
+Vorher: Komposition gegroundeter Bausteine → Robs Test-Runde → Icon-Fix, Export-Umsortierung,
+Vorschau-Deckel, Storybook-Token-Paket.
 
 ### Wiedereinstieg: erst DAS, dann weiter
 
@@ -84,6 +96,8 @@ im auf Railway GEBAUTEN Storybook sind die Scan-Token-Klassen (`.p-card-layout-p
 Tokens jetzt wirklich. Ein frischer Prod-Scan (CRAFTUI-Dashboard) liegt als `prod-scan-raw.json`
 eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
 
+0. **Figma-Import mit NEU GELADENEM Dev-Plugin** — der einzige echte Blocker der DS-Library
+   (s. Stand 25.07. nachts). Ohne Reload verhält sich alles wie vorher.
 1. **Robs Sicht-Check der neuen Runde** (er hat den Vor-Fix-Stand gesehen, deshalb lohnt ein
    frischer Blick): Export-Seite (ZIELE oben, Code kompakt), Vorschaugrößen auf seinem breiten
    Bildschirm (max 1:1, Zeilen ≤ 420px), und **„In Storybook öffnen" erneut klicken** — jetzt mit
@@ -93,14 +107,13 @@ eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
    („shadcn = Fundament, beide Ableitungen identisch"). Figma-Import hat Rob bestätigt (inkl.
    Button in einem Organismus); der direkte Vergleich der beiden Ansichten fehlt noch.
 
-### Offene Aufgaben (priorisiert, Stand 25.07. spätabends)
+### Offene Aufgaben (priorisiert, Stand 25.07. nachts)
 
-- **Katalog als echte Figma-Komponenten-Bibliothek** — die naheliegende nächste Scheibe. Heute
-  löst der Figma-Weg Katalog-Refs zu gegroundeten Frames auf (visuell identisch, aber keine
-  ◇-Instanzen von `Card`/`Button`). Für „das Design System liegt als Library in Figma" braucht es:
-  Katalog-Einträge als eigene Figma-Komponenten im Payload, `parsePayload.ts` muss das Feld
-  `catalog` lernen, Namespacing gegen Kollisionen mit gescannten Bausteinen, Plugin-Reload durch Rob.
-  Spec dafür fehlt noch.
+- ~~**Katalog als echte Figma-Komponenten-Bibliothek**~~ — **GEBAUT 25.07. nachts** (s. Stand oben).
+  Offen ist nur noch Robs Sichtprüfung: **Dev-Plugin neu laden** (dist neu gebaut) → Import →
+  Sektion „Design System" oben, `DS/Button` mit Varianten-Properties, ◇-Instanzen in den Bausteinen.
+  Falls `rescale` in echtem Figma anders wirkt als erwartet: der Fallback greift, es sieht dann aus
+  wie vorher — kein Rückschritt, aber dann lohnt eine kleine Folge-Scheibe.
 - **Sub-Komponenten-Slots** (`Card > CardHeader > CardTitle` / `CardContent`) statt flacher Kinder —
   idiomatischeres Markup, ändert das Aussehen NICHT (bewusst zurückgestellt, Entscheidung 1 der
   Kompositions-Spec). Die Stubs haben die Sub-Komponenten schon.
@@ -121,8 +134,8 @@ eingefroren; `npm run storybook:demo:prod` im Harness zeigt ihn ohne KI-Kosten.
   braucht ein OFFENES Fenster (`count of windows` = 0 → `⌘N` greift nicht, `activate` hängt), und
   das Dev-Plugin heißt **UIPrism**, nicht mehr „DesignBridge" (alter Name wirft `-1728`).
 
-- **NÄCHSTER SCHRITT (ein Klick von Rob): den fertigen Figma-Payload sichten.** Er liegt auf Prod. Figma-Fenster öffnen → Plugins → Entwicklung → **UIPrism** → „Aus DesignBridge übernehmen". Erwartung: KPI-Karten mit shadcn-Hülle (radius 8), echte `secondary`-Badges, schmaler Outline-Button „Details", und der Organismus „Dashboard Cards Row" mit **◇-Instanzen** beider Karten. Danach lohnt der Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-Beweis.
-- **Danach als nächste Scheibe:** Katalog als echte Figma-Komponenten-Bibliothek (Refs als ◇-Instanzen statt gegroundeter Frames) — braucht Plugin-Änderung + Namespacing. Optional: Sub-Komponenten-Slots (`CardHeader`/`CardTitle`), `shadow-sm` im Plan-Modell.
+- **NÄCHSTER SCHRITT (ein Klick von Rob): Figma-Import mit NEU GELADENEM Dev-Plugin.** Das ist jetzt Pflicht, nicht optional — die DS-Bibliothek braucht den neuen `dist` (Plugins → Entwicklung → **UIPrism**; ohne Reload rendert alles wie vorher plus „Komponente nicht gefunden"-Warnungen). Erwartung: Sektion „Design System" oben mit `DS/Button` (Varianten-Umschalter), darunter die Bausteine mit ◇-Instanzen; KPI-Karten weiter mit shadcn-Hülle (radius 8), echte `secondary`-Badges, Outline-Button „Details". Danach lohnt der Vergleich gegen `npm run storybook:demo:composition` im Harness — das ist der „Figma = Storybook"-Beweis.
+- **Danach als nächste Scheibe:** Sub-Komponenten-Slots (`CardHeader`/`CardTitle`) — würde auch den einzigen echten Rest der DS-Library lösen (Card als ◇-Instanz statt Frame). Optional: `shadow-sm` im Plan-Modell.
 - ~~Komposition in gegroundeten Bausteinen~~ — **ERLEDIGT 25.07. abends** (s. Stand oben). Robs „vielleicht noch eine andere Baustelle" hat sich als das Zielbild „shadcn = Fundament, Figma + Storybook identisch" + „Atomic-Verschachtelung in Figma prüfen" herausgestellt; beides ist in dieser Scheibe adressiert.
 - **DS-Grounding Scheibe 1 (in main, 23.07.):** Interpretation wird jetzt gegen einen shadcn/ui-Default-Katalog gegroundet statt freihändig nachgebaut. Kette: Katalog (`web/src/lib/catalog/shadcn-default.js`) → `htmlToPlan` promotet `data-ds-component`-Marker zu Katalog-`component-ref`s → `planToJsx` emittiert echten shadcn-Code (`import { Button } … <Button variant=…>`) → Server-Prompt (`server/lib/catalog/shadcnVocabulary.js`) lehrt das Vokabular → Emit-Verdrahtung → **Verifikation** (`web/verification/`: Emit kompiliert via esbuild + rendert via react-dom gegen ein reales shadcn-Target) → `grounded`-Flag als `GroundedPill` in der UI. Tests: Server 296, Web 646. Specs: `docs/superpowers/specs/2026-07-23-*`. Der Kern der These (Scan → gegen shadcn interpretiert → echter kompilierender Code) ist end-to-end belegt.
   - **So anschauen:** (a) echten Emit sehen → `node web/verification/generate-sample.mjs`; (b) Kompilier-+Render-Beweis → `cd web && npx vitest run src/lib/emit/grounding.verify.test.js`; (c) alle Grounding-Tests → `npx vitest run` (Suche „grounding"); (d) UI-Pille → `GroundedPill` erscheint in den Content-Seiten (Atoms/Molecules/Organisms) neben den Source-Pillen, sobald ein Baustein gegroundet ist. **Achtung:** frischer Clone braucht `npm install` (Root + `web/`) — sonst fehlen `@anthropic-ai/sdk` (Server) bzw. vitest-Deps (Web).

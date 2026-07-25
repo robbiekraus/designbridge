@@ -104,13 +104,68 @@ function findComponentByName(
   sections: SectionFrames,
   name: string
 ): ComponentNode | ComponentSetNode | undefined {
-  for (const key of ['atom', 'molecule', 'organism', 'template'] as const) {
-    const found = sections[key].children.find((c) => c.name === name);
+  // 'catalog' zuerst: dort liegen die DS-Komponenten (`DS/…`, Spec 2026-07-25-katalog-als-figma-
+  // library-design.md). Der Namespace macht Kollisionen mit gescannten Bausteinen unmöglich, die
+  // Reihenfolge ist also nur Kosmetik — kürzester Weg für den häufigsten Fall.
+  for (const key of ['catalog', 'atom', 'molecule', 'organism', 'template'] as const) {
+    // Defensiv: eine fehlende Sektion (z. B. Aufrufer aus einem älteren Pfad) darf nicht den
+    // kompletten Import mit einem TypeError abbrechen — dann findet der Ref eben nichts.
+    const section = sections[key];
+    if (!section?.children) continue;
+    const found = section.children.find((c) => c.name === name);
     if (found && (found.type === 'COMPONENT' || found.type === 'COMPONENT_SET')) {
       return found as ComponentNode | ComponentSetNode;
     }
   }
   return undefined;
+}
+
+/** Instanz-Anpassungen der DS-Library (Spec 2026-07-25-katalog-als-figma-library-design.md
+ *  §Entscheidung 1/3): `scale` → rescale (die Library liegt bei 1×, der Baustein ist skaliert),
+ *  `overrideText` → erster TEXT-Node der Instanz (die Komponente trägt nur den Katalog-Platzhalter).
+ *  Liefert false, wenn ein gesetzter overrideText NICHT untergebracht werden kann — dann ist die
+ *  Instanz irreführend (sie zeigte „Button" statt „Details") und der Aufrufer nimmt den Fallback.
+ *  Wirft nur, was die Figma-API wirft; der Aufrufer fängt das. */
+async function applyInstanceOverrides(
+  instance: InstanceNode,
+  el: Extract<PlanNode, { type: 'component-ref' }>
+): Promise<boolean> {
+  if (typeof el.scale === 'number' && el.scale > 0 && el.scale !== 1) {
+    instance.rescale(el.scale);
+  }
+  if (el.overrideText === undefined) return true;
+
+  const target = instance.findAll((n) => n.type === 'TEXT')[0] as TextNode | undefined;
+  if (!target) return false;
+  const font = target.fontName;
+  // Zeichen setzen geht nur mit geladener Schrift. Gemischte Schriften (figma.mixed) kommen aus
+  // unseren Katalog-Plänen nie vor — defensiv trotzdem nicht laden, dann wirft characters= und der
+  // Aufrufer fällt auf den Fallback zurück.
+  if (font && typeof font === 'object' && 'family' in font) {
+    await figma.loadFontAsync(font as FontName);
+  }
+  target.characters = el.overrideText;
+  return true;
+}
+
+/** Instanz erzeugen und anpassen. Scheitert die Anpassung, wird die Instanz wieder entfernt und
+ *  null geliefert — der Aufrufer rendert dann den Fallback (= das Bild, das ohne DS-Library
+ *  entstünde). Kein halb angepasstes Objekt bleibt liegen. */
+async function instantiate(
+  component: ComponentNode,
+  el: Extract<PlanNode, { type: 'component-ref' }>,
+  warnings: string[]
+): Promise<SceneNode | null> {
+  const instance = component.createInstance();
+  try {
+    if (await applyInstanceOverrides(instance, el)) return instance;
+    warnings.push(`Instanz „${el.name}" hat keinen Textknoten für „${el.overrideText}" — Fallback gerendert.`);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    warnings.push(`Instanz „${el.name}" nicht anpassbar (${reason}) — Fallback gerendert.`);
+  }
+  try { instance.remove(); } catch { /* bereits entfernt */ }
+  return null;
 }
 
 /** component-ref → echte Instanz. Nicht gefunden → fallback-Plan rendern (oder Platzhalter-Hinweis) + warning.
@@ -121,24 +176,30 @@ async function renderComponentRef(
   warnings: string[],
   sections: SectionFrames
 ): Promise<SceneNode> {
+  const renderFallback = (): Promise<SceneNode> =>
+    el.fallback
+      ? renderPlan(el.fallback, paintByName, warnings, sections)
+      : renderNotice(`Komponente „${el.name}" nicht gefunden`);
+
   const found = findComponentByName(sections, el.name);
   if (!found) {
     warnings.push(`Komponente „${el.name}" nicht gefunden — Fallback gerendert.`);
-    if (el.fallback) return renderPlan(el.fallback, paintByName, warnings, sections);
-    return renderNotice(`Komponente „${el.name}" nicht gefunden`);
+    return renderFallback();
   }
   if (found.type === 'COMPONENT') {
-    return found.createInstance();
+    return (await instantiate(found, el, warnings)) ?? renderFallback();
   }
-  const variantName = el.variant !== null ? `Variant=${el.variant}` : null;
-  const match = variantName
-    ? (found.children.find((c) => c.name === variantName) as ComponentNode | undefined)
+  // Zwei Namensschemata, eine Stelle: gescannte Bausteine sind Sets mit EINER Achse
+  // (`Variant=<name>`, buildComponents.ts), DS-Einträge tragen echte Figma-Varianten-Properties
+  // (`variant=secondary, size=lg`, buildCatalog.ts) und werden per rohem Namen gematcht.
+  const match = el.variant !== null
+    ? (found.children.find((c) => c.name === `Variant=${el.variant}` || c.name === el.variant) as ComponentNode | undefined)
     : undefined;
-  if (match) return match.createInstance();
+  if (match) return (await instantiate(match, el, warnings)) ?? renderFallback();
   if (el.variant !== null) {
     warnings.push(`Variante „${el.variant}" von „${el.name}" nicht gefunden — Standardvariante verwendet.`);
   }
-  return found.defaultVariant.createInstance();
+  return (await instantiate(found.defaultVariant, el, warnings)) ?? renderFallback();
 }
 
 /** Plan-Fidelity-Scheibe A (docs/superpowers/specs/2026-07-17-plan-fidelity-design.md):

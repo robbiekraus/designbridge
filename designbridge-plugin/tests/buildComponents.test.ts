@@ -63,6 +63,7 @@ function placeholderComponent(name: string, kind: ImportComponent['kind']): Impo
 
 function makeSections(): SectionFrames {
   return {
+    catalog: makeNode('SECTION'),
     atom: makeNode('SECTION'),
     molecule: makeNode('SECTION'),
     organism: makeNode('SECTION'),

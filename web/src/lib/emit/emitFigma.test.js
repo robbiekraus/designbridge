@@ -67,4 +67,18 @@ describe('emitFigma', () => {
     const parsed = JSON.parse(emitFigma([]));
     expect(parsed.components).toEqual([]);
   });
+
+  // DS-Library (Spec 2026-07-25-katalog-als-figma-library-design.md §Verträge/Payload):
+  // additives Feld, das bei leerem Katalog GANZ fehlt (alte Plugins sehen exakt das alte Envelope).
+  it('hängt den Katalog als `catalog` an', () => {
+    const catalog = [{ name: 'DS/Button', catalogName: 'Button', source: 'shadcn-default', variants: [{ name: 'default', plan: null }] }];
+    const parsed = JSON.parse(emitFigma([], [], catalog));
+    expect(parsed.catalog).toHaveLength(1);
+    expect(parsed.catalog[0].name).toBe('DS/Button');
+  });
+
+  it('leerer/fehlender Katalog → Feld fehlt komplett', () => {
+    expect(JSON.parse(emitFigma([], [])).catalog).toBeUndefined();
+    expect(JSON.parse(emitFigma([], [], [])).catalog).toBeUndefined();
+  });
 });

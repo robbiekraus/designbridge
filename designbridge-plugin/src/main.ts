@@ -4,6 +4,7 @@ import { applyDiff } from './scanner/diff';
 import { parseImportPayload } from './writer/parsePayload';
 import { applyImport } from './writer/applyImport';
 import { buildComponents } from './writer/buildComponents';
+import { buildCatalogComponents } from './writer/buildCatalog';
 import { upsertPage, layoutSections } from './writer/upsertPage';
 import type {
   UIMessage,
@@ -75,12 +76,25 @@ figma.ui.onmessage = async (msg: UIMessage) => {
       postStatus('Schreibe Styles nach Figma…');
       const summary = await applyImport(payload);
 
-      if (payload.components.length > 0) {
+      if (payload.components.length > 0 || payload.catalog.length > 0) {
         postStatus('Baue Komponenten…');
         const { page, sections } = await upsertPage();
         await figma.setCurrentPageAsync(page);
         const paintStyles = await figma.getLocalPaintStylesAsync();
         const paintByName = new Map(paintStyles.map((s) => [s.name, s]));
+
+        // Design System ZUERST (Spec 2026-07-25-katalog-als-figma-library-design.md §Plugin-Ablauf):
+        // die component-refs der Bausteine suchen `DS/…` — existiert die Komponente noch nicht,
+        // rendern sie ihren Fallback und es entstünden keine ◇-Instanzen.
+        if (payload.catalog.length > 0) {
+          postStatus('Baue Design-System-Bibliothek…');
+          const cat = await buildCatalogComponents(payload.catalog, sections.catalog, paintByName, sections);
+          summary.catalogCreated = cat.created;
+          summary.catalogUpdated = cat.updated;
+          summary.skipped.push(...cat.skipped);
+          postStatus('Baue Komponenten…');
+        }
+
         const res = await buildComponents(payload.components, sections, paintByName);
         layoutSections(sections);
         summary.componentsCreated = res.created;
