@@ -49,4 +49,4 @@ Arbeitsweise: TDD, kleine Schritte. Orchestrierung Opus 5, Implementierung Sonne
       Gleiche Bausteine nach Figma, per Figma-MCP prüfen: (a) Optik wie Storybook, (b) keine
       „Komponente nicht gefunden"-Warnungen, (c) Atomic-Verschachtelung als ◇-Instanzen.
 
-- [ ] **9 — Abschluss** — volle Suiten (Web/Server/Plugin), Push auf `main`, RESUME + Memory.
+- [x] **9 — Abschluss** — volle Suiten (Web/Server/Plugin), Push auf `main`, RESUME + Memory.
