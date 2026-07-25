@@ -824,7 +824,15 @@ function matchCatalogComponent(el, ctx) {
     if (Array.isArray(axes[axis]) && axes[axis].includes(v)) props[axis] = v;
     else ctx.warnings.add(`data-ds-${axis}="${v}" ist keine gültige ${axis}-Option für ${name} — ignoriert.`);
   }
-  return { name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props, voidElement: Boolean(entry.voidElement) };
+  return {
+    name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props,
+    voidElement: Boolean(entry.voidElement),
+    // `container` (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Entscheidung 3):
+    // Katalog-Eintrag, der den interpretierten Unterbaum TRAGEN darf (Card) statt ihn zu einem Label
+    // einzuschmelzen. Reist wie `voidElement` am Ref-Knoten mit, damit Code- und Figma-Emit dieselbe
+    // Entscheidung ohne erneuten Katalog-Zugriff treffen. `voidElement` gewinnt immer.
+    container: Boolean(entry.container),
+  };
 }
 
 /** IoU (Intersection over Union) zweier normierter Rechtecke {x,y,w,h} (0..1, gleicher Bezugsrahmen).
@@ -951,16 +959,18 @@ function unionRect(rects) {
   return { left, top, width: right - left, height: bottom - top };
 }
 
-/** Plausibilitäts-Deckel für Phase 1 (Text-Anker, Spec 2026-07-19-splice-text-anchor-matching-
+/** Plausibilitäts-Deckel für BEIDE Splice-Phasen (Spec 2026-07-19-splice-text-anchor-matching-
  *  design.md §2): (a) Element hat ein messbares Rect (Breite UND Höhe > 0) UND (b) Element-Fläche
  *  ≤ 80% der Referenzrahmen-Fläche (verhindert Wurzel-/Fast-Wurzel-Match, wenn ein Kind fast den
  *  gesamten Eltern-Text trägt). Die Ziel-bbox wird in Phase 1 bewusst NICHT geprüft (Spec §Bewusste
  *  Grenzen — sie ist das nachweislich unzuverlässige Signal, das Phase 1 gerade umgehen soll). */
 const SPLICE_TEXT_MAX_AREA_RATIO = 0.8;
 
-function isPlausibleTextCandidate(el, refArea) {
-  if (typeof el.getBoundingClientRect !== 'function') return false;
-  const rect = el.getBoundingClientRect();
+/** Nimmt das Rect als Argument (statt es selbst zu messen), damit jede Phase
+ *  `getBoundingClientRect()` genau EINMAL pro Element aufruft — die Zuordnung und die spätere
+ *  Messung in `convertElement` sind bewusst getrennte Messzeitpunkte (s. Slot-Sizing-Test 3). */
+function isPlausibleSpliceRect(rect, refArea) {
+  if (!rect) return false;
   if (!(rect.width > 0 && rect.height > 0)) return false;
   if (refArea <= 0) return false;
   return rect.width * rect.height <= refArea * SPLICE_TEXT_MAX_AREA_RATIO;
@@ -971,7 +981,7 @@ function isPlausibleTextCandidate(el, refArea) {
  *
  *  Phase 1 (Text-Anker, §2): für jedes Kandidaten-Element werden die Subtree-Text-Tokens gegen die
  *  `anchorTokens` ALLER Ziele mit nicht-leeren Ankern gescort (`bestTextMatch`), plausible Treffer
- *  (s. `isPlausibleTextCandidate`) ≥ SPLICE_MIN_TEXT gesammelt, dann global nach Score absteigend
+ *  (s. `isPlausibleSpliceCandidate`) ≥ SPLICE_MIN_TEXT gesammelt, dann global nach Score absteigend
  *  sortiert — bei GLEICHEM Score gewinnt das ÄUSSERSTE Element (Vorfahre schlägt Nachfahre über
  *  `Node.contains`; ohne Vorfahren-Beziehung entscheidet die Dokumentreihenfolge, die die stabile
  *  Sortierung hier bewahrt) — und gierig eindeutig zugeordnet (jedes Element/Ziel höchstens einmal).
@@ -995,7 +1005,8 @@ function computeSpliceAssignment(roots, spliceTargets, refRect) {
   if (textTargets.length) {
     const textCandidates = [];
     for (const el of collectCandidateElements(roots)) {
-      if (!isPlausibleTextCandidate(el, refArea)) continue;
+      if (typeof el.getBoundingClientRect !== 'function') continue;
+      if (!isPlausibleSpliceRect(el.getBoundingClientRect(), refArea)) continue;
       const elTokens = tokenizeAnchorText(el.textContent || '');
       const match = bestTextMatch(elTokens, textTargets, new Set());
       if (!match) continue;
@@ -1027,7 +1038,15 @@ function computeSpliceAssignment(roots, spliceTargets, refRect) {
   for (const el of collectCandidateElements(roots)) {
     if (usedEls.has(el)) continue;
     if (typeof el.getBoundingClientRect !== 'function') continue;
-    const rectNorm = normalizeRectTo(el.getBoundingClientRect(), refRect);
+    // Wurzel-Schutz auch in Phase 2 (Live-Fund 25.07., Figma-E2E der Kompositions-Fixture): Phase 1
+    // deckelt Kandidaten auf ≤80% der Referenzfläche, Phase 2 tat es nicht. Ein normalisiertes
+    // Wurzel-Rect ist immer (0,0,1,1) und erreicht damit gegen JEDES Ziel, das ≥35% der Elternfläche
+    // einnimmt, die IoU-Schwelle — eine Kartenreihe mit zwei Karten genügt schon. Griff der Treffer,
+    // wurde der KOMPLETTE Elternteil (samt Chrome und Geschwister-Kindern) durch die Instanz EINES
+    // Kindes ersetzt: exakt der test8-Root-Cause, den der Splice eigentlich verhindern soll.
+    const rect = el.getBoundingClientRect();
+    if (!isPlausibleSpliceRect(rect, refArea)) continue;
+    const rectNorm = normalizeRectTo(rect, refRect);
     if (!rectNorm) continue;
     const match = bestSpliceMatch(rectNorm, remainingTargets, new Set());
     if (!match) continue;
@@ -1135,6 +1154,7 @@ function convertElement(el, ctx, parent = null) {
       variant: catalogRef.variant,
       props: catalogRef.props,
       voidElement: catalogRef.voidElement,
+      container: catalogRef.container,
       fallback: ensureBox(buildNormalNode(el, ctx, parent)),
     };
     return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);

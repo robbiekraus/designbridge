@@ -59,3 +59,23 @@ describe('buildRepoCatalog (End-to-End über die echten Fixture-Dateien)', () =>
     expect(buildRepoCatalog([])).toEqual([]);
   });
 });
+
+describe('buildRepoCatalog — Container-Einträge (Spec 2026-07-25 §Entscheidung 3)', () => {
+  it('card.tsx wird Container, button.tsx bleibt Blatt', () => {
+    const cat = buildRepoCatalog([
+      { path: 'components/ui/card.tsx', cva: { base: 'rounded-lg border', variants: {}, defaultVariants: {} } },
+      { path: 'components/ui/button.tsx', cva: { base: 'h-10 px-4', variants: {}, defaultVariants: {} } },
+    ]);
+    const byName = Object.fromEntries(cat.map((c) => [c.name, c]));
+    expect(byName.Card.container).toBe(true);
+    expect(byName.Button.container).toBeUndefined();
+  });
+
+  it('unbekannt benannte Komponenten bleiben Blatt (dokumentierte Grenze)', () => {
+    const [entry] = buildRepoCatalog([
+      { path: 'components/ui/fancy-shell.tsx', cva: { base: 'p-4', variants: {}, defaultVariants: {} } },
+    ]);
+    expect(entry.name).toBe('FancyShell');
+    expect(entry.container).toBeUndefined();
+  });
+});

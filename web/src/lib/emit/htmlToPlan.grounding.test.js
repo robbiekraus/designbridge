@@ -38,6 +38,15 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(ref.import).toEqual({ name: 'Button', from: '@/components/ui/button' });
   });
 
+  it('Container-Katalog-Einträge tragen container:true am Ref, Blätter nicht', () => {
+    // Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Entscheidung 3: Card darf den
+    // interpretierten Unterbaum tragen, Button bleibt Label-Träger.
+    const card = '<div data-ds-component="Card" style="padding:20px"><span style="font-size:14px">Orders</span></div>';
+    expect(findCatalogRef(htmlToPlan(card, { catalog: CATALOG }).plan).container).toBe(true);
+    const button = '<button data-ds-component="Button" style="padding:8px">Speichern</button>';
+    expect(findCatalogRef(htmlToPlan(button, { catalog: CATALOG }).plan).container).toBe(false);
+  });
+
   it('der inline-gestylte Subtree bleibt als fallback erhalten (Text sichtbar)', () => {
     const html = '<button data-ds-component="Button" style="padding:8px">Speichern</button>';
     const ref = findCatalogRef(htmlToPlan(html, { catalog: CATALOG }).plan);

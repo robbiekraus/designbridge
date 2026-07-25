@@ -92,14 +92,33 @@ function paddingClasses([t, r, b, l], scale) {
 const JUSTIFY_CLASS = { CENTER: 'justify-center', MAX: 'justify-end', SPACE_BETWEEN: 'justify-between' };
 const ITEMS_CLASS = { CENTER: 'items-center', MAX: 'items-end', STRETCH: 'items-stretch' };
 
-function boxClasses(node, tokens) {
+/** Layout/Abstand/Größe-Klassen (flex/justify/items/self-stretch/flex-1/w/h/gap/padding). Wird
+ *  sowohl für normale Boxen als auch für die Fallback-Wurzel gegroundeter Container verwendet
+ *  (Spec 2026-07-25 §Umbau: „Layout, Abstände, Größe … kommen aus der Interpretation"). */
+function layoutClasses(node, tokens) {
   const out = [];
-  const isFlex = node.layout === 'row' || node.gap > 0 || node.primaryAlign !== 'MIN' || node.counterAlign !== 'MIN';
+  // Vertikale Stapel-Garantie (Live-Fund 25.07. im Storybook-Sichttest, Spec 2026-07-25 §Zielbild
+  // „Figma und Storybook identisch"): `layout:'column'` heißt im kanonischen Modell IMMER „Kinder
+  // stapeln" — Figmas Auto-Layout macht das auch ohne gap. In HTML gilt das NICHT: ohne `flex` legt
+  // der normale Fluss inline-Kinder (Text wird als `<span>` emittiert) nebeneinander. Eine Spalte
+  // ohne gap/Alignment-Signal (kommt bei KI-Interpretationen real vor) rutschte dadurch in eine
+  // Zeile — im Figma-Export korrekt gestapelt, im Storybook nicht. Mehrere Kinder + column →
+  // explizit `flex flex-col`, damit beide Ableitungen dasselbe zeigen.
+  const stacksChildren = node.layout === 'column' && (node.children?.length ?? 0) > 1;
+  const isFlex = node.layout === 'row' || stacksChildren || node.gap > 0
+    || node.primaryAlign !== 'MIN' || node.counterAlign !== 'MIN';
   if (isFlex) {
     out.push('flex');
     if (node.layout === 'column') out.push('flex-col');
     if (JUSTIFY_CLASS[node.primaryAlign]) out.push(JUSTIFY_CLASS[node.primaryAlign]);
     if (ITEMS_CLASS[node.counterAlign]) out.push(ITEMS_CLASS[node.counterAlign]);
+    // Gegenachse MIN explizit machen (Live-Fund 25.07., Spec 2026-07-25 §Zielbild): Figmas MIN heißt
+    // „Kinder huggen und liegen am Anfang", CSS-Flex dehnt sie per Default (`items-stretch`) auf die
+    // volle Gegenachse. Sichtbar am „Details"-Button in der KPI-Karte: in Figma schmal, im Storybook
+    // über die ganze Kartenbreite. Kinder, die WIRKLICH füllen sollen, tragen `stretch` und damit ihr
+    // eigenes `self-stretch` — das gewinnt gegen `items-start`, exakt wie `layoutAlign:'STRETCH'` in
+    // Figma gegen counterAlign MIN gewinnt.
+    else if (node.counterAlign === 'MIN') out.push('items-start');
   }
   if (node.stretch) out.push('self-stretch');
   if (node.grow) out.push('flex-1');
@@ -112,7 +131,14 @@ function boxClasses(node, tokens) {
   const gap = spacingClass('gap', node.gap, tokens?.spacing);
   if (gap) out.push(gap);
   out.push(...paddingClasses(node.padding, tokens?.spacing));
-  // Visual
+  return out;
+}
+
+/** Visuelle Hüllen-Klassen (bg/border/rounded). Wird für gegroundete Container bewusst NUR vom
+ *  Katalog geliefert (shadcns `Card` bringt `rounded-lg border bg-card shadow-sm`) — die visuellen
+ *  Klassen der Fallback-Wurzel werden dort verworfen (Spec 2026-07-25 §Umbau). */
+function visualClasses(node, tokens) {
+  const out = [];
   const fillSym = colorSymbol(node.fill);
   if (fillSym) out.push(`bg-${fillSym}`);
   const strokeSym = colorSymbol(node.stroke);
@@ -125,6 +151,10 @@ function boxClasses(node, tokens) {
   return out;
 }
 
+function boxClasses(node, tokens) {
+  return [...layoutClasses(node, tokens), ...visualClasses(node, tokens)];
+}
+
 /** Ein Plan-Knoten → JSX-String (mehrzeilig, mit `depth` eingerückt). */
 function walk(node, depth, tokens, componentName) {
   const pad = INDENT.repeat(depth);
@@ -135,7 +165,7 @@ function walk(node, depth, tokens, componentName) {
     // DS-Grounding (Spec 2026-07-23 §Q3/Schritt 3): ein Katalog-ref (trägt `catalog` + `import`)
     // rendert die ECHTE Komponente (`<Button variant=…>Text</Button>`) — Import wird in planToJsx
     // gesammelt. Scan-interne Refs (kein `catalog`) rendern wie bisher ihren fallback-Box-Baum.
-    if (node.catalog) return walkCatalogRef(node, depth, componentName);
+    if (node.catalog) return walkCatalogRef(node, depth, componentName, tokens);
     return walk(node.fallback, depth, tokens, componentName);
   }
 
@@ -215,10 +245,14 @@ function walkSvg(node, depth) {
 // --- DS-Grounding: Katalog-Refs als echte Komponenten (Spec 2026-07-23 §Q3/Schritt 3) ------------
 
 /** Sichtbaren Text eines (fallback-)Subtrees einsammeln → Kind-Inhalt der Katalog-Komponente
- *  (z. B. Button-Label). Reine Funktion; Whitespace kollabiert. */
+ *  (z. B. Button-Label). Reine Funktion; Whitespace kollabiert. Steigt für verschachtelte
+ *  Katalog-Refs (die keine `children`, nur `fallback` haben) in deren `fallback` ab — sonst
+ *  verschwindet der Text eines Blatt-Refs (z. B. ein Badge in einem Button) spurlos
+ *  (Live-Fund: das „3.1%" eines Badge in einer Card, Spec 2026-07-25 §Umbau Punkt 3). */
 function extractText(node) {
   if (!node || typeof node !== 'object') return '';
   if (node.type === 'text') return node.content || '';
+  if (node.type === 'component-ref') return extractText(node.fallback);
   let s = '';
   for (const c of node.children || []) s += `${extractText(c)} `;
   return s;
@@ -242,12 +276,33 @@ function catalogLocalName(name, componentName) {
   return name === componentName ? `${name}Primitive` : name;
 }
 
-function walkCatalogRef(node, depth, componentName) {
+/** Darf ein Katalog-Ref als Container komponiert werden (Kinder statt Text-Extraktion)? Spec
+ *  2026-07-25 §Entscheidung 3: `voidElement` gewinnt IMMER über `container`, und ohne Fallback-
+ *  Kinder gibt es sowieso nichts zu komponieren. */
+function isCatalogContainer(node) {
+  return Boolean(node.container) && !node.voidElement && (node.fallback?.children?.length > 0);
+}
+
+function walkCatalogRef(node, depth, componentName, tokens) {
   const pad = INDENT.repeat(depth);
   const importName = node.import?.name || node.name || 'Component';
   const tag = catalogLocalName(importName, componentName);
   const attrs = catalogPropAttrs(node.props);
   const attrStr = attrs ? ` ${attrs}` : '';
+
+  if (isCatalogContainer(node)) {
+    // Komposition (Spec 2026-07-25 §Kernidee): Hülle (bg/border/rounded) kommt aus dem Katalog,
+    // deshalb NUR layoutClasses der Fallback-Wurzel — ihre visualClasses werden bewusst verworfen.
+    // stretch/grow gehören dem REF-Knoten selbst (der sie heute komplett verliert), zusätzlich zu
+    // dem, was die Fallback-Wurzel schon an Layout mitbringt.
+    const cls = layoutClasses(node.fallback, tokens);
+    if (node.stretch && !cls.includes('self-stretch')) cls.push('self-stretch');
+    if (node.grow && !cls.includes('flex-1')) cls.push('flex-1');
+    const classAttr = cls.length ? ` className="${cls.join(' ')}"` : '';
+    const kids = (node.fallback.children || []).map((c) => walk(c, depth + 1, tokens, componentName)).filter(Boolean);
+    return `${pad}<${tag}${classAttr}${attrStr}>\n${kids.join('\n')}\n${pad}</${tag}>`;
+  }
+
   // Katalog-Komponenten, die ein natives HTML-Void-Element rendern (z. B. Input → <input>), dürfen
   // NIE JSX-Children bekommen — React wirft sonst zur Laufzeit (Live-Fund 24.07., echter Prod-Scan:
   // die KI-Interpretation hatte Platzhaltertext im Input-Fallback-HTML).
@@ -266,6 +321,12 @@ function collectCatalogImports(node, byModule) {
       const set = byModule.get(node.import.from) || new Set();
       set.add(node.import.name);
       byModule.set(node.import.from, set);
+      // Container-Refs komponieren ihre Fallback-Kinder (walkCatalogRef) — deren eigene Katalog-
+      // Imports (z. B. ein Badge in einer Card) müssen also mitgesammelt werden. Blatt-Refs rendern
+      // ihren fallback nie (nur extrahierten Text) → dort bleibt es beim reinen Import-Zählen.
+      if (isCatalogContainer(node)) {
+        for (const c of node.fallback.children || []) collectCatalogImports(c, byModule);
+      }
       return;
     }
     collectCatalogImports(node.fallback, byModule);
@@ -282,7 +343,16 @@ export function groundedComponentNames(plan) {
   const visit = (node) => {
     if (!node || typeof node !== 'object') return;
     if (node.type === 'component-ref') {
-      if (node.catalog && node.name) { names.add(node.name); return; }
+      if (node.catalog && node.name) {
+        names.add(node.name);
+        // Container-Refs komponieren ihre Fallback-Kinder → deren Katalog-Namen (z. B. Badge in
+        // einer Card) gehören mit in die UI-Pille. Blatt-Refs steigen nicht ab (walk rendert ihren
+        // fallback nie).
+        if (isCatalogContainer(node)) {
+          for (const c of node.fallback.children || []) visit(c);
+        }
+        return;
+      }
       visit(node.fallback);
       return;
     }

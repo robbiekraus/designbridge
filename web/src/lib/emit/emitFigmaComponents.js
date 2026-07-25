@@ -6,6 +6,7 @@ import { matchTemplate } from '../components/templates/registry.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokenRefs } from './pickTokenRefs.js';
 import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
+import { groundPlan } from './groundPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
 import { scalePlan, scaleFactor } from './scalePlan.js';
@@ -126,7 +127,11 @@ export function emitFigmaComponents(result, opts = {}) {
           const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
-            const scaled = scalePlan(plan, scaleFactor(item.bbox, iw, naturalWidth));
+            // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+            // §Entscheidung 4): Katalog-Refs VOR dem Skalieren auflösen, damit Figma dieselbe
+            // Hülle+Komposition wie Storybook rendert (kein „Komponente nicht gefunden").
+            const grounded = groundPlan(plan, catalog);
+            const scaled = scalePlan(grounded, scaleFactor(item.bbox, iw, naturalWidth));
             out.push({
               ...meta,
               placeholder: false,
@@ -162,7 +167,10 @@ export function emitFigmaComponents(result, opts = {}) {
         const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
-          const scaled = scalePlan(plan, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);
+          // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+          // §Entscheidung 4): s. Kommentar im composed-spliced-Zweig oben.
+          const grounded = groundPlan(plan, catalog);
+          const scaled = scalePlan(grounded, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);
           out.push({
             ...meta,
             placeholder: false,

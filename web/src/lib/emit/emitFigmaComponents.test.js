@@ -500,3 +500,146 @@ describe('emitFigmaComponents — composed-spliced (Composition-Splice, Task 2)'
     expect(wrapperNode.children[0].name).toBe('KPI Chart');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Figma-Grounding (Task 3+4, Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+// §Entscheidung 4): groundPlan(plan, catalog) läuft NACH htmlToPlan und VOR scalePlan, an beiden
+// Aufrufstellen (ai-interpreted + composed-spliced). Katalog-component-refs (mit `catalog`-Feld)
+// dürfen danach im emittierten Payload nicht mehr vorkommen; scan-interne Refs (Atomic-Nesting)
+// bleiben unangetastet.
+// ---------------------------------------------------------------------------
+function collectAllNodes(node, out = []) {
+  if (!node || typeof node !== 'object') return out;
+  out.push(node);
+  if (node.type === 'component-ref') {
+    collectAllNodes(node.fallback, out);
+    return out;
+  }
+  for (const c of node.children || []) collectAllNodes(c, out);
+  return out;
+}
+
+describe('emitFigmaComponents — Figma-Grounding (groundPlan-Verdrahtung, Task 4)', () => {
+  it('ai-interpreted: Card+Badge (data-ds-component) → payload-Plan enthält KEINEN Katalog-component-ref mehr, Struktur+Text bleiben', () => {
+    const html =
+      '<div data-ds-component="Card" style="border-top-left-radius:8px;padding:20px;display:flex;flex-direction:column;gap:8px">' +
+      '<span style="font-size:14px">Orders</span>' +
+      '<span data-ds-component="Badge" data-ds-variant="secondary" style="font-size:12px">3.1%</span>' +
+      '</div>';
+    const withInterp = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [{ name: 'KPI Card', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        molecules: [], organisms: [], templates: [],
+      },
+      interpretations: { 'KPI Card': { html, jsx: '<div />' } },
+    };
+    const out = emitFigmaComponents(withInterp);
+    const card = out.find((c) => c.name === 'KPI Card');
+    expect(card.placeholder).toBe(false);
+    expect(card.source).toBe('ai-interpreted');
+    const plan = card.variants[0].plan;
+
+    // Kein Katalog-component-ref (catalog gesetzt) mehr irgendwo im Baum.
+    const anyCatalogRef = collectAllNodes(plan).some((n) => n.type === 'component-ref' && n.catalog);
+    expect(anyCatalogRef).toBe(false);
+
+    // Wurzel-Element war selbst ein Katalog-Ref (Card) → htmlToPlan wrappt einen Nicht-Box-Root in
+    // eine synthetische Box (Vertrag: PlanBox|null am Wurzelknoten); die gegroundete Card-Box steckt
+    // also als einziges Kind dieses Wrappers. Struktur bleibt: die Card-Box hat 2 Kinder
+    // (Orders-Text + aufgelöster Badge).
+    expect(plan.type).toBe('box');
+    expect(plan.children).toHaveLength(1);
+    const cardBox = plan.children[0];
+    expect(cardBox.type).toBe('box');
+    expect(cardBox.children).toHaveLength(2);
+
+    // Text bleibt erhalten: "3.1%" steckt im aufgelösten Badge, nicht der Katalog-Platzhalter "Badge".
+    expect(JSON.stringify(plan)).toContain('3.1%');
+  });
+
+  it('composed-spliced: Eltern-Interpretation mit Katalog-Ref → auch hier keine Katalog-component-refs im Payload', () => {
+    const parentBbox = { x: 0.1, y: 0.2, w: 0.6, h: 0.4 };
+    const childBbox = { x: 0.3, y: 0.3, w: 0.2, h: 0.1 };
+    const html =
+      '<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\'>' +
+      '<h2 data-mock-rect=\'{"x":0,"y":0,"width":300,"height":40}\'>Dashboard-Titel</h2>' +
+      '<button data-ds-component="Button" data-ds-variant="secondary" ' +
+      'data-mock-rect=\'{"x":300,"y":100,"width":300,"height":100}\'>Speichern</button>' +
+      '</div>';
+    const result = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [],
+        molecules: [],
+        organisms: [{ name: 'KPI Chart', bbox: childBbox, confidence: 'high', source: 'ai', notes: null }],
+        templates: [{ name: 'Dashboard', bbox: parentBbox, confidence: 'high', source: 'ai', notes: null }],
+        warnings: [],
+        meta: { image_width: 1024, image_height: 768 },
+        composition: { children: { Dashboard: ['KPI Chart'] }, roots: ['Dashboard'] },
+      },
+      interpretations: { Dashboard: { html, jsx: '<div />' } },
+    };
+
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function mockedGetBoundingClientRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x, y: r.y, left: r.x, top: r.y, width: r.width, height: r.height,
+        right: r.x + r.width, bottom: r.y + r.height, toJSON() { return this; },
+      };
+    };
+    try {
+      const out = emitFigmaComponents(result);
+      const dashboard = out.find((c) => c.name === 'Dashboard');
+      expect(dashboard.source).toBe('composed-spliced');
+      const plan = dashboard.variants[0].plan;
+      const anyCatalogRef = collectAllNodes(plan).some((n) => n.type === 'component-ref' && n.catalog);
+      expect(anyCatalogRef).toBe(false);
+      expect(JSON.stringify(plan)).toContain('Speichern');
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  it('scan-interner Ref (Atomic-Nesting-Regression) bleibt ein component-ref nach dem Grounding', () => {
+    const hierarchy = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [],
+        molecules: [{ name: 'Button', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        organisms: [{ name: 'Toolbar', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        templates: [],
+      },
+      interpretations: {
+        Button: { html: '<button class="btn">Save</button>', jsx: '<button />' },
+        Toolbar: { html: '<div class="flex p-2"><button class="btn">Save</button></div>', jsx: '<div />' },
+      },
+    };
+    const out = emitFigmaComponents(hierarchy);
+    const toolbar = out.find((c) => c.name === 'Toolbar');
+    expect(toolbar.placeholder).toBe(false);
+    const plan = toolbar.variants[0].plan;
+    // Scan-interner Ref (matchKnownComponent — kein `catalog`-Feld) bleibt unverändert erhalten.
+    expect(plan.children[0].type).toBe('component-ref');
+    expect(plan.children[0].name).toBe('Button');
+    expect(plan.children[0].catalog).toBeUndefined();
+  });
+
+  it('unbekannter data-ds-component-Name → Fallback-Baum bleibt (kein Katalog-Ref entsteht, groundPlan hat nichts zu tun)', () => {
+    const withInterp = {
+      raw: {
+        tokens: { colors: [], typography: [], spacing: [], border_radius: [], shadows: [] },
+        atoms: [{ name: 'Weird Widget', variants: [], confidence: 'high', source: 'ai', notes: null }],
+        molecules: [], organisms: [], templates: [],
+      },
+      interpretations: { 'Weird Widget': { html: '<div data-ds-component="Sparkline">42</div>', jsx: '<div />' } },
+    };
+    const out = emitFigmaComponents(withInterp);
+    const widget = out.find((c) => c.name === 'Weird Widget');
+    expect(widget.placeholder).toBe(false);
+    const plan = widget.variants[0].plan;
+    expect(JSON.stringify(plan)).toContain('42');
+  });
+});

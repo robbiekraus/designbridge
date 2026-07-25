@@ -25,6 +25,15 @@ const PRIMITIVE = {
 
 const KNOWN_PROPS = ['asChild', 'disabled', 'placeholder', 'checked'];
 
+// Container-Einträge (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Entscheidung 3):
+// dürfen den interpretierten Unterbaum TRAGEN statt ihn zu einem Label einzuschmelzen. Im Default-
+// Katalog steht das Flag von Hand am Eintrag; für ein fremdes Repo ist der Dateiname das einzige
+// verfügbare Signal (die cva sagt nichts über Slots). Bekannte Grenze: ein eigenwillig benannter
+// Container im User-Repo bleibt Blatt — also heutiges Verhalten, kein Rückschritt.
+const CONTAINER_SLUGS = new Set([
+  'card', 'panel', 'dialog', 'sheet', 'alert', 'popover', 'accordion', 'drawer',
+]);
+
 function slugFromPath(p) {
   const file = String(p).split('/').pop() || '';
   return file.replace(/\.(tsx|jsx|ts|js)$/i, '');
@@ -95,6 +104,7 @@ export function buildRepoCatalog(entries, theme = { colors: {}, vars: {} }) {
       match: { tag: prim.tag, hints: prim.hints },
       // plan(sel) — reine Funktion, Defaults aus defaultVariants; label = Komponentenname.
       plan: (sel = {}) => twToPlan(classForSelection(cva, sel), { theme, label: name }),
+      ...(CONTAINER_SLUGS.has(slug) ? { container: true } : {}),
     };
   });
 }

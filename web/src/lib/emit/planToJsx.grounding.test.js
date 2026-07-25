@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planToJsx } from './planToJsx.js';
+import { planToJsx, groundedComponentNames } from './planToJsx.js';
 
 // DS-Grounding, Scheibe 1 Schritt 3 (Spec 2026-07-23 §Q3): Katalog-component-refs rendern als echte
 // shadcn-Komponenten inkl. am Dateikopf gesammelter Imports.
@@ -98,5 +98,145 @@ describe('planToJsx — DS-Grounding: Katalog-refs als echte Komponenten', () =>
   it('kein Katalog-ref → gar keine Import-Zeilen (unveränderte Ausgabe)', () => {
     const code = planToJsx(box({ children: [text('nur Text')] }), { name: 'X' });
     expect(code.startsWith('export function X(')).toBe(true);
+  });
+});
+
+// Task 2 (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Umbau → planToJsx.js):
+// gegroundete Container-Bausteine (container:true) werden KOMPONIERT statt zu einer Textzeile
+// eingeschmolzen. Hülle (bg/border/rounded) kommt aus dem Katalog, Layout/Kinder aus der Messung.
+
+/** Voller Box-Knoten mit allen Vertragsfeldern, die boxClasses/layoutClasses/visualClasses lesen. */
+function fullBox(o = {}) {
+  return {
+    type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: null,
+    stroke: null, strokeWeight: 1, gap: 0, width: null, height: null,
+    primaryAlign: 'MIN', counterAlign: 'MIN', children: [], ...o,
+  };
+}
+
+/** KPI-Karte (Leitfall der Spec/Messung): Card-Container mit drei Kindern, eines davon eine
+ *  verschachtelte Badge-Ref. */
+function buildKpiCardPlan() {
+  const badgeRef = catalogRef({
+    name: 'Badge', import: { name: 'Badge', from: '@/components/ui/badge' },
+    variant: 'secondary', props: { variant: 'secondary' },
+    fallback: fullBox({ children: [text('3.1%')] }),
+  });
+  const cardFallback = fullBox({
+    layout: 'column', gap: 8, padding: [20, 20, 20, 20],
+    fill: { hex: '#ffffff', token: null }, stroke: { hex: '#e5e7eb', token: null }, radius: 8,
+    children: [
+      text('Orders'),
+      fullBox({ layout: 'row', children: [text('13.465'), badgeRef] }),
+      text('Last month: 11.246'),
+    ],
+  });
+  return catalogRef({
+    name: 'Card', import: { name: 'Card', from: '@/components/ui/card' },
+    container: true, props: {}, fallback: cardFallback,
+  });
+}
+
+describe('planToJsx — Komposition gegroundeter Container-Bausteine (container:true)', () => {
+  it('Card mit Kindern → komponiert (nicht eingeschmolzen): eigene Knoten für Titel, Wert, Badge, Fußzeile', () => {
+    const plan = fullBox({ layout: 'column', children: [buildKpiCardPlan()] });
+    const code = planToJsx(plan, { name: 'KpiCard' });
+    // `items-start` spiegelt Figmas counterAlign MIN (Kinder huggen) — CSS-Flex würde sie sonst per
+    // Default dehnen, s. planToJsx.layoutClasses.
+    expect(code).toContain('<Card className="flex flex-col items-start gap-[8px] p-[20px]">');
+    expect(code).toMatch(/<span[^>]*>Orders<\/span>/);
+    expect(code).toContain('<Badge variant="secondary">3.1%</Badge>');
+    expect(code).toMatch(/<span[^>]*>Last month: 11\.246<\/span>/);
+    // Nicht als eine flache Textzeile eingeschmolzen: die drei Textstücke stehen NICHT gemeinsam
+    // in einem einzigen Textknoten.
+    expect(code).not.toMatch(/>Orders 13\.465 3\.1% Last month: 11\.246</);
+  });
+
+  it('am <Card>-Tag stehen KEINE Hüllen-Klassen (bg-/border/rounded) — die kommen aus dem Katalog', () => {
+    const plan = fullBox({ layout: 'column', children: [buildKpiCardPlan()] });
+    const code = planToJsx(plan, { name: 'KpiCard' });
+    const cardOpenTag = code.match(/<Card className="[^"]*">/)[0];
+    expect(cardOpenTag).not.toContain('bg-');
+    expect(cardOpenTag).not.toContain('border');
+    expect(cardOpenTag).not.toContain('rounded');
+  });
+
+  it('beide Imports werden gesammelt (Card + Badge)', () => {
+    const plan = fullBox({ layout: 'column', children: [buildKpiCardPlan()] });
+    const code = planToJsx(plan, { name: 'KpiCard' });
+    expect(code).toContain('import { Badge } from "@/components/ui/badge";');
+    expect(code).toContain('import { Card } from "@/components/ui/card";');
+  });
+
+  it('groundedComponentNames liefert Badge + Card (sortiert)', () => {
+    const plan = fullBox({ layout: 'column', children: [buildKpiCardPlan()] });
+    expect(groundedComponentNames(plan)).toEqual(['Badge', 'Card']);
+  });
+
+  it('Regression Blatt: Button-Ref mit Fallback-Text bleibt <Button>Speichern</Button> (kein Container)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' },
+      props: {}, fallback: fullBox({ children: [text('Speichern')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Button>Speichern</Button>');
+  });
+
+  it('Regression voidElement: Input-Ref (voidElement, container:true UND Fallback-Kinder) rendert selbstschließend, ohne Kinder', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Input', import: { name: 'Input', from: '@/components/ui/input' },
+      voidElement: true, container: true, props: {},
+      fallback: fullBox({ children: [text('Suchen…')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Input />');
+    expect(code).not.toContain('<Input>');
+    expect(code).not.toContain('Suchen');
+  });
+
+  it('Regression catalogLocalName: eigene Komponente heißt "Card" und wrappt einen Card-Container → Tag/Import nutzen CardPrimitive', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Card', import: { name: 'Card', from: '@/components/ui/card' },
+      container: true, props: {}, fallback: fullBox({ layout: 'column', children: [text('Inner')] }),
+    })] });
+    const code = planToJsx(plan, { name: 'Card' });
+    expect(code).toContain('import { Card as CardPrimitive } from "@/components/ui/card";');
+    expect(code).toMatch(/<CardPrimitive[^>]*>/);
+    expect(code).toContain('</CardPrimitive>');
+    expect(code).not.toMatch(/^import \{ Card \}/m);
+  });
+
+  it('Container ohne Fallback-Kinder → <Card /> (kein className, kein Aufklappen)', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Card', import: { name: 'Card', from: '@/components/ui/card' },
+      container: true, props: {}, fallback: fullBox({ children: [] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Card />');
+  });
+
+  it('extractText-Fix: Blatt-Ref (Button), dessen Fallback einen verschachtelten Badge-Ref enthält → dessen Text steht im Label', () => {
+    const plan = fullBox({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' }, props: {},
+      fallback: fullBox({ children: [catalogRef({
+        name: 'Badge', import: { name: 'Badge', from: '@/components/ui/badge' },
+        variant: 'secondary', props: { variant: 'secondary' },
+        fallback: fullBox({ children: [text('3.1%')] }),
+      })] }),
+    })] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Button>3.1%</Button>');
+  });
+
+  it('Container-Ref als Plan-Wurzel: className-Passthrough + {...props} bleiben erhalten, Ausgabe syntaktisch plausibel', () => {
+    const plan = buildKpiCardPlan();
+    const code = planToJsx(plan, { name: 'KpiCard' });
+    expect(code).toMatch(/className=\{`[^`]*\$\{className\}`\}/);
+    expect(code).toContain('{...props}');
+    const opens = (code.match(/<Card\b/g) || []).length;
+    const closes = (code.match(/<\/Card>/g) || []).length;
+    expect(opens).toBe(1);
+    expect(closes).toBe(1);
+    expect(code).toContain('<Badge variant="secondary">3.1%</Badge>');
   });
 });

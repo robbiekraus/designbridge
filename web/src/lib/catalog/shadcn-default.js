@@ -198,6 +198,12 @@ export const SHADCN_DEFAULT_CATALOG = [
     props: [],
     match: { tag: 'div', hints: ['card', 'panel', 'tile'] },
     plan: cardPlan,
+    // Container (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Entscheidung 3):
+    // Eine Card TRÄGT den interpretierten Unterbaum, statt ihn zu einem Label einzuschmelzen.
+    // `cardPlan()`s Padding und Platzhalter-Kinder sind das EIGENSTÄNDIGE Rendering (Katalog-
+    // Vorschau); als Hülle werden nur fill/stroke/radius übernommen — shadcns echte Card hat selbst
+    // kein Padding (das liegt in CardHeader/CardContent).
+    container: true,
   },
   {
     name: 'Checkbox',

@@ -2343,3 +2343,67 @@ describe('htmlToPlan — naturalWidth', () => {
     expect(htmlToPlan('')).toEqual({ plan: null, warnings: [] });
   });
 });
+
+describe('htmlToPlan — Splice-Wurzel-Schutz in Phase 2 (Live-Fund 25.07., Figma-E2E)', () => {
+  let restoreRect;
+
+  beforeEach(() => {
+    const orig = Element.prototype.getBoundingClientRect;
+    restoreRect = () => { Element.prototype.getBoundingClientRect = orig; };
+    Element.prototype.getBoundingClientRect = function mockedRect() {
+      const raw = this.getAttribute?.('data-mock-rect');
+      const r = raw ? JSON.parse(raw) : { x: 0, y: 0, width: 0, height: 0 };
+      return {
+        x: r.x, y: r.y, left: r.x, top: r.y, width: r.width, height: r.height,
+        right: r.x + r.width, bottom: r.y + r.height, toJSON() { return this; },
+      };
+    };
+  });
+
+  afterEach(() => { restoreRect(); });
+
+  // Ein normalisiertes Wurzel-Rect ist immer (0,0,1,1) und erreicht damit gegen JEDES Ziel, das
+  // ≥ SPLICE_MIN_IOU der Elternfläche einnimmt, die IoU-Schwelle. Vor dem Fix wurde dadurch der
+  // KOMPLETTE Elternteil durch die Instanz EINES Kindes ersetzt (Eltern-Chrome + Geschwister weg) —
+  // genau der test8-Root-Cause, den der Splice verhindern soll. Phase 1 hatte den Deckel längst.
+  const HTML = `
+    <div data-mock-rect='{"x":0,"y":0,"width":1000,"height":500}'>
+      <div data-mock-rect='{"x":0,"y":50,"width":400,"height":400}'>Alpha</div>
+      <div data-mock-rect='{"x":560,"y":50,"width":400,"height":400}'>Beta</div>
+    </div>
+  `;
+  // Ziel-bbox deckt 48% der Elternfläche: IoU gegen die Wurzel = 0.48 (über der Schwelle), gegen das
+  // echte Beta-Element nur 0.32 (darunter) — vor dem Fix gewann die Wurzel.
+  const spliceTargets = [{ name: 'Beta Widget', bbox: { x: 0.2, y: 0.1, w: 0.6, h: 0.8 } }];
+
+  it('die Wurzel wird NICHT gesplict — Eltern-Chrome und Geschwister bleiben erhalten', () => {
+    const { plan } = htmlToPlan(HTML, { spliceTargets });
+    expect(plan.type).toBe('box');
+    // Kein component-ref direkt an der Wurzel bzw. als deren einziges Kind (der alte Fehlerfall).
+    const rootRefs = (plan.children || []).filter((c) => c.type === 'component-ref');
+    expect(rootRefs).toHaveLength(0);
+    const texts = [];
+    const collect = (n) => {
+      if (!n || typeof n !== 'object') return;
+      if (n.type === 'text') texts.push(n.content);
+      for (const c of n.children || []) collect(c);
+      if (n.fallback) collect(n.fallback);
+    };
+    collect(plan);
+    expect(texts).toContain('Alpha');
+    expect(texts).toContain('Beta');
+  });
+
+  it('ein plausibel großes Kind wird weiterhin gesplict (Deckel kappt nur Wurzel-/Fast-Wurzel-Treffer)', () => {
+    const targets = [{ name: 'Beta Widget', bbox: { x: 560 / 1000, y: 50 / 500, w: 400 / 1000, h: 400 / 500 } }];
+    const { plan } = htmlToPlan(HTML, { spliceTargets: targets });
+    const names = [];
+    const collect = (n) => {
+      if (!n || typeof n !== 'object') return;
+      if (n.type === 'component-ref') names.push(n.name);
+      for (const c of n.children || []) collect(c);
+    };
+    collect(plan);
+    expect(names).toContain('Beta Widget');
+  });
+});
