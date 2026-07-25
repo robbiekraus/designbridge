@@ -94,11 +94,26 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Aktives Ziel / Nächste Schritte
 
-**▶️ LAUFENDE SESSION 25.07. nachts (autonome Folge-Session, Robs Auftrag „bau autonom weiter"):**
-Sub-Komponenten-Slots (Scheibe A, Code-Emit) GEBAUT (Details oben im Stand). Davor in derselben
-Nacht: Katalog als echte Figma-Komponenten-Bibliothek gebaut, dann Robs erster echter Test dagegen
-gefahren → Phantom-Kästchen-Bugfix (`<br>` u. Ä.). Offen aus dieser Session: Figma-Instanz-Slots
-(Scheibe B) und `CardTitle`/`CardDescription` sind bewusst zurückgestellte Folge-Scheiben (s. Spec).
+**🌙 SESSION GESCHLOSSEN 25.07.2026 nachts (Rob: „schließen die Session heute") — sauberer Stand,
+nichts hängt offen.** Git-Arbeitsbaum clean, `main` == `origin/main` (`61656c9`), alle vier Suiten
+grün (Web 815 · Server 335 · Plugin 117 · Harness 19), Railway-Deploy durch den Push ausgelöst.
+Diese Nacht in Reihenfolge: Katalog als echte Figma-Komponenten-Bibliothek gebaut → Robs erster
+echter Test dagegen → Phantom-Kästchen-Bugfix (`<br>` u. Ä.) → Sub-Komponenten-Slots Scheibe A
+(Code-Emit, Robs angekündigter nächster Schritt, autonom auf Robs „bau weiter"-Auftrag gebaut).
+
+**Wiedereinstieg nächste Session — in dieser Reihenfolge:**
+1. **Dev-Plugin neu laden** (dist ist frisch: Katalog-als-Library + Phantom-Kästchen-Fix sind drin) →
+   Import in Figma → prüft zwei Dinge auf einmal (Sektion „Design System" + keine leeren Kästchen
+   mehr). Sub-Komponenten-Slots betreffen Figma bewusst NICHT (Card bleibt dort Frame) — kein
+   zusätzlicher Prüfpunkt dafür nötig.
+2. **Sub-Komponenten-Slots selbst ansehen** — lokal im Storybook-Harness bereits verifiziert
+   (`cd storybook-harness && npm run storybook:demo:composition`, KPI-Karte), aber noch nicht von
+   Rob selbst gesehen.
+3. Danach zwei offene Folge-Scheiben zur Auswahl (beide bewusst NICHT autonom weitergebaut, s. Spec
+   `2026-07-25-sub-komponenten-slots-design.md` §Entscheidung 3): **Figma-Instanz-Slots** (Card als
+   ◇-Instanz mit Slot-Properties statt Frame — braucht Plugin-Support, ungeprüft ob das so
+   funktioniert) oder **`CardTitle`/`CardDescription`** (kosmetisch, aber echtes Optik-Risiko bei
+   schlampiger Umsetzung — eigene kleine Session wert).
 
 ### Wiedereinstieg: erst DAS, dann weiter
 
