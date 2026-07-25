@@ -219,18 +219,18 @@ export default function Export({ result }) {
             Komponenten + <code className="text-[11px]">*.stories.jsx</code> + <code className="text-[11px]">.storybook/main.js</code> — das Developer-Paket zum Reinlegen.
           </p>
           <button
-            onClick={handleExportStorybook}
-            title="Komponenten + Stories + .storybook/main.js als Handoff-Paket"
-            className="w-full text-xs px-2.5 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
-          >
-            Nach Storybook exportieren
-          </button>
-          <button
             onClick={handleOpenStorybookPreview}
             disabled={storybookPreview === 'building'}
             className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
           >
             {storybookPreview === 'building' ? 'Storybook wird gebaut …' : 'In Storybook öffnen'}
+          </button>
+          <button
+            onClick={handleExportStorybook}
+            title="Komponenten + Stories + .storybook/main.js als Handoff-Paket"
+            className="w-full text-xs px-2.5 py-1.5 rounded bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
+          >
+            Nach Storybook exportieren
           </button>
           {storybookPreview === 'error' && (
             <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
