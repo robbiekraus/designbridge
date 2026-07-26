@@ -2,7 +2,23 @@ import fs from 'fs';
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
 import { classifyByContainment, buildCompositionTree, parentByName, CONTAIN_RATIO } from './taxonomy.js';
+import { SHADCN_VOCABULARY } from './catalog/shadcnVocabulary.js';
 import { downscaleForVision } from './imageResize.js';
+
+// Zerlegungs-Vokabular (Fund 26.07.2026, Robs Frage „in den Atoms fehlen die kleinteiligen
+// Geschichten, Buttons und so").
+//
+// Robs Bild-Scan lieferte aus einem ganzen Dashboard nur 6 Atoms und 3 Molecules — und KEINEN
+// Button, obwohl es welche gibt. Ursache: Erkennung und Interpretation liefen über ZWEI unabhängige
+// Listen. Der Interpretations-Prompt lernt das Katalog-Vokabular (catalogPromptBlock), die
+// DECOMPOSE-Anweisung hier nannte dagegen eine handgeschriebene Kurzliste („button, input, icon,
+// badge, avatar, single control"). Was dort nicht stand, wurde gar nicht erst als eigener Baustein
+// herausgezogen — die Katalog-Aufstockung wäre also wirkungslos geblieben, weil die neuen
+// Komponenten nie als Atom/Molekül auftauchen.
+//
+// Jetzt speist sich die Liste aus derselben Quelle wie das Grounding-Vokabular. Erweitert man den
+// Katalog, weitet sich automatisch mit, was der Scan zerlegt.
+const DECOMPOSITION_VOCABULARY = SHADCN_VOCABULARY.map((c) => c.name).join(', ');
 
 export const EXTRACTION_PROMPT = `You are a design system extraction engine. Analyze this UI screenshot and extract design tokens and UI inventory with high precision.
 
@@ -37,7 +53,7 @@ Classify every UI element into exactly ONE of four atomic-design levels:
 - "templates": the overall screen layout — how organisms are arranged into a full screen (e.g. sidebar + topbar + content grid). Emit AT MOST ONE template for the whole screen.
 CRITICAL: a card, a chart and a table are ORGANISMS, not molecules. A button and a bare input are ATOMS. The whole screen is the single TEMPLATE — never fold the individual sections into it, and never mark an individual section as a template.
 
-DECOMPOSE each organism into its reusable inner building blocks and add them to the appropriate "atoms"/"molecules" arrays IN ADDITION to the organism itself. Extract an inner element when it (a) repeats within the screen, OR (b) is a standard reusable atom (button, input, icon, badge, avatar, single control). Do NOT extract one-off decorative containers or every stray label. When an inner element repeats (e.g. sidebar nav items), emit it ONCE and set "instanceCount" to how many times it appears — never list the same element multiple times. For every extracted inner element set "partOf" to the exact "name" of the organism it belongs to, and give it a reusable generic name (e.g. "Nav Item", not "Dashboard nav item 3"). Top-level building blocks omit "partOf" and use "instanceCount": 1.
+DECOMPOSE each organism into its reusable inner building blocks and add them to the appropriate "atoms"/"molecules" arrays IN ADDITION to the organism itself. Extract an inner element when it (a) repeats within the screen, OR (b) is a standard reusable building block — that means any of: ${DECOMPOSITION_VOCABULARY}, plus icons and status dots. Do NOT extract one-off decorative containers or every stray label. When an inner element repeats (e.g. sidebar nav items), emit it ONCE and set "instanceCount" to how many times it appears — never list the same element multiple times. For every extracted inner element set "partOf" to the exact "name" of the organism it belongs to, and give it a reusable generic name (e.g. "Nav Item", not "Dashboard nav item 3"). Top-level building blocks omit "partOf" and use "instanceCount": 1.
 
 Rules:
 - Only include items you can actually observe in the screenshot

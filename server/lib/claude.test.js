@@ -44,6 +44,26 @@ test('EXTRACTION_PROMPT enthält Zerlegungs-Instruktion + neue Felder', () => {
   assert.match(EXTRACTION_PROMPT, /partOf/);
 });
 
+// Fund 26.07.2026: Robs Bild-Scan lieferte aus einem ganzen Dashboard nur 6 Atoms und 3 Molecules,
+// KEINEN Button. Ursache war, dass Erkennung und Interpretation über zwei unabhängige Listen liefen —
+// die DECOMPOSE-Anweisung nannte eine handgeschriebene Kurzliste („button, input, icon, badge,
+// avatar, single control") und war vom Katalog-Vokabular getrennt. Eine Katalog-Aufstockung wäre
+// dadurch wirkungslos geblieben: was hier nicht steht, wird nie als eigener Baustein herausgezogen.
+test('Zerlegungs-Vokabular kommt aus dem Katalog, nicht aus einer eigenen Liste', async () => {
+  const { SHADCN_VOCABULARY } = await import('./catalog/shadcnVocabulary.js');
+  for (const { name } of SHADCN_VOCABULARY) {
+    assert.match(
+      EXTRACTION_PROMPT,
+      new RegExp(`\\b${name}\\b`),
+      `„${name}" steht im Katalog, fehlt aber im Zerlegungs-Vokabular des Prompts`,
+    );
+  }
+  // Gegenprobe, dass die Aufstockung wirklich angekommen ist (nicht nur der alte Startsatz).
+  for (const neu of ['Tabs', 'Progress', 'Switch', 'Skeleton']) {
+    assert.match(EXTRACTION_PROMPT, new RegExp(`\\b${neu}\\b`));
+  }
+});
+
 test('analyzeScreenshot: normalisiert String-Größen ("64px") zu Zahlen — Gemini liefert px-Suffixe (Live-Fund 15.07.)', async () => {
   const imgPath = tmpImage();
   const fakeClient = {
