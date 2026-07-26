@@ -1,0 +1,118 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Splice-Slots vs. natürliche Größe — im ECHTEN Browser</title>
+<body style="font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:20px;color:#18181b">
+<h2 style="font-size:16px;margin:0 0 4px">Splice-Slot vs. natürliche Größe</h2>
+<p style="color:#71717a;margin:0 0 16px">
+  Befund in Robs Figma-Datei <code>UuoCS1lCmtRPfAE10Mjter</code> (26.07.2026): gesplicte Instanzen
+  im Template werden vom Plugin auf <code>min(natürlich, Slot)</code> geklemmt
+  (<code>applyAbsolute</code>, Spec 2026-07-19-composition-fidelity-v2) und verlieren dabei ihren
+  Inhalt — <code>Sidebar Navigation</code> kam als 392×325 an, obwohl ihr Inhalt bis y+1325 läuft.
+  Diese Seite misst pro gesplicter Instanz drei Zahlen nebeneinander:
+  <strong>Slot</strong> (gemessenes Rect des im Eltern-HTML gematchten Elements — das, was heute
+  die Größe bestimmt), <strong>bbox-Slot</strong> (die autoritative Kind-bbox aus dem Scan, in
+  Bildpixeln) und <strong>natürlich</strong> (Wurzelgröße im eigenen Plan des Kindes).
+</p>
+<p style="color:#71717a;margin:0 0 16px">
+  <strong>Aufruf:</strong>
+  <code>cp storybook-harness/fixtures/prod-scan-raw.json web/verification/</code> ·
+  Dev-Server starten (<code>PORT=3047 npm run dev:demo</code>) ·
+  <code>http://localhost:5173/verification/splice-slots-in-browser.html</code> ·
+  Ergebnis auch in <code>window.__RESULT</code>.
+</p>
+<pre id="status" style="background:#f4f4f5;padding:12px;border-radius:6px">lade …</pre>
+<div style="overflow-x:auto"><table id="tab" style="border-collapse:collapse;font-size:12px"></table></div>
+<h3 style="font-size:14px;margin:20px 0 4px">window.__RESULT</h3>
+<pre id="out" style="background:#f4f4f5;padding:12px;border-radius:6px;overflow-x:auto;max-height:340px">…</pre>
+
+<script type="module">
+const status = document.getElementById('status');
+const PREVIEW_VIRTUAL_WIDTH = 1024;
+
+function fail(e) {
+  status.textContent = 'FEHLER: ' + (e && e.stack || e);
+  status.style.color = '#dc2626';
+  window.__RESULT = { error: String(e && e.message || e) };
+}
+
+try {
+  const { emitFigmaComponents } = await import('/src/lib/emit/emitFigmaComponents.js');
+  const res = await fetch('/verification/prod-scan-raw.json');
+  if (!res.ok) {
+    throw new Error(`Rohdaten fehlen (HTTP ${res.status}). Erst kopieren:\n`
+      + 'cp storybook-harness/fixtures/prod-scan-raw.json web/verification/');
+  }
+  const result = await res.json();
+
+  const imageWidth = result.raw?.meta?.image_width;
+  const imageHeight = result.raw?.meta?.image_height;
+  const k = imageWidth / PREVIEW_VIRTUAL_WIDTH;
+
+  const bboxOf = {};
+  for (const grp of ['atoms', 'molecules', 'organisms', 'templates'])
+    for (const it of result.raw?.[grp] || []) bboxOf[it.name] = it.bbox;
+
+  const components = emitFigmaComponents(result);
+
+  // Wurzelgröße des eigenen Plans eines Bausteins = das, was das Plugin nach createInstance()
+  // als „natürliche Größe" sieht (die Instanz ist genau diese Komponente).
+  const naturalOf = {};
+  for (const c of components) {
+    const p = c.variants?.[0]?.plan;
+    if (p) naturalOf[c.name] = { w: p.width, h: p.height };
+  }
+
+  function walk(node, visit) {
+    if (!node || typeof node !== 'object') return;
+    visit(node);
+    if (node.type === 'component-ref') return walk(node.fallback, visit);
+    for (const c of node.children || []) walk(c, visit);
+  }
+
+  const rows = [];
+  for (const comp of components) {
+    const plan = comp.variants?.[0]?.plan;
+    if (!plan) continue;
+    walk(plan, (n) => {
+      if (n.type !== 'component-ref' || !n.absolute) return;
+      if (String(n.name).startsWith('DS/')) return; // Katalog-Instanzen, andere Baustelle
+      const nat = naturalOf[n.name];
+      const bb = bboxOf[n.name];
+      const r = (x) => (typeof x === 'number' && isFinite(x)) ? Math.round(x) : null;
+      const slotW = r(n.absolute.width), slotH = r(n.absolute.height);
+      const natW = r(nat?.w), natH = r(nat?.h);
+      rows.push({
+        parent: comp.name,
+        child: n.name,
+        slotW, slotH,
+        bboxSlotW: bb ? Math.round(bb.w * imageWidth) : null,
+        bboxSlotH: bb ? Math.round(bb.h * imageHeight) : null,
+        natW, natH,
+        // >1 heißt: die Instanz wird per min() kleiner gemacht als sie ist → Inhalt geht verloren.
+        shrinkW: (natW && slotW) ? +(natW / slotW).toFixed(2) : null,
+        shrinkH: (natH && slotH) ? +(natH / slotH).toFixed(2) : null,
+      });
+    });
+  }
+
+  const cols = ['parent', 'child', 'slotW', 'slotH', 'bboxSlotW', 'bboxSlotH', 'natW', 'natH', 'shrinkW', 'shrinkH'];
+  const tab = document.getElementById('tab');
+  tab.innerHTML = '<tr>' + cols.map((c) => `<th style="text-align:left;padding:4px 10px;border-bottom:1px solid #d4d4d8">${c}</th>`).join('') + '</tr>'
+    + rows.map((row) => '<tr>' + cols.map((c) => {
+      const v = row[c];
+      const bad = (c === 'shrinkW' || c === 'shrinkH') && typeof v === 'number' && v > 1.15;
+      return `<td style="padding:4px 10px;border-bottom:1px solid #f4f4f5;${bad ? 'color:#dc2626;font-weight:600' : ''}">${v === null || v === undefined ? '–' : v}</td>`;
+    }).join('') + '</tr>').join('');
+
+  const summary = {
+    imageWidth, imageHeight, k: +k.toFixed(3),
+    geSplicteInstanzen: rows.length,
+    zuStarkGeschrumpft: rows.filter((r) => (r.shrinkW ?? 0) > 1.15 || (r.shrinkH ?? 0) > 1.15).length,
+  };
+  window.__RESULT = { summary, rows };
+  status.textContent = JSON.stringify(summary, null, 2);
+  document.getElementById('out').textContent = JSON.stringify(rows, null, 2);
+} catch (e) {
+  fail(e);
+}
+</script>

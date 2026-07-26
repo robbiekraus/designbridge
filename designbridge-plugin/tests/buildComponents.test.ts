@@ -20,6 +20,11 @@ function makeNode(type: string): any {
     name: '',
     children: [] as any[],
     fills: [] as unknown[],
+    x: 0,
+    y: 0,
+    width: 10,
+    height: 10,
+    removed: false,
     appendChild(child: any) {
       node.children.push(child);
     },
@@ -29,6 +34,10 @@ function makeNode(type: string): any {
     remove() {
       node.removed = true;
     },
+    resize(w: number, h: number) {
+      node.width = w;
+      node.height = h;
+    },
   };
   return node;
 }
@@ -37,9 +46,16 @@ function makeNode(type: string): any {
   createFrame: () => makeNode('FRAME'),
   createText: () => makeNode('TEXT'),
   loadFontAsync: async () => undefined,
+  createNodeFromSvg: () => makeNode('VECTOR_GROUP'),
   createComponentFromNode: (node: any) => {
     node.type = 'COMPONENT';
     return node;
+  },
+  combineAsVariants: (nodes: any[], parent: any) => {
+    const set = makeNode('COMPONENT_SET');
+    for (const n of nodes) set.children.push(n);
+    parent.appendChild(set);
+    return set;
   },
 };
 
@@ -70,6 +86,41 @@ function makeSections(): SectionFrames {
     template: makeNode('SECTION'),
   } as unknown as SectionFrames;
 }
+
+// Robs Figma-Datei UuoCS1lCmtRPfAE10Mjter (26.07.): das gescannte Atom „Button" kam als Set mit
+// 3 Varianten an, alle auf derselben Koordinate (Set-Box 73×32) — Figma markiert das rot.
+// Gleiche Ursache wie bei den DS-Komponenten: vor combineAsVariants wird keine Position gesetzt.
+test('Varianten eines gescannten Component Sets überlappen einander nicht', async () => {
+  const emptyBox = () => ({
+    type: 'box' as const, layout: 'row' as const, padding: [0, 0, 0, 0] as [number, number, number, number],
+    radius: 0, fill: null, stroke: null, strokeWeight: 1, gap: 0, width: null, height: null,
+    primaryAlign: 'MIN' as const, counterAlign: 'CENTER' as const, children: [],
+  });
+  const components: ImportComponent[] = [{
+    name: 'Button', kind: 'atom', confidence: null, source: null, notes: null, placeholder: false,
+    variants: [
+      { name: 'primary', plan: emptyBox() },
+      { name: 'secondary', plan: emptyBox() },
+      { name: 'ghost', plan: emptyBox() },
+    ],
+  }];
+  const sections = makeSections();
+
+  await buildComponents(components, sections, new Map());
+
+  const set = (sections.atom as any).children[0];
+  assert.equal(set.type, 'COMPONENT_SET');
+  assert.equal(set.children.length, 3);
+  for (let i = 0; i < set.children.length; i++) {
+    for (let j = i + 1; j < set.children.length; j++) {
+      const a = set.children[i];
+      const b = set.children[j];
+      const overlaps = a.x < b.x + b.width && b.x < a.x + a.width
+        && a.y < b.y + b.height && b.y < a.y + a.height;
+      assert.equal(overlaps, false, `„${a.name}" (${a.x},${a.y}) überlappt „${b.name}" (${b.x},${b.y})`);
+    }
+  }
+});
 
 test('mixed payload (3 atom, 9 organism, 1 template), all new: createdByKind matches', async () => {
   const components: ImportComponent[] = [

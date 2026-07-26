@@ -90,6 +90,22 @@ function installFigmaStub(): { sets: AnyNode[] } {
   return { sets };
 }
 
+/** Varianten eines Component Sets dürfen sich in Figma nicht überlappen (sonst rotes Set).
+ *  Absichtlich geometrisch statt auf konkrete Koordinaten geprüft — die Anordnung (Spalte, Raster)
+ *  ist Implementierungsdetail, „kein Überlapp" ist der Vertrag. */
+function assertNoOverlap(variants: AnyNode[]): void {
+  assert.ok(variants.length > 1, 'Testaufbau braucht mehr als eine Variante');
+  for (let i = 0; i < variants.length; i++) {
+    for (let j = i + 1; j < variants.length; j++) {
+      const a = variants[i] as unknown as { x: number; y: number; width: number; height: number; name: string };
+      const b = variants[j] as unknown as { x: number; y: number; width: number; height: number; name: string };
+      const overlaps = a.x < b.x + b.width && b.x < a.x + a.width
+        && a.y < b.y + b.height && b.y < a.y + a.height;
+      assert.equal(overlaps, false, `„${a.name}" (${a.x},${a.y}) überlappt „${b.name}" (${b.x},${b.y})`);
+    }
+  }
+}
+
 function box(overrides: Partial<PlanBox> = {}): PlanBox {
   return {
     type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: null, stroke: null,
@@ -218,6 +234,46 @@ test('buildCatalogComponents: mehrere Varianten → COMPONENT_SET, Kinder tragen
   assert.equal(sets.length, 1);
   assert.equal(sets[0].name, 'DS/Button');
   assert.deepEqual(sets[0].children.map((c) => c.name), ['variant=default, size=default', 'variant=secondary, size=default']);
+});
+
+// Robs Figma-Datei UuoCS1lCmtRPfAE10Mjter (26.07.): `DS/Button` hatte 24 Varianten, ALLE auf
+// derselben Koordinate (24,72), Set-Box 109×41 — Figma markiert ein solches Set rot
+// („Varianten überlappen"). Ursache: createComponentFromNode liefert jede Variante bei 0,0 und
+// weder buildCatalog noch buildComponents hat je eine Position gesetzt.
+test('buildCatalogComponents: Varianten eines Sets überlappen einander nicht', async () => {
+  const { sets } = installFigmaStub();
+  const { buildCatalogComponents } = await import('../src/writer/buildCatalog');
+  const section = makeNode('FRAME');
+  await buildCatalogComponents(
+    [{ name: 'DS/Button', variants: [
+      { name: 'variant=default, size=default', plan: box() },
+      { name: 'variant=secondary, size=default', plan: box() },
+      { name: 'variant=ghost, size=sm', plan: box() },
+    ] }],
+    section as unknown as FrameNode,
+    new Map(),
+  );
+  assertNoOverlap(sets[0].children);
+});
+
+test('buildCatalogComponents: auch beim Update eines bestehenden Sets werden Varianten neu positioniert', async () => {
+  installFigmaStub();
+  const { buildCatalogComponents } = await import('../src/writer/buildCatalog');
+  const section = makeNode('FRAME');
+  const existing = makeNode('COMPONENT_SET');
+  existing.name = 'DS/Badge';
+  section.children.push(existing);
+
+  await buildCatalogComponents(
+    [{ name: 'DS/Badge', variants: [
+      { name: 'variant=default', plan: box() },
+      { name: 'variant=secondary', plan: box() },
+    ] }],
+    section as unknown as FrameNode,
+    new Map(),
+  );
+  // Stub-remove() markiert nur; die frischen Varianten sind die nicht-entfernten Kinder.
+  assertNoOverlap(existing.children.filter((c) => c.removed === false));
 });
 
 test('buildCatalogComponents: bestehender Eintrag wird an seiner Position ersetzt (Update)', async () => {

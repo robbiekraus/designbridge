@@ -12,6 +12,7 @@
 import { ImportCatalogEntry } from './parsePayload';
 import type { SectionFrames } from './buildComponents';
 import { renderPlan } from './renderPlan';
+import { layOutVariants } from './variantLayout';
 
 export interface CatalogBuildResult {
   created: number;
@@ -99,6 +100,7 @@ export async function buildCatalogComponents(
         const old = [...existing.children];
         for (const c of variantComponents) existing.appendChild(c);
         for (const o of old) o.remove();
+        layOutVariants(variantComponents);
         result.updated += 1;
         continue;
       }
@@ -108,6 +110,7 @@ export async function buildCatalogComponents(
         idx = section.children.indexOf(existing);
         existing.remove();
       }
+      layOutVariants(variantComponents);
       const set = figma.combineAsVariants(variantComponents, section);
       set.name = entry.name;
       if (idx >= 0) section.insertChild(idx, set);

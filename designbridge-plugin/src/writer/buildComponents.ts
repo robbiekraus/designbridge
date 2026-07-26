@@ -2,6 +2,7 @@
 // Create-or-update per Name: bestehende Sets behalten ihre Identität.
 import { ImportComponent } from './parsePayload';
 import { renderPlan } from './renderPlan';
+import { layOutVariants } from './variantLayout';
 
 export interface BuildResult {
   created: number;
@@ -170,6 +171,7 @@ export async function buildComponents(
         const old = [...existing.children];
         for (const c of variantComponents) existing.appendChild(c);
         for (const o of old) o.remove();
+        layOutVariants(variantComponents);
         result.updated += 1;
         result.updatedByKind[comp.kind] += 1;
       } else {
@@ -179,6 +181,7 @@ export async function buildComponents(
           idx = section.children.indexOf(existing);
           existing.remove();
         }
+        layOutVariants(variantComponents);
         const set = figma.combineAsVariants(variantComponents, section);
         set.name = comp.name;
         // combineAsVariants hängt ans Ende — zurück an die alte Position schieben

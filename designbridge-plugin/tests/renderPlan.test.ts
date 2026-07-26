@@ -237,7 +237,13 @@ type InstanceStub = {
   resize(w: number, h: number): void;
 };
 
-function makeInstanceStub(naturalWidth = 10, naturalHeight = 10): InstanceStub {
+function makeInstanceStub(
+  naturalWidth = 10,
+  naturalHeight = 10,
+  // Auto-Layout-Achsen der referenzierten Komponente. Default 'NONE' = beide Achsen fest —
+  // damit verhalten sich alle Bestandstests unverändert (dort wird weiterhin verkleinert).
+  sizing: { layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'; primaryAxisSizingMode?: 'AUTO' | 'FIXED'; counterAxisSizingMode?: 'AUTO' | 'FIXED' } = {}
+): InstanceStub {
   return {
     type: 'INSTANCE',
     x: 0,
@@ -247,6 +253,9 @@ function makeInstanceStub(naturalWidth = 10, naturalHeight = 10): InstanceStub {
     layoutPositioning: 'AUTO',
     layoutAlign: 'INHERIT',
     layoutGrow: 0,
+    layoutMode: sizing.layoutMode ?? 'NONE',
+    primaryAxisSizingMode: sizing.primaryAxisSizingMode ?? 'FIXED',
+    counterAxisSizingMode: sizing.counterAxisSizingMode ?? 'FIXED',
     resize(w: number, h: number) {
       this.width = w;
       this.height = h;
@@ -262,14 +271,14 @@ function makeInstanceStub(naturalWidth = 10, naturalHeight = 10): InstanceStub {
 // diesen Parameter nicht setzen.
 function sectionsWithComponent(
   name: string,
-  naturalSize: { width?: number; height?: number } = {}
+  naturalSize: { width?: number; height?: number; layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'; primaryAxisSizingMode?: 'AUTO' | 'FIXED'; counterAxisSizingMode?: 'AUTO' | 'FIXED' } = {}
 ): { sections: SectionFrames; instances: InstanceStub[] } {
   const instances: InstanceStub[] = [];
   const stubComponent = {
     type: 'COMPONENT' as const,
     name,
     createInstance: () => {
-      const inst = makeInstanceStub(naturalSize.width, naturalSize.height);
+      const inst = makeInstanceStub(naturalSize.width, naturalSize.height, naturalSize);
       instances.push(inst);
       return inst;
     },
@@ -698,6 +707,71 @@ test('component-ref: Slot höher als natürlich (Höhe) → Höhe bleibt natürl
   assert.equal(instances.length, 1);
   assert.equal(rendered.width, 260, 'Breite: min(260, 260) = 260');
   assert.equal(rendered.height, 940, 'Höhe bleibt natürlich (940) statt auf den Slot (1553) gestreckt zu werden');
+});
+
+// ── Robs Figma-Datei UuoCS1lCmtRPfAE10Mjter, 26.07.2026 ───────────────────────
+// `Sidebar Navigation` kam im Template als Instanz 392×325 an (clipsContent), obwohl ihr Inhalt
+// bis y+1325 läuft — in der Organismen-Sektion steht dieselbe Sidebar korrekt mit 392×1379 da.
+// Ursache: v2 erlaubt Verkleinern per min() pro Achse. Verkleinern ist aber nur dort harmlos, wo
+// die Komponente eine FESTE Größe hat. Hugged eine Achse ihren Inhalt (Auto-Layout AUTO), ist
+// „natürlich" = Inhaltsgröße — resize() macht daraus FIXED und schneidet den Rest ab. Der Slot
+// stammt aus der EIGENEN Interpretation des Elternteils und ist eine unabhängige Messung; bei
+// Robs Scan lag er 4,2× daneben.
+test('component-ref: Instanz, die ihre Höhe hugged, wird NICHT auf einen kleineren Slot geschrumpft', async () => {
+  installFigmaStub();
+  const { sections } = sectionsWithComponent('Sidebar Navigation', {
+    width: 392, height: 1379, layoutMode: 'VERTICAL', primaryAxisSizingMode: 'AUTO', counterAxisSizingMode: 'FIXED',
+  });
+  const child = componentRefChild({ name: 'Sidebar Navigation', absolute: { x: 0, y: 0, width: 392, height: 325 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(rendered.height, 1379, 'huggende Höhe bleibt natürlich statt auf 325 geklemmt zu werden');
+  assert.equal(rendered.width, 392, 'die feste Breite darf weiter per min() begrenzt werden');
+});
+
+test('component-ref: Instanz mit FESTER Höhe wird weiterhin auf den kleineren Slot verkleinert', async () => {
+  installFigmaStub();
+  // Regressionsschutz für den in v2 belegten guten Fall (Karten kacheln): keine Achse hugged.
+  const { sections } = sectionsWithComponent('KPI Card', {
+    width: 600, height: 400, layoutMode: 'VERTICAL', primaryAxisSizingMode: 'FIXED', counterAxisSizingMode: 'FIXED',
+  });
+  const child = componentRefChild({ name: 'KPI Card', absolute: { x: 0, y: 0, width: 500, height: 350 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(rendered.width, 500);
+  assert.equal(rendered.height, 350);
+});
+
+test('component-ref: huggende Breite in einem row-Layout wird ebenfalls nicht geschrumpft', async () => {
+  installFigmaStub();
+  // Bei layout row liegt die Primärachse waagerecht — AUTO heißt dort „Breite hugged".
+  const { sections } = sectionsWithComponent('Header Bar', {
+    width: 1791, height: 120, layoutMode: 'HORIZONTAL', primaryAxisSizingMode: 'AUTO', counterAxisSizingMode: 'FIXED',
+  });
+  const child = componentRefChild({ name: 'Header Bar', absolute: { x: 0, y: 0, width: 900, height: 60 } });
+  const parent = emptyBox({ children: [child] });
+  const frame = (await renderPlan(parent, new Map(), [], sections)) as unknown as FrameStub;
+  const rendered = frame.children[0] as unknown as InstanceStub;
+  assert.equal(rendered.width, 1791, 'huggende Breite bleibt natürlich');
+  assert.equal(rendered.height, 60, 'die feste Höhe darf weiter begrenzt werden');
+});
+
+// Der Slot-Rahmen der v3-Flow-Box (htmlToPlan: box in Slot-Größe, Instanz als einziges,
+// absolut positioniertes Kind) hat eine EXPLIZITE Größe und clippt deshalb (renderPlan Fix 6).
+// Bleibt die Instanz größer als der Slot, schnitte er sie weg — dasselbe Prinzip wie Fix A vom
+// 18.07. auf der Web-Seite: überragt der Inhalt seinen Rahmen, gewinnt der Inhalt.
+test('Slot-Rahmen mit einem einzigen zu großen absoluten Kind wächst mit, statt es abzuschneiden', async () => {
+  installFigmaStub();
+  const { sections } = sectionsWithComponent('Sidebar Navigation', {
+    width: 392, height: 1379, layoutMode: 'VERTICAL', primaryAxisSizingMode: 'AUTO', counterAxisSizingMode: 'FIXED',
+  });
+  const child = componentRefChild({ name: 'Sidebar Navigation', absolute: { x: 0, y: 0, width: 392, height: 325 } });
+  const slotFrame = emptyBox({ children: [child], width: 392, height: 325 });
+  const frame = (await renderPlan(slotFrame, new Map(), [], sections)) as unknown as FrameStub;
+  assert.equal(frame.height, 1379, 'der Slot-Rahmen wächst auf die Höhe seines Inhalts');
+  assert.equal(frame.width, 392);
 });
 
 test('component-ref: gemischt (Breite kleiner, Höhe größer als natürlich) → min pro Achse einzeln', async () => {

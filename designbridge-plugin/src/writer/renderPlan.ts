@@ -298,6 +298,46 @@ function childDeterminacy(
   };
 }
 
+/** Der Slot-Rahmen der v3-Flow-Box (htmlToPlan: eine Box in Slot-Größe, die die gesplicte Instanz
+ *  als EINZIGES, absolut positioniertes Kind bei (0,0) enthält — sie hält den Fluss-Platz für die
+ *  Geschwister) hat eine explizite Größe und clippt deshalb (Fix 6, s. u.). Bleibt die Instanz
+ *  größer als der Slot — seit dem Hug-Schutz in applyAbsolute der Normalfall, wenn die
+ *  Eltern-Interpretation die Region zu klein gemessen hat —, schnitte der Rahmen sie weg.
+ *
+ *  Dieselbe Entscheidung wie Fix A vom 18.07. auf der Web-Seite (htmlToPlan readSize): überragt
+ *  der Inhalt seinen Rahmen, gewinnt der Inhalt, sonst verschwindet er im Import. Bewusst eng
+ *  gefasst auf „genau ein Kind, absolut positioniert, größer als der Rahmen" — das ist die Form
+ *  der Flow-Box und sonst nichts. Ein Organismus mit mehreren absoluten Kindern bleibt unberührt.
+ *
+ *  Nebenwirkung im Wachstumsfall: `resize()` setzt beide Achsen auf FIXED, eine bis dahin
+ *  huggende Achse verliert also ihr HUG. Das ist hier richtig — ein absolut positioniertes Kind
+ *  zählt in Figma nicht zur gehuggten Größe, eine HUG-Achse würde neben ihm auf 0 kollabieren. */
+function growToFitLoneAbsoluteChild(frame: FrameNode, plan: Extract<PlanNode, { type: 'box' }>): void {
+  if (plan.width === null && plan.height === null) return; // HUG-Box clippt ohnehin nicht
+  if (frame.children.length !== 1) return;
+  const only = frame.children[0] as SceneNode & { layoutPositioning?: 'AUTO' | 'ABSOLUTE' };
+  if (only.layoutPositioning !== 'ABSOLUTE') return;
+  const needW = only.x + only.width;
+  const needH = only.y + only.height;
+  if (needW <= frame.width && needH <= frame.height) return;
+  frame.resize(Math.max(frame.width, needW), Math.max(frame.height, needH));
+}
+
+/** Welche Achsen eines Nodes ihre Größe aus dem Inhalt ziehen (Auto-Layout-Sizing 'AUTO').
+ *  Ohne Auto-Layout ('NONE') oder auf einem Node ohne diese Felder: keine — beide Achsen fest. */
+function hugAxes(node: SceneNode): { width: boolean; height: boolean } {
+  const f = node as SceneNode & {
+    layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL';
+    primaryAxisSizingMode?: 'AUTO' | 'FIXED';
+    counterAxisSizingMode?: 'AUTO' | 'FIXED';
+  };
+  const primaryAuto = f.primaryAxisSizingMode === 'AUTO';
+  const counterAuto = f.counterAxisSizingMode === 'AUTO';
+  if (f.layoutMode === 'HORIZONTAL') return { width: primaryAuto, height: counterAuto };
+  if (f.layoutMode === 'VERTICAL') return { width: counterAuto, height: primaryAuto };
+  return { width: false, height: false };
+}
+
 function applyAbsolute(node: SceneNode, el: PlanNode): void {
   const abs = el.absolute;
   if (!abs) return;
@@ -315,9 +355,21 @@ function applyAbsolute(node: SceneNode, el: PlanNode): void {
     // natürliche Größe (node.width/height NACH createInstance(), VOR resize()) hinaus
     // gestreckt werden — unabhängig interpretierte Bausteine haben unterschiedlichen
     // Maßstab, Strecken verzerrt/leert die Instanz.
+    //
+    // Nachschärfung 26.07.2026 (Befund in Robs Datei `UuoCS1lCmtRPfAE10Mjter`): Verkleinern ist
+    // NUR auf einer Achse mit FESTER Größe harmlos. Hugged eine Achse ihren Inhalt (Auto-Layout
+    // AUTO), dann IST die natürliche Größe die Inhaltsgröße — ein resize() macht daraus FIXED und
+    // schneidet den Überstand ab. Gemessen: `Sidebar Navigation` kam als 392×325 an, während ihr
+    // Inhalt bis y+1325 läuft (in der Organismen-Sektion steht dieselbe Sidebar mit 392×1379 da);
+    // die Chart-Karte als 1087×67 bei 1253×731 Inhalt. Der Slot stammt aus der EIGENEN
+    // Interpretation des Elternteils — eine unabhängige Messung derselben Bildregion, die bei
+    // Robs Scan um Faktor 4,2 bzw. 10,9 danebenlag. v2 hat Verkleinern an Karten belegt, wo Slot
+    // und natürliche Größe eng beieinander liegen (Fixture-Messung 26.07.: Faktor 0,76–1,16) —
+    // dieser Fall bleibt unverändert.
     const resizable = node as SceneNode & { resize(w: number, h: number): void };
-    const w = Math.min(node.width, abs.width);
-    const h = Math.min(node.height, abs.height);
+    const hug = hugAxes(node);
+    const w = hug.width ? node.width : Math.min(node.width, abs.width);
+    const h = hug.height ? node.height : Math.min(node.height, abs.height);
     resizable.resize(w, h);
   } else {
     (node as SceneNode & { resize(w: number, h: number): void }).resize(abs.width, abs.height);
@@ -405,6 +457,7 @@ export async function renderPlan(
       }
       frame.resize(plan.width ?? frame.width, plan.height ?? frame.height);
     }
+    growToFitLoneAbsoluteChild(frame, plan);
     // Fix 6 (Testrunde 6, Spec §Fix 6, Punkt 3): figma.createFrame() liefert clipsContent
     // DEFAULT true — ungesetzt clippt also JEDE Box, auch eine HUG-Box (plan.width/height beide
     // null), sobald ein Kind aus irgendeinem Grund über die gehuggte Größe hinausreicht (z. B.

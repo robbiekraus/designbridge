@@ -4,9 +4,101 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
-- **26.07.2026 abends/nachts — ALLES AUF `main` UND LIVE. Fünf Themen: Storybook-Knopf, Skalierung (Schrift + Breiten), Katalog-Aufstockung, Zerlegungs-Vokabular, Template-Maßstab.** **Endstand `0af9c22`** (Code-Endstand `3add782`), Prod-Bundle **`index-Cp1EXfJF.js`** verifiziert. Tests: **Web 876 · Server 337 · Plugin 117 + Typecheck · Harness 19**, Build sauber, Arbeitsbaum leer.
+- **27.07.2026 (nachts) — ZWEI PLUGIN-BUGS AUS ROBS SICHTPRÜFUNG GEFIXT: Varianten-Stapel und geklemmte Instanzen. Beide im ECHTEN Figma per A/B bewiesen, nicht nur im Mock.** Plugin **124/124** (vorher 117), Typecheck sauber, `dist` neu gebaut, Web **876/876** unverändert.
 
   **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT (in dieser Reihenfolge):**
+  1. **Robs frischer Bild-Scan** — jetzt der Test für gleich vier Dinge: Katalog 8→17 (③ vom 26.07.), Zerlegungs-Vokabular (④), und die beiden Fixes von heute an echten Daten statt an der Fixture.
+  2. **Writer-Ordering-Bug** (neu, s. u.): in die Sidebar gesplicte Karten finden ihre Komponente nicht, weil sie später gebaut werden. Kleine, klar umrissene Scheibe.
+  3. **C2 (Vorschau-WYSIWYG)** — unverändert, wartet auf Robs OK, Screenshot vorher zeigen.
+
+  **① Varianten lagen alle auf derselben Koordinate (`variantLayout.ts`, neu).** Robs Datei
+  `UuoCS1lCmtRPfAE10Mjter`: `DS/Button` mit 24 Varianten kam als 109×41-Kasten an, in Figma rot
+  markiert („Varianten überlappen"); dasselbe bei `DS/Badge` (4), `DS/ToggleGroup` (2), `DS/Alert`
+  (2) und dem gescannten Atom `Button` (3). Per REST nachgemessen: **1 Position für alle 24**.
+  Ursache: `figma.createComponentFromNode()` liefert jede Variante bei (0,0), und weder
+  `buildCatalog.ts` noch `buildComponents.ts` hat je eine Position gesetzt — in beiden Dateien,
+  in beiden Pfaden (neues Set UND Update eines bestehenden). Fix: `layOutVariants()` legt sie als
+  Spalte an (Gap 16, wie Figmas eigenes Verhalten). Tests prüfen geometrisch „kein Überlapp",
+  nicht konkrete Koordinaten. **Nachher im echten Figma: 24 Varianten auf 24 Positionen,
+  Set-Box 109×1202.**
+
+  **② Gesplicte Instanzen wurden auf einen zu kleinen Slot geklemmt und abgeschnitten
+  (`renderPlan.ts`).** Befund per REST in Robs Datei: `Sidebar Navigation` als Instanz **392×325**,
+  obwohl ihr Inhalt bis y+1325 läuft (dieselbe Sidebar steht in der Organismen-Sektion korrekt mit
+  392×1379 da); `Emissions Trend Chart Card` **1087×67** bei 1253×731 Inhalt. 18 Überläufe im
+  Template. **Die Wurzelursache ist schärfer als „der `min()`-Deckel":** Composition-Fidelity v2
+  (19.07.) erlaubt Verkleinern pro Achse. Verkleinern ist aber nur auf einer Achse mit FESTER
+  Größe harmlos. Die Messung an der Fixture im echten Chromium zeigt `height: null` auf praktisch
+  allen Wurzeln — **die Bausteine huggen ihre Höhe**, dort IST „natürlich" die Inhaltsgröße, und
+  `resize()` macht daraus FIXED und schneidet den Rest ab. Der Slot stammt aus der EIGENEN
+  Interpretation des Elternteils, also einer unabhängigen Messung derselben Bildregion — bei Robs
+  Scan lag sie um Faktor 4,2 bzw. 10,9 daneben.
+  - **Fix, zwei Hälften:** `hugAxes()` — auf einer festen Achse wird weiter per `min()` verkleinert,
+    auf einer huggenden nicht mehr. Und `growToFitLoneAbsoluteChild()` — der v3-Flow-Box-Slot
+    wächst mit, statt zu clippen. **Ohne die zweite Hälfte bringt die erste nichts**, weil die
+    Flow-Box eine explizite Größe hat und deshalb clippt (Fix 6). Dasselbe Prinzip wie Fix A vom
+    18.07. auf der Web-Seite: überragt der Inhalt seinen Rahmen, gewinnt der Inhalt.
+  - **Warum der gute Fall unberührt bleibt:** neue Messseite `web/verification/splice-slots-in-browser.html`
+    (Slot vs. bbox-Slot vs. natürliche Größe pro gesplicter Instanz, KI-frei) zeigt an der Fixture
+    Faktoren **0,76–1,16** — dort sind die Achsen fest, alles bleibt wie in v2 belegt. Ein
+    Regressionstest hält das fest.
+
+  **③ E2E-Lauf (`figma-e2e-test`-Skill), drei Importe — und eine wichtige Lehre.** Payload aus der
+  eingefrorenen Fixture erzeugt (keine API-Credits), auf Prod, Figma per AppleScript ferngesteuert.
+  - Import mit echtem Payload (`DTxYXwQAwv0Dl6sllQiX87`): ① bewiesen, Template 394 Knoten, größter
+    Vertikal-Überlauf **+7 px**. **Aber ② war auf diesen Daten ein No-Op** — der Slot war dort
+    394×2038, also GRÖSSER als natürlich (1445); da hätte auch der alte Code nicht geschrumpft.
+    **Lehre: „importiert sauber" ist kein Beweis für einen Fix, wenn die Fehlerbedingung im
+    Testdatensatz gar nicht vorkommt.** Fast als Erfolg verbucht.
+  - Deshalb A/B mit synthetisch geschrumpftem Slot (Sidebar-Slot auf 400, sonst identischer
+    Payload, einmal mit und einmal ohne den Fix im `dist`):
+    **ohne Fix Instanz 394×400 im clippenden 394×400-Rahmen (1045 px Inhalt weg), mit Fix
+    Instanz 394×1445 im auf 1445 mitgewachsenen Rahmen.** Beide Hälften greifen nachweislich.
+  - Danach Fix wieder eingespielt, `dist` neu gebaut, echter Payload wieder auf Prod gelegt.
+  - **Prod-Payload-Store ist flüchtig:** nach einem Railway-Neustart liefert
+    `/api/figma-export/latest` 404 („Noch kein Export bereitgestellt"). Vor jedem E2E-Lauf also
+    erst prüfen, nicht auf einen alten Payload verlassen.
+  - **Neuer Befund, eigene Scheibe:** das Plugin meldet „Komponente „Popular Categories Card"
+    nicht gefunden — Fallback gerendert" (dito Conversion History Card). Beide werden in
+    `Left Sidebar Navigation` gesplict, sind aber selbst Organismen, die NACH der Sidebar gebaut
+    werden — `findComponentByName` läuft ins Leere. Ordering-Problem im Writer, unabhängig von
+    beiden Fixes.
+  - Aufräumen offen: drei Testdateien „Ohne Namen" in Figma
+    (`DTxYXwQAwv0Dl6sllQiX87` = die aussagekräftige, `mYVa5131A61ONf7tg35cqc` und
+    `n0NKnH0JUaBwHEh6uSNNN5` = die beiden A/B-Dateien, können weg).
+
+  **Was aus der Liste vom 26.07. dadurch erledigt ist:** „Inhalt ragt aus seinem Rahmen" (OFFEN 1)
+  ist an der Hauptursache behoben — die beiden großen Fälle (Sidebar, Chart-Karte) waren geklemmte
+  Instanzen. Die kleinen Reste dort (`DS/Button 242 in Filter Dropdown 209`, `Frame 126 in Icon 36`)
+  sind eine ANDERE Ursache: gegroundete Katalog-Instanzen, die der Maßstab größer macht als den
+  Slot, den die KI gezeichnet hat — das ist derselbe Faden wie „die 4 zu breiten Restfälle" und
+  bleibt offen. **OFFEN 2 (leerer 100×100-Frame) und OFFEN 3 (Sidebar dünn besetzt) sind unberührt.**
+
+  **TODO (Stand 27.07., konsolidiert — ersetzt die Liste im 26.07.-Eintrag):**
+  - [ ] **Robs frischer Bild-Scan.** Testet Katalog 8→17, Zerlegungs-Vokabular UND die zwei Fixes
+        von heute an echten Daten. Ohne den bleibt alles Fixture-Evidenz.
+  - [ ] **Writer-Ordering:** in einen Organismus gesplicte Organismen werden nicht gefunden, weil
+        sie später gebaut werden (`findComponentByName`, `buildComponents.ts`). Fallback greift, ist
+        aber sichtbar schlechter. Vermutlich reicht: erst ALLE Komponenten als leere Hüllen anlegen,
+        dann füllen — oder die Bau-Reihenfolge nach Abhängigkeiten sortieren.
+  - [ ] **C2 — Vorschau-WYSIWYG.** `InterpretedPreview.jsx` rendert weiter auf 1024px. Sichtbare
+        UI-Änderung → braucht Robs OK, Screenshot vorher zeigen.
+  - [ ] **Katalog-Instanzen größer als ihr Slot** (`DS/Button 242 in Filter Dropdown 209`,
+        `Frame 126 in Icon 36`) — derselbe Faden wie „die 4 zu breiten Restfälle". Ansatz: die
+        gemessene bbox als Größenvorgabe ins Scan-Prompt geben.
+  - [ ] **Leerer 100×100-Frame in der Sidebar** — `isInvisiblePhantomBox` erwischt ihn nicht.
+        Genau einer in der ganzen Datei, eng umgrenzt.
+  - [ ] **Sidebar dünn besetzt** — hängt vermutlich an der 14.903-Zeichen-Interpretation (Scoping).
+  - [ ] **Select/Table/DropdownMenu/Tooltip** in den Katalog — erst nach Sub-Komponenten-Slots.
+  - [ ] **URL-Pfad hat keine `DECOMPOSE`-Anweisung** (`recognizeWithAi`). Eigene Scheibe.
+  - [ ] **Kein Scan wird persistiert.** Hat heute wieder gekostet: Robs EcoMetrics-Scan war nicht
+        nachstellbar, die Fixture zeigt den Fehler nicht. Billigster Schritt bleibt Roh-JSON
+        wegschreiben, keine Datenbank.
+  - [ ] **Aufräumen:** drei Figma-Testdateien „Ohne Namen" (s. ③).
+
+- **26.07.2026 abends/nachts — ALLES AUF `main` UND LIVE. Fünf Themen: Storybook-Knopf, Skalierung (Schrift + Breiten), Katalog-Aufstockung, Zerlegungs-Vokabular, Template-Maßstab.** **Endstand `0af9c22`** (Code-Endstand `3add782`), Prod-Bundle **`index-Cp1EXfJF.js`** verifiziert. Tests: **Web 876 · Server 337 · Plugin 117 + Typecheck · Harness 19**, Build sauber, Arbeitsbaum leer.
+
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT** *(überholt vom Eintrag 27.07. oben — Punkt 1 ist dort an der Hauptursache behoben):*
   1. **„Inhalt ragt aus seinem Rahmen"** — der größte verbleibende Hebel und der wahrscheinlichste Rest von Robs „gottig". 6 belegte Stellen, Verdacht und nächster Schritt in ⑤ OFFEN 1.
   2. **Ein frischer Bild-Scan von Rob** — der einzige Test für ③ und ④ (Vokabular-/Prompt-Änderungen, an der eingefrorenen Fixture strukturell nicht sichtbar).
   3. **C2 (Vorschau-WYSIWYG)** — wartet auf Robs OK, sichtbare UI-Änderung, Screenshot vorher zeigen.
