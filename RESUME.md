@@ -4,6 +4,35 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **27.07.2026 (Nacht, autonome Session Opus 5) — DREI OFFENE TODO-PUNKTE ABGEARBEITET: Writer-Ordering, Scan-Mitschnitt, DECOMPOSE im URL-Pfad.** Alles auf `main`, **gepusht, NICHT deployt** (Railway hängt an main → siehe „Deploy" unten). Suiten: **Plugin 134** (vorher 124) · **Server 357** (vorher 337) · **Web 876** (unverändert) · **Harness 19**, Typecheck + Build sauber, `dist` neu gebaut.
+
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT:**
+  1. **Figma-E2E nachholen — steht fertig bereit, brauchte nur ein Figma-Fenster.** Heute Nacht nicht fahrbar: Figma Desktop lief, hatte aber **0 Fenster** (`count of windows` = 0), und die `figma-e2e-test`-Skill bricht bei dieser Bedingung selbst ab. **Vorbereitet ist alles:** der Payload liegt auf Prod (`/api/figma-export` → `{"ok":true,"colors":9,"text":4}`, 16 Bausteine, 16 Katalog-Einträge) **und er enthält die Fehlerbedingung des Ordering-Bugs nachweislich** (s. ①). `dist` ist neu gebaut. → **Figma-Fenster öffnen, Dev-Plugin „UIPrism" NEU LADEN, importieren.** Erwartung: die Warnungen „Komponente „Popular Categories Card"/„Conversion History Card" nicht gefunden — Fallback gerendert" sind weg. ⚠️ Der Prod-Payload-Store ist flüchtig — nach einem Railway-Neustart erst neu ablegen.
+  2. **Robs frischer Bild-Scan** — unverändert der Test für Katalog 8→17, Zerlegungs-Vokabular und die Fixes vom 27.07. **Neu: er ist jetzt nachstellbar** (s. ②) — nach dem Scan `cd web && node verification/fetch-scan-run.mjs` holt die Rohdaten von Prod.
+  3. **C2 (Vorschau-WYSIWYG)** — unverändert, wartet auf Robs OK, Screenshot vorher zeigen.
+
+  **① Writer-Ordering gefixt (`9a1f9a1`) — und an ECHTEN Daten im Browser bewiesen (`67835d7`).** Neu `designbridge-plugin/src/writer/buildOrder.ts`: die Bausteine werden vor dem Bauen topologisch sortiert (Abhängigkeiten zuerst), stabil — ohne Abhängigkeiten bleibt die Payload-Reihenfolge exakt erhalten. Zyklen und Selbstreferenzen brechen nicht ab und verlieren keine Komponente.
+  - **Bewusste Folge:** liegen Abhängigkeiten in DERSELBEN Sektion, ändert sich dort die Anordnung. Betroffen sind genau die Fälle, in denen vorher ein Fallback statt der echten Instanz stand — guter Tausch, und „Bestandteile vor dem Zusammengesetzten" ist die natürlichere Lesart.
+  - **⚠️ WICHTIGE FALLE, fast hineingefallen:** ein Node-Skript über `prod-scan-raw.json` meldet **0** solcher Refs — die scan-internen `component-ref`s entstehen erst durch den **Splice**, und der ist geometrisch, also **in jsdom gar nicht vorhanden**. Erst im echten Chromium: **vorher 2, nachher 0**, exakt die zwei Fälle aus dem E2E-Lauf (`Left Sidebar Navigation` #7 → `Popular Categories Card` #9 und `Conversion History Card` #12). Dieselbe Klasse wie die Skalierungs-Testblindheit.
+  - **Neues Werkzeug:** `web/verification/build-order-in-browser.html` beantwortet die CLAUDE.md-Vorfrage *„löst der Testdatensatz den Fehler überhaupt aus?"* und fährt daneben die **echte** Sortierfunktion des Plugins (`cd designbridge-plugin && npm run bundle-build-order`, Generat gitignored).
+  - Tests: 9 Unit + 1 Integrationstest durch `buildComponents` (Ref löst zur echten INSTANCE auf statt zum Fallback) — gegengeprüft, dass er ohne den Fix umfällt.
+
+  **② Scans werden mitgeschnitten (`28b8eed`) — „Robs Scan war nicht nachstellbar" ist damit erledigt.** `server/lib/scanRunStore.js` hält die letzten 5 Läufe im Speicher, je Lauf **exakt in der Form von `storybook-harness/fixtures/prod-scan-raw.json`** — also Drop-in für `emit-in-browser.html`, `figma-payload-from-raw.mjs`, `splice-slots-in-browser.html`, `measure-natural-widths.mjs`. Gegengeprüft: ein echter URL-Scan lief unverändert durch `figma-payload-from-raw.mjs`.
+  - Abholen: `GET /api/scan/runs` · `/runs/latest` · `/runs/:id` (nur lesend) oder `cd web && node verification/fetch-scan-run.mjs [--list] [import_id] [--base http://localhost:3047]`.
+  - `SCAN_RUN_DIR=<pfad>` schreibt lokal zusätzlich eine Datei je Lauf. Auf Railway ist die Platte flüchtig → dort zählt der Endpunkt. **Keine Datenbank, keine Bilddaten, kein Überleben eines Neustarts** — bewusst.
+  - Der Web-Pool schickt die Bausteine in Chunks, also **mergen statt ersetzen**; ein geglückter Retry räumt seinen früheren Fehlschlag weg. Der Aufzeichner schluckt jeden eigenen Fehler und kann einen Scan nicht abbrechen (Tests dafür).
+  - Der Verdrahtungstest hat eine echte Lücke gefunden: der **DEMO_FALLBACK-Pfad** in `interpret.js` wurde nicht mitgeschnitten. Rob fährt Demos mit `DEMO_FALLBACK=1` — ein Mitschnitt mit genau dort Löchern taugt nichts. Gefixt.
+
+  **③ URL-Pfad bekommt die DECOMPOSE-Anweisung (`7d08ea3`).** Der Bild-Pfad zerlegt seine Organismen seit dem 26.07. in Kleinteile, der URL-Pfad tat es **nie** — dort fehlte die Anweisung ganz, und der Einteilungs-Definitionsblock lag als wörtliche ZWEITE Kopie im Modul. Genau diese Doppelpflege war am 26.07. schon einmal die Fehlerursache.
+  - Neu `server/lib/prompts/atomicContract.js` hält Einteilungsdefinitionen + Zerlegungsanweisung **einmal**; `claude.js` (Bild) und `recognizeWithAi.js` (URL) importieren beide von dort. **Das ist die vierte Stelle der Katalog-Verkettung** (vgl. Architektur-Regel in CLAUDE.md) — jetzt strukturell gesichert statt per Kommentar.
+  - Der URL-Prompt kennt zusätzlich `partOf`/`instanceCount` und verschmilzt gleichnamige Einträge über `mergeByName` (nötig, weil die Zerlegung wiederkehrende Kleinteile mehrfach liefert).
+  - **Der Bild-Prompt ist byte-gleich geblieben** (gegen die alte Fassung diff't: 5244 Bytes, identisch) — ein bewährter Prompt wird beim Umzug nicht nebenbei umformuliert.
+  - **⚠️ NICHT an echten Daten belegt:** Prompt-Änderung. Belegt ist nur, dass Anweisung + volles Katalog-Vokabular im Prompt ankommen und dass partOf/instanceCount/Merge durchlaufen. Wirkung zeigt erst ein echter URL-Scan mit KI.
+
+  **④ OFFEN 2 („leerer 100×100-Frame in der Sidebar") untersucht — an der Fixture NICHT reproduzierbar.** Im echten Chromium über alle 16 Bausteine gemessen: 651 Plan-Knoten, 358 Boxen, 55 ohne Kinder — **kein einziger** erfüllt die Bedingung (kinderlos + ohne Maße + ohne fill/stroke). Alle 55 tragen entweder ein `fill` (Balkendiagramm-Segmente) oder `stroke` + explizite Größe (Icon-Akzentpunkte). Auch die beiden Stellen mitgeprüft, an denen `isInvisiblePhantomBox` **strukturell gar nicht greifen kann** — der Filter sitzt nur an einer Stelle (`htmlToPlan.js:1138`): (a) `node.fallback` bei `component-ref` läuft nicht über `children.push()`, (b) der Mehrfach-Root-Wrapper (`:1422`) hängt jede Wurzel ungeprüft ein. **Beides ist ein echter, unabhängiger Befund** — aber ohne Repro nicht belastbar zu fixen, deshalb bewusst NICHT gebaut. **→ braucht Robs frischen Scan; mit ② ist er ab jetzt greifbar.**
+
+  **Deploy:** bewusst NICHT ausgelöst. Alle vier Commits sind auf `main` gepusht, und `main` ist der Deploy-Strang — Railway zieht beim nächsten Build automatisch. Betroffen ist serverseitig nur additiver Code (neue Lese-Routen, Mitschnitt) plus die Prompt-Änderung im URL-Pfad.
+
 - **27.07.2026 (nachts) — ZWEI PLUGIN-BUGS AUS ROBS SICHTPRÜFUNG GEFIXT: Varianten-Stapel und geklemmte Instanzen. Beide im ECHTEN Figma per A/B bewiesen, nicht nur im Mock.** Plugin **124/124** (vorher 117), Typecheck sauber, `dist` neu gebaut, Web **876/876** unverändert.
 
   **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT (in dieser Reihenfolge):**
@@ -77,23 +106,23 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
   **TODO (Stand 27.07., konsolidiert — ersetzt die Liste im 26.07.-Eintrag):**
   - [ ] **Robs frischer Bild-Scan.** Testet Katalog 8→17, Zerlegungs-Vokabular UND die zwei Fixes
         von heute an echten Daten. Ohne den bleibt alles Fixture-Evidenz.
-  - [ ] **Writer-Ordering:** in einen Organismus gesplicte Organismen werden nicht gefunden, weil
-        sie später gebaut werden (`findComponentByName`, `buildComponents.ts`). Fallback greift, ist
-        aber sichtbar schlechter. Vermutlich reicht: erst ALLE Komponenten als leere Hüllen anlegen,
-        dann füllen — oder die Bau-Reihenfolge nach Abhängigkeiten sortieren.
+  - [x] ~~**Writer-Ordering**~~ — ERLEDIGT 27.07. Nacht (`9a1f9a1`), topologische Sortierung,
+        im echten Browser bewiesen. S. ① im obersten Eintrag.
   - [ ] **C2 — Vorschau-WYSIWYG.** `InterpretedPreview.jsx` rendert weiter auf 1024px. Sichtbare
         UI-Änderung → braucht Robs OK, Screenshot vorher zeigen.
   - [ ] **Katalog-Instanzen größer als ihr Slot** (`DS/Button 242 in Filter Dropdown 209`,
         `Frame 126 in Icon 36`) — derselbe Faden wie „die 4 zu breiten Restfälle". Ansatz: die
         gemessene bbox als Größenvorgabe ins Scan-Prompt geben.
   - [ ] **Leerer 100×100-Frame in der Sidebar** — `isInvisiblePhantomBox` erwischt ihn nicht.
-        Genau einer in der ganzen Datei, eng umgrenzt.
+        27.07. untersucht: an der Fixture NICHT reproduzierbar (s. ④), **braucht Robs frischen
+        Scan**. Dabei zwei echte Bypässe des Filters gefunden (fallback-Bäume, Mehrfach-Root-
+        Wrapper) — dokumentiert, mangels Repro bewusst nicht gefixt.
   - [ ] **Sidebar dünn besetzt** — hängt vermutlich an der 14.903-Zeichen-Interpretation (Scoping).
   - [ ] **Select/Table/DropdownMenu/Tooltip** in den Katalog — erst nach Sub-Komponenten-Slots.
-  - [ ] **URL-Pfad hat keine `DECOMPOSE`-Anweisung** (`recognizeWithAi`). Eigene Scheibe.
-  - [ ] **Kein Scan wird persistiert.** Hat heute wieder gekostet: Robs EcoMetrics-Scan war nicht
-        nachstellbar, die Fixture zeigt den Fehler nicht. Billigster Schritt bleibt Roh-JSON
-        wegschreiben, keine Datenbank.
+  - [x] ~~**URL-Pfad hat keine `DECOMPOSE`-Anweisung**~~ — ERLEDIGT 27.07. Nacht (`7d08ea3`),
+        gemeinsame Quelle `server/lib/prompts/atomicContract.js`. S. ③. Wirkung noch unbelegt.
+  - [x] ~~**Kein Scan wird persistiert**~~ — ERLEDIGT 27.07. Nacht (`28b8eed`), Ringpuffer +
+        `/api/scan/runs` + `fetch-scan-run.mjs`. S. ②.
   - [ ] **Aufräumen:** drei Figma-Testdateien „Ohne Namen" (s. ③).
 
 - **26.07.2026 abends/nachts — ALLES AUF `main` UND LIVE. Fünf Themen: Storybook-Knopf, Skalierung (Schrift + Breiten), Katalog-Aufstockung, Zerlegungs-Vokabular, Template-Maßstab.** **Endstand `0af9c22`** (Code-Endstand `3add782`), Prod-Bundle **`index-Cp1EXfJF.js`** verifiziert. Tests: **Web 876 · Server 337 · Plugin 117 + Typecheck · Harness 19**, Build sauber, Arbeitsbaum leer.
