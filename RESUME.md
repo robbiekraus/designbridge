@@ -4,9 +4,14 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
-- **26.07.2026 abends/nachts — ALLES AUF `main` UND LIVE. Vier Themen abgeschlossen: Storybook-Knopf, Skalierung (Schrift + Breiten), Katalog-Aufstockung, Zerlegungs-Vokabular.** Endstand `4c99455`, Prod-Bundle `index-CP7Ck8JU.js` verifiziert. Tests: **Web 874 · Server 337 · Plugin 117 + Typecheck · Harness 19**, Build sauber, Arbeitsbaum leer.
+- **26.07.2026 abends/nachts — ALLES AUF `main` UND LIVE. Fünf Themen: Storybook-Knopf, Skalierung (Schrift + Breiten), Katalog-Aufstockung, Zerlegungs-Vokabular, Template-Maßstab.** **Endstand `0af9c22`** (Code-Endstand `3add782`), Prod-Bundle **`index-Cp1EXfJF.js`** verifiziert. Tests: **Web 876 · Server 337 · Plugin 117 + Typecheck · Harness 19**, Build sauber, Arbeitsbaum leer.
 
-  **Wo einsteigen:** Robs Figma-Sichtprüfung des neuen Stands + **ein frischer Bild-Scan** (nur der zeigt, ob Katalog-Aufstockung und Zerlegungs-Vokabular greifen — beides sind Prompt-/Vokabular-Änderungen, deren Wirkung an der eingefrorenen Fixture strukturell nicht sichtbar ist). Offene Punkte unten unter „Was offen ist".
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT (in dieser Reihenfolge):**
+  1. **„Inhalt ragt aus seinem Rahmen"** — der größte verbleibende Hebel und der wahrscheinlichste Rest von Robs „gottig". 6 belegte Stellen, Verdacht und nächster Schritt in ⑤ OFFEN 1.
+  2. **Ein frischer Bild-Scan von Rob** — der einzige Test für ③ und ④ (Vokabular-/Prompt-Änderungen, an der eingefrorenen Fixture strukturell nicht sichtbar).
+  3. **C2 (Vorschau-WYSIWYG)** — wartet auf Robs OK, sichtbare UI-Änderung, Screenshot vorher zeigen.
+
+  Der volle Themenblock steht unten (① bis ⑤), die kleineren Punkte unter „Was offen ist".
 
   **① Storybook-Knopf (`6cfcdb1`).** `fix/storybook-leere-lieferung` gemergt. Der Builder war nie kaputt — `emitComponents` gab bei fehlenden Rohdaten `[]` zurück, die leere Lieferung bekam korrekt 400, und die UI riet „bitte nochmal versuchen". Jetzt: vorher zählen, Knopf ausgrauen, Grund zeigen; Vorschau-Tab öffnet synchron im Klick-Kontext (nach dem ~9-s-Build ist die Nutzergeste abgelaufen, der Popup-Blocker verwirft ihn).
 
