@@ -1,5 +1,7 @@
 import { getAiClient } from './aiClient.js';
 import { extractJson } from './aiJson.js';
+import { CLASSIFICATION_DEFINITIONS, DECOMPOSE_INSTRUCTION } from './prompts/atomicContract.js';
+import { mergeByName } from './claude.js';
 
 const MODEL = 'claude-sonnet-5';
 const MAX_HTML = 20000;
@@ -36,26 +38,21 @@ function trimRuleList(ruleList, maxChars) {
   return { json: JSON.stringify(out), trimmed: true };
 }
 
-const CLASSIFICATION_DEFINITIONS = `Classify every UI element into exactly ONE of four atomic-design levels:
-- "atoms": smallest indivisible UI elements — button, input field, label, icon, badge/chip, avatar, status dot, single checkbox/radio/toggle. If it can't be split into smaller meaningful UI parts, it's an atom.
-- "molecules": a small group of atoms acting as ONE simple unit — search field (input + icon), dropdown/select (field + menu), one form field (label + input + hint), a list item (icon + text + value), a metric/stat pair (label + number), breadcrumb, pagination.
-- "organisms": a larger self-contained section built from molecules and atoms — a card (KPI/stat card), a chart (bar/line/donut incl. its legend and axes), a data table, a full form, a navigation bar, a header/topbar, a sidebar navigation, a footer, a hero. If it's a distinct block you could lift out and reuse as a whole section, it's an organism.
-- "templates": the overall screen layout — how organisms are arranged into a full screen (e.g. sidebar + topbar + content grid). Emit AT MOST ONE template for the whole screen.
-CRITICAL: a card, a chart and a table are ORGANISMS, not molecules. A button and a bare input are ATOMS. The whole screen is the single TEMPLATE — never fold the individual sections into it, and never mark an individual section as a template.`;
-
 function buildPrompt(html, css, rulesJson) {
   return `You are a UI component recognition engine. You are given the HTML and CSS of a web page plus a draft list of components found by deterministic rules. Confirm correct entries, fix wrong ones, and add ones the rules missed.
 
 Return ONLY valid JSON, no markdown, no preamble, in this shape:
 {
-  "atoms":      [{ "name": "...", "variants": ["..."], "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
-  "molecules":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
-  "organisms":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
+  "atoms":      [{ "name": "...", "variants": ["..."], "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "", "instanceCount": 1, "partOf": "organism name or omit" }],
+  "molecules":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "", "instanceCount": 1, "partOf": "organism name or omit" }],
+  "organisms":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "", "instanceCount": 1, "partOf": "organism name or omit" }],
   "templates":  [{ "name": "...", "confidence": "high|med|low", "source": "rules+ai|ai", "notes": "" }],
   "warnings":   ["..."]
 }
 
 ${CLASSIFICATION_DEFINITIONS}
+
+${DECOMPOSE_INSTRUCTION}
 
 Rules:
 - Use source "rules+ai" when an entry confirms or corrects one from the draft list; use "ai" for entries you add.
@@ -97,11 +94,14 @@ export async function recognizeWithAi(html, css, ruleList, { client } = {}) {
   if (truncated) warnings.push('HTML war groß und wurde für die KI-Analyse gekürzt.');
   if (cssTruncated) warnings.push('CSS war groß und wurde für die KI-Analyse gekürzt.');
   if (rulesTrimmed) warnings.push('Die Regel-Liste war groß und wurde für die KI-Analyse gekürzt.');
+  // Gleichnamige Einträge verschmelzen (instanceCount aufaddieren, Varianten vereinigen) —
+  // dieselbe Behandlung wie im Bild-Pfad. Seit der DECOMPOSE-Anweisung zieht die KI auch hier
+  // wiederkehrende Kleinteile heraus, und die kommen erfahrungsgemäß mehrfach.
   return {
-    atoms: parsed.atoms ?? [],
-    molecules: parsed.molecules ?? [],
-    organisms: parsed.organisms ?? [],
-    templates: parsed.templates ?? [],
+    atoms: mergeByName(parsed.atoms),
+    molecules: mergeByName(parsed.molecules),
+    organisms: mergeByName(parsed.organisms),
+    templates: mergeByName(parsed.templates),
     warnings,
   };
 }
