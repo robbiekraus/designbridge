@@ -9,6 +9,7 @@ import { getRepo } from '../lib/repoStore.js';
 import { interpretComponents } from '../lib/interpretComponents.js';
 import { buildCatalogFromRepo } from '../lib/catalog/buildCatalogFromRepo.js';
 import { getDecomposer } from '../lib/decompose/index.js';
+import { recordInterpretations } from '../lib/scanRunStore.js';
 
 const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -66,6 +67,9 @@ router.post('/components', async (req, res) => {
 
     const result = await interpretComponents(image?.path ?? null, image?.mimetype ?? null, segments, interpOpts);
     if (repoCatalogData) result.repoCatalogData = repoCatalogData;
+    // In den Scan-Mitschnitt mergen (scanRunStore.js). Der Web-Pool schickt die Bausteine in
+    // Chunks — jeder Chunk landet hier, deshalb mergen statt ersetzen.
+    recordInterpretations(importId, result);
     res.json(result);
   } catch (err) {
     console.error('[interpret] Error:', err.message);
@@ -75,7 +79,12 @@ router.post('/components', async (req, res) => {
         const file = kind === 'url' ? 'demo-url-interpretations.json'
           : kind === 'repo' ? 'demo-repo-interpretations.json'
           : 'demo-interpretations.json';
-        return res.json({ ...loadDemoInterpretations(components.map((c) => c.name), file), demo: true });
+        const demoResult = { ...loadDemoInterpretations(components.map((c) => c.name), file), demo: true };
+        // Auch den Demo-Pfad mitschneiden: Rob fährt Demos mit DEMO_FALLBACK=1, und ein
+        // Mitschnitt, der genau dann Lücken hat, taugt zum Nachstellen nichts. Das Feld
+        // `demo:true` reist bis in die einzelne Interpretation mit (scanRunStore.js).
+        recordInterpretations(importId, demoResult);
+        return res.json(demoResult);
       } catch (fallbackErr) {
         console.error('[interpret] DEMO_FALLBACK failed:', fallbackErr.message);
         return res.status(502).json({ error: 'KI-Interpretation fehlgeschlagen — bitte später erneut versuchen.' });

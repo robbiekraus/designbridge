@@ -23,8 +23,17 @@ import { putRepo } from '../lib/repoStore.js';
 import { liftRepoInventory, applyBaselinePaths } from '../lib/decompose/repoDecomposer.js';
 import { buildRepoComposition } from '../lib/repoComposition.js';
 import { aiKeyConfigured } from '../lib/aiClient.js';
+import { recordScan, getRun, getLatestRun, listRuns } from '../lib/scanRunStore.js';
 
 const router = express.Router();
+
+/** Scan mitschneiden und ausliefern. Der Mitschnitt macht ein Fehlerbild aus einem ECHTEN
+ *  Scan nachstellbar (s. scanRunStore.js) und darf nie zwischen Ergebnis und Antwort stehen —
+ *  recordScan schluckt seine eigenen Fehler. */
+function sendScan(res, source, result) {
+  recordScan(result?.meta?.import_id, { source, raw: result });
+  res.json(result);
+}
 
 // Demo safety net: when DEMO_FALLBACK=1, a failed live scan (e.g. API down or
 // out of credits) returns a bundled fixture instead of a 500 so a live demo
@@ -102,7 +111,7 @@ router.post('/image', uploadImage, async (req, res) => {
       (result.warnings ??= []).push('Bildmaße nicht lesbar — quadratischer Fallback für Komposition.');
     }
 
-    res.json(result);
+    sendScan(res, 'image', result);
   } catch (err) {
     console.error('[scan] Error:', err.message);
     if (process.env.DEMO_FALLBACK === '1') {
@@ -112,7 +121,7 @@ router.post('/image', uploadImage, async (req, res) => {
         await new Promise(r => setTimeout(r, 2500));
         const fallback = loadDemoFallback(req.file.originalname);
         fallback.meta.import_id = putImage(req.file.path, req.file.mimetype);
-        return res.json(fallback);
+        return sendScan(res, 'image', fallback);
       } catch (fallbackErr) {
         console.error('[scan] DEMO_FALLBACK failed:', fallbackErr.message);
         fs.unlink(req.file.path, () => {});
@@ -149,7 +158,7 @@ router.post('/url', async (req, res) => {
     result.organisms = rec.organisms;
     result.templates = rec.templates;
     result.meta = { ...result.meta, ai_deepened: false, import_id: putPage(html, css) };
-    res.json(result);
+    sendScan(res, 'url', result);
   } catch (err) {
     console.error('[scan/url] Error:', err.message);
     // 'fetch failed' (DNS/Netz) ist Technik-Kauderwelsch — verständlich übersetzen.
@@ -214,7 +223,7 @@ router.post('/repo', async (req, res) => {
     await liftRepoInventory(files, [...result.atoms, ...result.molecules, ...result.organisms]);
     // Volle Dateien im Store für die spätere on-demand-Interpretation.
     result.meta = { ...result.meta, import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }) };
-    res.json(result);
+    sendScan(res, 'repo', result);
   } catch (err) {
     console.error('[scan/repo] Error:', err.message);
     res.status(statusForRepoError(err)).json({ error: err.message });
@@ -268,7 +277,7 @@ router.post('/repo/ai', async (req, res) => {
       ...result.meta, model: 'repo-ingest+ai', ai_deepened: true,
       import_id: putRepo(files, { sourceUrl: req.body.url, branch: usedBranch }),
     };
-    res.json(result);
+    sendScan(res, 'repo', result);
   } catch (err) {
     console.error('[scan/repo/ai] Error:', err.message);
     // Tages-Quota (RPD) erschöpft: 429 statt statusForRepoError-Fallback (502).
@@ -308,6 +317,31 @@ router.post('/figma', async (req, res) => {
     console.error('[scan/figma] Error:', err.message);
     res.status(statusForFigmaError(err)).json({ error: err.message });
   }
+});
+
+// ─── Mitschnitt abholen (scanRunStore.js) ─────────────────────────────────────
+// Nur lesend. Auf Railway ist die Platte flüchtig, der Speicher-Puffer aber lebt so lange wie
+// der Dienst — nach einem echten Scan liegt hier das Roh-JSON in genau der Form, die
+// web/verification/emit-in-browser.html & Co. erwarten. Damit ist ein Fehlerbild aus Robs
+// Scan nachstellbar, ohne einen zweiten (bezahlten) Scan zu fahren.
+
+// GET /api/scan/runs — Übersicht, welche Läufe im Puffer liegen.
+router.get('/runs', (req, res) => {
+  res.json({ runs: listRuns() });
+});
+
+// GET /api/scan/runs/latest — muss VOR '/runs/:id' stehen, sonst frisst der Parameter „latest".
+router.get('/runs/latest', (req, res) => {
+  const run = getLatestRun();
+  if (!run) return res.status(404).json({ error: 'Noch kein Scan aufgezeichnet.' });
+  res.json(run.bundle);
+});
+
+// GET /api/scan/runs/:id
+router.get('/runs/:id', (req, res) => {
+  const run = getRun(req.params.id);
+  if (!run) return res.status(404).json({ error: 'Kein Mitschnitt zu dieser import_id.' });
+  res.json(run.bundle);
 });
 
 export default router;
