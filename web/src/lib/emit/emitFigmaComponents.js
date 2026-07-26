@@ -182,10 +182,20 @@ export function emitFigmaComponents(result, opts = {}) {
       }
 
       if (tpl?.planFor) {
+        // Template-Pläne MÜSSEN mitskalieren (Fund in Robs Figma-Datei 26.07.,
+        // `UuoCS1lCmtRPfAE10Mjter`): sie sind in 1×-Design-Pixeln geschrieben, während interpretierte
+        // Bausteine über scalePlan auf echte Bildpixel gehen. Dieser Zweig war der einzige, der
+        // scanScale nie sah — in Robs Scan (k ≈ 2,41) standen dadurch genau die drei per NAME
+        // gematchten Bausteine auf 1×, mitten in einem 2466px-Dashboard: Atom „Button" 73×32 mit
+        // Schrift 13, Atom „Badge" 53×19 mit Schrift 12, Molekül „Search Field" 125×32 — während
+        // Organismen Schriftgrößen um 45–49 trugen. matchTemplate greift per Namensteil
+        // (/butt|btn|cta/, /badge|tag|chip|pill/, /input|field|…/), deshalb erwischt es auch
+        // „Search Field". Vor dem einheitlichen Maßstab fiel das kaum auf, weil die
+        // Pro-Baustein-Faktoren oft nahe 1 lagen.
         out.push({
           ...meta,
           placeholder: false,
-          variants: tpl.variants.map((v) => ({ name: v, plan: tpl.planFor(v, refs, item) })),
+          variants: tpl.variants.map((v) => ({ name: v, plan: scalePlan(tpl.planFor(v, refs, item), scanScale) })),
         });
         continue;
       }

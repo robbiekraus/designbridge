@@ -52,6 +52,57 @@ describe('emitFigmaComponents — Scaling-Glue (Teil B)', () => {
     expect(schmal.variants[0].plan.width).toBe(breit.variants[0].plan.width);
   });
 
+  // Fund in Robs Figma-Datei 26.07. (`UuoCS1lCmtRPfAE10Mjter`): der Template-Zweig war der einzige,
+  // der scanScale nie sah. Template-Pläne sind in 1×-Design-Pixeln geschrieben — bei k ≈ 2,41 standen
+  // dadurch genau die per NAME gematchten Bausteine mitten im 2466px-Dashboard auf 1×: Atom „Button"
+  // 73×32 mit Schrift 13 neben Organismen mit Schrift 45–49. matchTemplate greift per Namensteil
+  // (/butt|btn|cta/, /badge|tag|chip|pill/, /input|field|…/) — erwischt also auch „Search Field".
+  it('Template-Bausteine (Button/Badge/Input) tragen denselben Scan-Maßstab wie interpretierte', () => {
+    const comps = emitFigmaComponents(rawFor([
+      { name: 'Card', bbox: { x: 0, y: 0, w: 0.25, h: 0.1 } },
+      { name: 'Primary Button', bbox: { x: 0, y: 0, w: 0.05, h: 0.02 } },
+      { name: 'Status Badge', bbox: { x: 0, y: 0, w: 0.03, h: 0.01 } },
+      { name: 'Search Field', bbox: { x: 0, y: 0, w: 0.1, h: 0.02 } },
+    ]));
+
+    const groesste = (plan) => {
+      let max = 0;
+      const walk = (n) => {
+        if (!n || typeof n !== 'object') return;
+        if (n.type === 'text' && n.fontSize) max = Math.max(max, n.fontSize);
+        if (n.type === 'component-ref') return walk(n.fallback);
+        (n.children || []).forEach(walk);
+      };
+      walk(plan);
+      return max;
+    };
+
+    for (const name of ['Primary Button', 'Status Badge', 'Search Field']) {
+      const c = comps.find((x) => x.name === name);
+      expect(c, `${name} fehlt im Emit`).toBeTruthy();
+      // Der Beweis unabhängig von den konkreten Template-Maßen: die Schrift ist bei Faktor 2
+      // GERADE und mindestens 20 — ein 1×-Template-Plan liegt bei shadcn-Größen 12–14.
+      const font = groesste(c.variants[0].plan);
+      expect(font, `${name} scheint unskaliert (Schrift ${font})`).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('ohne image_width bleiben auch Template-Bausteine unskaliert (URL-/Repo-Import)', () => {
+    const btn = emitFigmaComponents(rawFor([{ name: 'Primary Button', bbox: { x: 0, y: 0, w: 0.05, h: 0.02 } }], {}))
+      .find((c) => c.name === 'Primary Button');
+    const font = (() => {
+      let max = 0;
+      const walk = (n) => {
+        if (!n || typeof n !== 'object') return;
+        if (n.type === 'text' && n.fontSize) max = Math.max(max, n.fontSize);
+        (n.children || []).forEach(walk);
+      };
+      walk(btn.variants[0].plan);
+      return max;
+    })();
+    expect(font).toBeLessThan(20);
+  });
+
   it('ohne image_width (URL-/Repo-Import) bleibt der Plan unskaliert', () => {
     const card = emitFigmaComponents(rawFor([{ name: 'Card', bbox: { x: 0, y: 0, w: 0.25, h: 0.1 } }], {}))
       .find((c) => c.name === 'Card');
