@@ -1271,9 +1271,36 @@ function subtreeHasStretchOrGrow(node) {
 function freezeRootWidth(node, el) {
   if (!node || node.type !== 'box' || node.width != null) return node;
   if (!subtreeHasStretchOrGrow(node)) return node;
-  const width = Math.round(el.getBoundingClientRect().width);
-  if (width <= 0) return node;
-  return { ...node, width };
+  const measured = Math.round(el.getBoundingClientRect().width);
+  if (measured <= 0) return node;
+  // Scheibe C (Spec 2026-07-26-geometrie-im-echten-slot-design.md): der gemessene Wert ist wieder
+  // echte Information — der Messbehälter ist jetzt so breit wie der Baustein wirklich ist (s.
+  // measureContainerWidth). Eine gestreckte Wurzel streckt sich damit auf ihre EIGENE Slot-Breite,
+  // nicht mehr auf konstante 1024. Der `designSlotWidth`-Ersatzzweig aus `f625731` ist deshalb
+  // entfallen: er hat an der falschen Stelle korrigiert, was jetzt an der Quelle stimmt.
+  return { ...node, width: measured };
+}
+
+/** Breite des Messbehälters für EINEN Baustein (Scheibe C).
+ *
+ *  Kern der Scheibe: die KI schreibt ihr HTML ohne Größenvorgabe, und `width:100%`/block-level
+ *  Wurzeln nehmen die Behälterbreite an. War der Behälter konstant 1024px, war jede daraus
+ *  abgeleitete Breite ein Artefakt des Messvorgangs statt eine Eigenschaft des Bausteins — im
+ *  echten Emit gemessen: Event List Item 1733px statt 521px (3,33×), sechs Karten mit 1,34–1,9×
+ *  zu breitem Inhalt.
+ *
+ *  Deshalb wird jeder Baustein in einem Behälter seiner ECHTEN Breite vermessen
+ *  (`bbox.w * PREVIEW_VIRTUAL_WIDTH`, in Design-Pixeln — der einheitliche Faktor `k` macht daraus
+ *  danach echte Bildpixel). Schriftgrößen sind davon unberührt: sie stehen als feste px-Werte im
+ *  KI-HTML und hängen an `k`, nicht an der Geometrie. Genau diese Entkopplung macht den Weg
+ *  überhaupt erst gangbar — als Geometrie und Typografie noch am selben Faktor hingen, drückte er
+ *  den Header auf 15px (s. docs/2026-07-26-skalierungs-messung-ergebnis.md §Variante C).
+ *
+ *  Ohne bbox (URL-/Repo-Import, kein `raw.meta.image_width`) → PREVIEW_VIRTUAL_WIDTH, also
+ *  unverändertes heutiges Verhalten statt Raten. */
+export function measureContainerWidth(designSlotWidth) {
+  if (!Number.isFinite(designSlotWidth) || designSlotWidth <= 0) return PREVIEW_VIRTUAL_WIDTH;
+  return Math.round(designSlotWidth);
 }
 
 /**
@@ -1292,7 +1319,7 @@ function freezeRootWidth(node, el) {
  *   wie bisher). `components` wird intern zu einer Map name→Eintrag normiert.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
-export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null } = {}) {
+export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null, designSlotWidth = null } = {}) {
   const warnings = new Set();
   // DS-Grounding-Kontext (Spec 2026-07-23 §Q2): SEPARAT von knownComponents gehalten, damit die
   // scan-interne Heuristik (matchKnownComponent) unberührt bleibt — Grounding ist rein explizit
@@ -1307,14 +1334,17 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     }
 
     // Container OFF-SCREEN aber NICHT display:none/visibility:hidden — sonst löst der Browser
-    // Layout (Flex/%) nicht auf (Spec §Kernidee Schritt 1). Breite = PREVIEW_VIRTUAL_WIDTH, dieselbe
-    // virtuelle Breite, mit der InterpretedPreview.jsx die Vorschaukarte rendert (Vertrag: WYSIWYG —
-    // was die Vorschau zeigt, kommt so in Figma an, siehe Spec Testrunde 8 §Fix 1).
+    // Layout (Flex/%) nicht auf (Spec §Kernidee Schritt 1).
+    // Breite: bis Scheibe C konstant PREVIEW_VIRTUAL_WIDTH, weil InterpretedPreview.jsx die
+    // Vorschaukarte mit derselben virtuellen Breite rendert (Vertrag: WYSIWYG — was die Vorschau
+    // zeigt, kommt so in Figma an, siehe Spec Testrunde 8 §Fix 1). Seit Scheibe C ist es die ECHTE
+    // Breite des Bausteins (s. measureContainerWidth); der WYSIWYG-Vertrag wird in C2 nachgezogen,
+    // solange divergieren Vorschau und Figma in den Proportionen.
     container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.top = '0px';
     container.style.left = '-99999px';
-    container.style.width = `${PREVIEW_VIRTUAL_WIDTH}px`;
+    container.style.width = `${measureContainerWidth(designSlotWidth)}px`;
     // Scheibe B (Spec §Scheibe B): zusätzlicher Höhen-Kontext, rein additiv — löst Prozent-
     // Höhen-Ketten (height:100% → height:30% in Bar-Segmenten) auf, die sonst ohne einen
     // Referenzwert zu 0px kollabieren (Höhen-Pendant zu PREVIEW_VIRTUAL_WIDTH oben).
@@ -1335,6 +1365,26 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     const roots = Array.from(container.children);
     if (roots.length === 0) {
       return { plan: null, warnings: Array.from(warnings) };
+    }
+
+    // Scheibe C, zweite Hälfte (Spec 2026-07-26-geometrie-im-echten-slot-design.md §Vollausbau):
+    // Der Behälter allein erreicht nur Wurzeln, die sich strecken. Trägt die KI-Wurzel eine EIGENE
+    // px-Breite, ignoriert sie ihn — im echten Emit blieben so 9 von 15 Bausteinen zu breit (Nav Icon
+    // 2,70× · sechs Karten 1,34–1,90×), weil die KI ihre Bausteine größer zeichnet als die Vorlage.
+    // Die bbox ist die MESSUNG am echten Bild und damit die bessere Information als die geratene
+    // px-Breite: wir setzen sie der Wurzel auf und lassen den Browser das Innere neu umbrechen.
+    // Bewusst so statt per Geometrie-Faktor: ein Faktor müsste Paddings, Gaps, absolute Rects UND
+    // DS-Instanzen mitskalieren (deren instance.rescale() auch die Schrift trifft — genau die
+    // Inkonsistenz, die der einheitliche Maßstab beseitigt hat). Der Reflow braucht davon nichts.
+    // Untersizing kann daraus nicht folgen: passt der Inhalt wirklich nicht, greift Fix A vom 18.07.
+    // (scrollWidth > width → der Frame wächst, s. readSize) und verhindert das Clipping.
+    const slotWidth = Number.isFinite(designSlotWidth) && designSlotWidth > 0
+      ? Math.round(designSlotWidth)
+      : null;
+    if (slotWidth && roots.length === 1) {
+      // Nur bei EINER Wurzel: bei mehreren ist die bbox das umschließende Rechteck aller, ihre
+      // Einzelbreiten sind daraus nicht ableitbar (jede auf slotWidth zu setzen wäre falsch).
+      roots[0].style.width = `${slotWidth}px`;
     }
 
     // Composition-Splice (Spec §1): Referenzrahmen = Rect der (einzigen) Wurzel bzw. umschließendes

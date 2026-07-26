@@ -8,6 +8,7 @@ import {
   textJaccard,
   bestTextMatch,
   SPLICE_MIN_TEXT,
+  measureContainerWidth,
 } from './htmlToPlan.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
@@ -2496,5 +2497,105 @@ describe('htmlToPlan — unsichtbare Phantom-Kästchen (Live-Fund 25.07. nachts,
     const empties = [];
     collectEmpties(plan, 'root', empties);
     expect(empties).toEqual([]);
+  });
+});
+
+// Scheibe C (Spec 2026-07-26-geometrie-im-echten-slot-design.md).
+//
+// WARUM DIE ZUSTÄNDIGKEIT HIER GEWANDERT IST: `f625731` hat die gestreckte Wurzel in
+// freezeRootWidth korrigiert (Behälterbreite → Slot-Breite). Das reparierte nur die Wurzel und nur
+// dann, wenn convertElement nicht schon eine Breite gesetzt hatte — im echten Emit gemessen blieben
+// deshalb 11 von 16 Bausteinen zu breit (Event List Item 1733 statt 521 = 3,33×; sechs Karten mit
+// zu breitem INHALT, wo die Wurzel gar keine Breite trägt). Scheibe C korrigiert stattdessen an der
+// Quelle: der Messbehälter ist so breit wie der Baustein wirklich ist. Damit ist die gemessene
+// Breite wieder echte Information, und freezeRootWidth ist zurück in seiner 18.07.-Form.
+//
+// jsdom hat keine Layout-Engine (`width:100%` löst nicht auf, Rects sind 0) — der Behälter-Effekt
+// ist hier STRUKTURELL nicht zeigbar. Deshalb ist die Entscheidung als reine Funktion
+// (measureContainerWidth) herausgezogen und wird direkt getestet; die Wirkung auf echte Geometrie
+// belegt web/verification/emit-in-browser.html in echtem Chromium (Spec §Abnahme).
+describe('measureContainerWidth — Messbehälter in echter Slot-Breite (Scheibe C)', () => {
+  it('bekannte bbox → Slot-Breite in Design-Pixeln', () => {
+    expect(measureContainerWidth(317)).toBe(317);
+  });
+
+  it('rundet auf ganze Pixel (bbox.w * 1024 ist praktisch immer gebrochen)', () => {
+    expect(measureContainerWidth(316.6)).toBe(317);
+  });
+
+  it('ohne bbox → PREVIEW_VIRTUAL_WIDTH, unverändertes heutiges Verhalten statt Raten', () => {
+    expect(measureContainerWidth(null)).toBe(PREVIEW_VIRTUAL_WIDTH);
+    expect(measureContainerWidth(undefined)).toBe(PREVIEW_VIRTUAL_WIDTH);
+  });
+
+  it('unbrauchbare Werte fallen auf PREVIEW_VIRTUAL_WIDTH zurück, erzeugen nie einen 0px-Behälter', () => {
+    for (const bad of [0, -5, NaN, Infinity, '300']) {
+      expect(measureContainerWidth(bad)).toBe(PREVIEW_VIRTUAL_WIDTH);
+    }
+  });
+});
+
+describe('freezeRootWidth — friert die GEMESSENE Breite ein (Scheibe C: zurück auf 18.07.-Form)', () => {
+  const HTML = '<div style="display:flex"><div>x</div></div>';
+  let spy;
+  const mockMeasuredWidth = (width) => {
+    spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: width, bottom: 50, width, height: 50, toJSON: () => ({}),
+    });
+  };
+  afterEach(() => spy?.mockRestore());
+
+  it('gestreckte Wurzel → gemessene Breite (die im echten Browser die Slot-Breite IST)', () => {
+    mockMeasuredWidth(200);
+    const { plan } = htmlToPlan(HTML, { designSlotWidth: 200 });
+    expect(plan.width).toBe(200);
+  });
+
+  it('mit bekanntem Slot gewinnt der Slot, nicht die Messung — die Korrektur wirkt an EINER Stelle', () => {
+    // Arbeitsteilung nach dem Vollausbau: die Slot-Breite wird der Wurzel aufgesetzt (dort ist sie
+    // die Messung am echten Bild und damit die verlässlichste Information), freezeRootWidth ist nur
+    // noch für Bausteine OHNE bbox zuständig. Würde beides greifen, wäre die Breite zweimal
+    // korrigiert worden — deshalb gewinnt hier 200 und nicht die gemockten 900.
+    mockMeasuredWidth(900);
+    const { plan } = htmlToPlan(HTML, { designSlotWidth: 200 });
+    expect(plan.width).toBe(200);
+  });
+
+  it('ohne designSlotWidth unverändert', () => {
+    mockMeasuredWidth(1024);
+    const { plan } = htmlToPlan(HTML);
+    expect(plan.width).toBe(1024);
+  });
+});
+
+// Scheibe C, zweite Hälfte: die bbox wird der WURZEL aufgesetzt, nicht nur dem Behälter — sonst
+// bleiben Bausteine mit eigener px-Breite unberührt (im echten Emit 9 von 15). jsdom löst kein
+// Layout auf, kann den Reflow also nicht zeigen; prüfbar ist hier, DASS die Breite gesetzt wird,
+// dass sie im Plan ankommt und dass der Mehrfach-Wurzel-Fall ausgenommen bleibt. Die Wirkung auf
+// echte Geometrie belegt web/verification/emit-in-browser.html (Spec §Ergebnis).
+describe('Slot-Breite auf der Wurzel (Scheibe C, Vollausbau)', () => {
+  it('eine Wurzel mit eigener px-Breite → die gemessene Slot-Breite gewinnt', () => {
+    // Die KI zeichnet 560px, die bbox sagt 195px. Die Messung am Bild ist die bessere Information.
+    const { plan } = htmlToPlan('<div style="width:560px;padding:8px">Karte</div>', { designSlotWidth: 195 });
+    expect(plan.width).toBe(195);
+  });
+
+  it('ohne designSlotWidth bleibt die KI-Breite stehen (URL-/Repo-Import unberührt)', () => {
+    const { plan } = htmlToPlan('<div style="width:560px;padding:8px">Karte</div>');
+    expect(plan.width).toBe(560);
+  });
+
+  it('MEHRERE Wurzeln → keine bekommt die Slot-Breite (bbox ist ihr Umschließendes)', () => {
+    const html = '<div style="width:300px">A</div><div style="width:400px">B</div>';
+    const { plan } = htmlToPlan(html, { designSlotWidth: 195 });
+    expect(plan.children[0].width).toBe(300);
+    expect(plan.children[1].width).toBe(400);
+  });
+
+  it('unbrauchbare designSlotWidth setzt nichts (nie eine 0px-Wurzel)', () => {
+    for (const bad of [0, -5, NaN, '195']) {
+      const { plan } = htmlToPlan('<div style="width:560px">K</div>', { designSlotWidth: bad });
+      expect(plan.width).toBe(560);
+    }
   });
 });
