@@ -149,7 +149,7 @@ describe('Export page', () => {
     vi.stubGlobal('fetch', fetchMock);
     vi.stubGlobal('open', vi.fn());
 
-    render(<Export result={imageResult} />);
+    render(<Export result={placeholderResult} />);
     fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
@@ -161,11 +161,51 @@ describe('Export page', () => {
     vi.unstubAllGlobals();
   });
 
+  // Live-Fund 26.07.: Ergebnisse ohne verwertbare Bausteine (emitComponents → []) schickten
+  // eine leere Lieferung raus. Der Builder antwortete korrekt mit 400, die UI zeigte aber
+  // „bitte nochmal versuchen" — ein Neuversuch kann hier prinzipiell nie helfen.
+  it('schickt gar nichts los, wenn der Import keine Bausteine enthält, und sagt warum', () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<Export result={imageResult} />);
+    const button = screen.getByRole('button', { name: /in storybook öffnen/i });
+    expect(button).toBeDisabled();
+    expect(screen.getByText(/keine Bausteine/i)).toBeInTheDocument();
+
+    fireEvent.click(button);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/nochmal versuchen/i)).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  // Der Build läuft in Prod ~9 s. Wird der Tab erst NACH dem await geöffnet, ist die
+  // Nutzergeste abgelaufen und der Popup-Blocker verwirft ihn — der Klick tut dann nichts.
+  it('öffnet den Tab synchron beim Klick, nicht erst nach dem Build', async () => {
+    const tab = { location: null, close: vi.fn() };
+    const openMock = vi.fn().mockReturnValue(tab);
+    vi.stubGlobal('open', openMock);
+    let resolveFetch;
+    vi.stubGlobal('fetch', vi.fn(() => new Promise((r) => { resolveFetch = r; })));
+
+    render(<Export result={placeholderResult} storybookBuilderUrl="https://harness.example.app" />);
+    fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
+
+    // Noch bevor der Build antwortet, muss der Tab schon offen sein.
+    expect(openMock).toHaveBeenCalledWith('', '_blank');
+
+    resolveFetch({ ok: true, json: async () => ({ id: 'abc', url: '/preview/abc/' }) });
+    await waitFor(() => expect(tab.location).toBe('https://harness.example.app/preview/abc/'));
+
+    vi.unstubAllGlobals();
+  });
+
   it('zeigt eine ehrliche Fehlermeldung, wenn der Storybook-Builder nicht antwortet', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new Error('network down'));
     vi.stubGlobal('fetch', fetchMock);
 
-    render(<Export result={imageResult} />);
+    render(<Export result={placeholderResult} />);
     fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
 
     await waitFor(() => expect(screen.getByText(/konnte nicht gebaut werden/i)).toBeInTheDocument());
@@ -203,7 +243,7 @@ describe('Export page', () => {
   it('hält den schwarzen Haupt-Button als letztes Element der Karte, auch bei Fehlermeldung', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
 
-    render(<Export result={imageResult} />);
+    render(<Export result={placeholderResult} />);
     fireEvent.click(screen.getByRole('button', { name: /in storybook öffnen/i }));
     await waitFor(() => expect(screen.getByText(/konnte nicht gebaut werden/i)).toBeInTheDocument());
 
