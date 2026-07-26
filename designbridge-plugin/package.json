@@ -8,7 +8,8 @@
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "codegen": "node dist/codegen.js",
     "export": "node scripts/sync-exports.js",
-    "test:writer": "node scripts/build-tests.js && node --test dist/tests/*.test.js"
+    "test:writer": "node scripts/build-tests.js && node --test dist/tests/*.test.js",
+    "bundle-build-order": "node scripts/bundle-build-order.js"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.90.0",

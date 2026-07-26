@@ -1,0 +1,157 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Bau-Reihenfolge im ECHTEN Browser — Writer-Ordering-Verifikation</title>
+<body style="font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:20px;color:#18181b">
+<h2 style="font-size:16px;margin:0 0 4px">Bau-Reihenfolge im echten Browser</h2>
+<p style="color:#71717a;margin:0 0 16px">
+  Warum diese Seite existiert: Der Writer-Ordering-Bug (27.07.) entsteht nur, wenn ein Baustein
+  einen ANDEREN Baustein derselben Payload einsplict, der weiter hinten steht — das Plugin baut
+  in Payload-Reihenfolge, <code>findComponentByName</code> findet ihn dann noch nicht und rendert
+  den Fallback. Diese scan-internen Refs entstehen aber erst durch den <strong>Splice</strong>,
+  und der ist geometrisch: <strong>in jsdom gibt es ihn gar nicht</strong>
+  (<code>getBoundingClientRect()</code> = 0). Ein Node-Skript über dieselbe Fixture meldet
+  deshalb 0 Refs und damit fälschlich „alles gut".
+</p>
+<p style="color:#71717a;margin:0 0 16px">
+  Das ist genau die Falle aus <code>CLAUDE.md</code>: <em>„importiert sauber" ≠ Fix bewiesen.</em>
+  Diese Seite beantwortet die Vorfrage — <strong>löst der Testdatensatz den Fehler überhaupt
+  aus?</strong> — und zeigt daneben, was die echte Sortierfunktion des Plugins daraus macht.
+</p>
+<p style="color:#71717a;margin:0 0 16px">
+  <strong>Aufruf:</strong>
+  <code>cp storybook-harness/fixtures/prod-scan-raw.json web/verification/</code>
+  (oder <code>node verification/fetch-scan-run.mjs</code> für einen echten Scan) ·
+  Dev-Server starten (<code>PORT=3047 npm run dev:demo</code>) ·
+  <code>http://localhost:5173/verification/build-order-in-browser.html</code> ·
+  Ergebnis auch in <code>window.__RESULT</code>.
+</p>
+<pre id="status" style="background:#f4f4f5;padding:12px;border-radius:6px">lade …</pre>
+<div id="panels"></div>
+<h3 style="font-size:14px;margin:20px 0 4px">window.__RESULT</h3>
+<pre id="out" style="background:#f4f4f5;padding:12px;border-radius:6px;overflow-x:auto;max-height:300px">…</pre>
+
+<script type="module">
+const status = document.getElementById('status');
+
+function fail(e) {
+  status.textContent = 'FEHLER: ' + (e && e.stack || e);
+  status.style.color = '#dc2626';
+  window.__RESULT = { error: String(e && e.message || e) };
+}
+
+/** Alle component-ref-Namen eines Plan-Teilbaums — identisch zur Regel in
+ *  designbridge-plugin/src/writer/buildOrder.ts (inkl. Abstieg in fallback-Bäume). */
+function refsIn(node, out) {
+  if (!node || typeof node !== 'object') return out;
+  if (node.type === 'component-ref') {
+    out.add(node.name);
+    if (node.fallback) refsIn(node.fallback, out);
+    return out;
+  }
+  for (const child of node.children ?? []) refsIn(child, out);
+  return out;
+}
+
+function refsOf(comp) {
+  const out = new Set();
+  for (const v of comp.variants ?? []) if (v.plan) refsIn(v.plan, out);
+  return out;
+}
+
+/** Refs, die auf einen SPÄTER gebauten Baustein derselben Liste zeigen = Fehlerbedingung. */
+function lateRefs(list) {
+  const idx = new Map(list.map((c, i) => [c.name, i]));
+  const late = [];
+  list.forEach((comp, i) => {
+    for (const name of refsOf(comp)) {
+      if (idx.has(name) && idx.get(name) > i) {
+        late.push({ von: comp.name, vonIndex: i, auf: name, aufIndex: idx.get(name) });
+      }
+    }
+  });
+  return late;
+}
+
+function panel(title, lines, ok) {
+  const div = document.createElement('div');
+  div.style.cssText = 'margin:16px 0;padding:12px;border-radius:6px;border:1px solid '
+    + (ok ? '#86efac' : '#fca5a5') + ';background:' + (ok ? '#f0fdf4' : '#fef2f2');
+  div.innerHTML = `<strong style="font-size:13px">${title}</strong>`;
+  const ul = document.createElement('ul');
+  ul.style.cssText = 'margin:6px 0 0;padding-left:18px;font-size:12px';
+  for (const l of lines) {
+    const li = document.createElement('li');
+    li.textContent = l;
+    ul.appendChild(li);
+  }
+  div.appendChild(ul);
+  document.getElementById('panels').appendChild(div);
+}
+
+try {
+  const { emitFigmaComponents } = await import('/src/lib/emit/emitFigmaComponents.js');
+  // Die ECHTE Sortierfunktion des Plugins, nicht eine Nachbildung.
+  const res = await fetch('/verification/prod-scan-raw.json');
+  if (!res.ok) throw new Error('prod-scan-raw.json fehlt in web/verification/ — '
+    + 'cp storybook-harness/fixtures/prod-scan-raw.json web/verification/');
+  const result = await res.json();
+
+  const comps = emitFigmaComponents(result);
+  if (!comps.length) throw new Error('Der Emit hat 0 Bausteine geliefert.');
+
+  const intern = [];
+  const names = new Set(comps.map((c) => c.name));
+  for (const c of comps) for (const n of refsOf(c)) if (names.has(n)) intern.push(`${c.name} → ${n}`);
+
+  const vorher = lateRefs(comps);
+
+  let nachher = null, reihenfolge = null, sortierFehler = null;
+  try {
+    const mod = await import('/verification/buildOrder.mjs');
+    const ordered = mod.orderComponentsByDependency(comps);
+    nachher = lateRefs(ordered);
+    reihenfolge = ordered.map((c) => c.name);
+    if (ordered.length !== comps.length) {
+      sortierFehler = `Sortierung hat die Anzahl verändert: ${comps.length} → ${ordered.length}`;
+    }
+  } catch (e) {
+    sortierFehler = 'buildOrder.mjs nicht ladbar — mit `npm run bundle-build-order` '
+      + 'in designbridge-plugin/ erzeugen. (' + e.message + ')';
+  }
+
+  status.textContent = `${comps.length} Bausteine · ${intern.length} scan-interne Refs · `
+    + `${vorher.length} davon auf einen später gebauten Baustein`;
+
+  panel(
+    vorher.length
+      ? `① Fehlerbedingung IST in diesen Daten enthalten (${vorher.length})`
+      : '① Fehlerbedingung kommt in diesen Daten NICHT vor — ein Import beweist hier nichts',
+    vorher.length
+      ? vorher.map((r) => `„${r.von}" (#${r.vonIndex}) splict „${r.auf}" (#${r.aufIndex}) — steht später`)
+      : ['Ohne einen Baustein, der einen späteren einsplict, greift der Fix gar nicht.',
+         'Für einen echten Beweis einen Scan nehmen, der das enthält.'],
+    vorher.length > 0,
+  );
+
+  if (sortierFehler) {
+    panel('② Sortierung nicht geprüft', [sortierFehler], false);
+  } else {
+    panel(
+      nachher.length ? `② NACH der Sortierung immer noch ${nachher.length} zu spät` : '② Nach der Sortierung: 0 zu spät',
+      nachher.length
+        ? nachher.map((r) => `„${r.von}" (#${r.vonIndex}) → „${r.auf}" (#${r.aufIndex})`)
+        : ['Jeder eingesplicte Baustein steht jetzt vor dem, der ihn einsplict.'],
+      nachher.length === 0,
+    );
+  }
+
+  window.__RESULT = {
+    bausteine: comps.length,
+    scanInterneRefs: intern,
+    vorher, nachher, reihenfolge, sortierFehler,
+  };
+  document.getElementById('out').textContent = JSON.stringify(window.__RESULT, null, 2);
+} catch (e) {
+  fail(e);
+}
+</script>

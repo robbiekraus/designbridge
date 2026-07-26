@@ -37,3 +37,5 @@ web/verification/natural-widths.html
 # Arbeitskopie der Rohdaten für emit-in-browser.html (Vite serviert nur unterhalb von web/).
 # Original: storybook-harness/fixtures/prod-scan-raw.json — die Kopie nie committen, sie veraltet still.
 web/verification/prod-scan-raw.json
+# Generat aus dem Plugin-Writer (npm run bundle-build-order) fuer build-order-in-browser.html
+web/verification/buildOrder.mjs
