@@ -12,7 +12,11 @@ const DST = path.resolve(dirname, 'components/ui');
 
 async function main() {
   await mkdir(DST, { recursive: true });
-  const files = (await readdir(SRC)).filter((f) => f.endsWith('.jsx'));
+  // `._*` ausschließen: macOS legt auf diesem exFAT-Volume AppleDouble-Dateien neben jede Datei,
+  // und `._tabs.jsx` endet ebenfalls auf .jsx. Ohne den Filter landen sie in components/ui und
+  // Storybook versucht sie als Module zu laden (CLAUDE.md Regel 7). Beim Aufstocken des Katalogs
+  // am 26.07. real passiert: 26 statt 17 „Stubs" kopiert.
+  const files = (await readdir(SRC)).filter((f) => f.endsWith('.jsx') && !f.startsWith('._'));
   for (const f of files) {
     await cp(path.join(SRC, f), path.join(DST, f));
   }

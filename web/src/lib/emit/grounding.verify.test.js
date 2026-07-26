@@ -158,4 +158,50 @@ describe('DS-Grounding — Verifikation gegen reales shadcn-Target', () => {
     expect(badgeEl.tagName).toBe('SPAN');
     expect(badgeEl.textContent.trim()).toBe('3.1%');
   }, 30000);
+
+  // Katalog-Aufstockung 26.07.2026: der Startsatz war schon durch die Fälle oben abgedeckt, die 9
+  // neuen Einträge nicht. Genau hier lag das Risiko — erkennt ein Scan eine neue Komponente,
+  // emittiert planToJsx einen Import, der im Empfangs-Projekt existieren MUSS. Fehlt der Stub,
+  // bricht der Storybook-Build erst beim User. Dieser Fall beweist Kompilieren UND Rendern.
+  it('die aufgestockten Komponenten kompilieren und rendern gegen das echte Target', async () => {
+    const html = `<div style="display:flex;flex-direction:column;gap:12px;padding:16px">
+      <div data-ds-component="Tabs" style="display:flex;gap:4px;padding:4px;background:#f4f4f5;border-radius:6px">
+        <span style="font-size:14px">Day</span>
+      </div>
+      <div data-ds-component="Progress" style="height:8px;background:#f4f4f5;border-radius:9999px"></div>
+      <input data-ds-component="Switch" style="width:44px;height:24px" />
+      <div data-ds-component="Skeleton" style="height:16px;background:#f4f4f5"></div>
+      <textarea data-ds-component="Textarea" style="padding:8px 12px">Notiz</textarea>
+      <div data-ds-component="Alert" data-ds-variant="destructive" style="padding:16px;border:1px solid #ef4444">
+        <span style="font-size:14px">Achtung</span>
+      </div>
+      <nav data-ds-component="Breadcrumb" style="display:flex;gap:8px"><span style="font-size:14px">Start</span></nav>
+      <nav data-ds-component="Pagination" style="display:flex;gap:4px"><span style="font-size:14px">1</span></nav>
+    </div>`;
+    const { plan } = htmlToPlan(html, { catalog: SHADCN_DEFAULT_CATALOG_OPTION });
+    const code = planToJsx(plan, { name: 'NeueBausteine' });
+
+    for (const [name, modul] of [
+      ['Tabs', 'tabs'], ['Progress', 'progress'], ['Switch', 'switch'], ['Skeleton', 'skeleton'],
+      ['Textarea', 'textarea'], ['Alert', 'alert'], ['Breadcrumb', 'breadcrumb'], ['Pagination', 'pagination'],
+    ]) {
+      expect(code, `${name} nicht gegroundet`).toContain(`from "@/components/ui/${modul}"`);
+    }
+    // Textarea ist voidElement (natives <textarea> verträgt in React keine Children) — sonst
+    // „textarea is a void element tag" beim Rendern.
+    expect(code).toMatch(/<Textarea[^>]*\/>/);
+    expect(code).toContain('variant="destructive"');
+
+    // RENDER-BEWEIS gegen die echten Stubs.
+    const { root, html: rendered } = await compileAndRender(code, 'NeueBausteine');
+    expect(rendered).toContain('Day');
+    expect(rendered).toContain('Achtung');
+    expect(root.querySelector('[role="switch"]')).not.toBeNull();       // Switch-Stub
+    expect(root.querySelector('[role="alert"]')).not.toBeNull();        // Alert-Stub
+    expect(root.querySelector('textarea')).not.toBeNull();             // Textarea-Stub
+    expect(root.querySelector('.animate-pulse')).not.toBeNull();        // Skeleton-Stub
+    expect(root.querySelector('nav[aria-label="breadcrumb"]')).not.toBeNull();
+    expect(root.querySelector('nav[aria-label="pagination"]')).not.toBeNull();
+    expect(root.querySelector('.text-destructive')).not.toBeNull();     // destructive-Variante griff
+  }, 30000);
 });

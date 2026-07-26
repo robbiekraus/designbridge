@@ -18,6 +18,20 @@ export const SHADCN_VOCABULARY = [
   { name: 'Checkbox', variants: {} },
   { name: 'Avatar', variants: {} },
   { name: 'Separator', variants: {} },
+  // Aufstockung 26.07.2026 — mit 8 Einträgen wurde alles Übrige als generischer Kasten nachgebaut.
+  // Nur Komponenten, deren Wurzel als EIN Element sichtbar rendert; Select/Table/DropdownMenu/
+  // Tooltip fehlen bewusst (Radix-Wurzel rendert ohne Pflicht-Unterkomponenten nichts → Inhalt
+  // würde im Code-Emit verschwinden). Begründung im Block-Kommentar von
+  // web/src/lib/catalog/shadcn-default.js.
+  { name: 'Tabs', variants: {} },
+  { name: 'ToggleGroup', variants: { variant: ['default', 'outline'] } },
+  { name: 'Progress', variants: {} },
+  { name: 'Switch', variants: {} },
+  { name: 'Skeleton', variants: {} },
+  { name: 'Textarea', variants: {} },
+  { name: 'Alert', variants: { variant: ['default', 'destructive'] } },
+  { name: 'Breadcrumb', variants: {} },
+  { name: 'Pagination', variants: {} },
 ];
 
 /** Kompakter Vokabular-Block für den Prompt: eine Zeile je Komponente, Varianten-Achsen in Klammern.

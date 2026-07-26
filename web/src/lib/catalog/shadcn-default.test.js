@@ -11,11 +11,27 @@ function walkPlan(node, visit) {
   if (Array.isArray(node?.children)) node.children.forEach((c) => walkPlan(c, visit));
 }
 
+// Startsatz aus Spec 2026-07-23-slice1-ds-grounding-default-catalog-design.md.
 const START_SET = ['Button', 'Input', 'Label', 'Badge', 'Card', 'Checkbox', 'Avatar', 'Separator'];
+// Aufstockung 26.07.2026 — nur Komponenten, deren Wurzel als EIN Element sichtbar rendert.
+// Select/Table/DropdownMenu/Tooltip fehlen bewusst (Begründung im Block-Kommentar der Quelldatei).
+const ERWEITERUNG = ['Tabs', 'ToggleGroup', 'Progress', 'Switch', 'Skeleton', 'Textarea', 'Alert', 'Breadcrumb', 'Pagination'];
 
 describe('SHADCN_DEFAULT_CATALOG — Struktur-Contract', () => {
-  it('enthält den Startsatz aus der Spec', () => {
-    expect(catalogComponentNames().sort()).toEqual([...START_SET].sort());
+  it('enthält weiterhin den vollständigen Startsatz aus der Spec', () => {
+    for (const name of START_SET) expect(catalogComponentNames()).toContain(name);
+  });
+
+  it('enthält genau Startsatz + Aufstockung (keine stillen Zu-/Abgänge)', () => {
+    expect(catalogComponentNames().sort()).toEqual([...START_SET, ...ERWEITERUNG].sort());
+  });
+
+  it('die vier strukturbedürftigen Komponenten sind bewusst NICHT drin', () => {
+    // Ihre Radix-Wurzel rendert ohne Pflicht-Unterkomponenten nichts; gegroundet würde der
+    // gemessene Inhalt im Code-Emit unsichtbar. Erst mit Sub-Komponenten-Slots aufnehmen.
+    for (const name of ['Select', 'Table', 'DropdownMenu', 'Tooltip']) {
+      expect(catalogComponentNames()).not.toContain(name);
+    }
   });
 
   it.each(SHADCN_DEFAULT_CATALOG.map((c) => [c.name, c]))(
@@ -121,5 +137,77 @@ describe('getCatalogComponent', () => {
   it('liefert Eintrag per Name, undefined bei Unbekanntem', () => {
     expect(getCatalogComponent('Button')?.name).toBe('Button');
     expect(getCatalogComponent('Nichtvorhanden')).toBeUndefined();
+  });
+});
+
+// Fund in Robs Figma-Datei 26.07. (`qRz1I3zX1WDkQ0459X3Kxc`, Sektion DB/Design System):
+// DS/Checkbox und DS/Separator lagen als 100×100-Kästen in der Bibliothek, DS/Avatar als 19×17.
+// 100×100 ist Figmas Default-Größe für einen Frame, der weder Maße noch huggbare Kinder hat —
+// die Pläne setzten trotz passender Code-Kommentare (`h-4 w-4`, `h-px`, `h-10 w-10`) keine Größe.
+// Betrifft nur die Bibliotheks-Exemplare: gegroundete Bausteine bekommen ihre Maße aus der Messung
+// (groundContainer liest width/height vom fallback), deshalb fiel es im Scan nie auf.
+// Beim Aufstocken am 26.07. war das der gefährlichste Punkt: das Empfangs-Storybook (und der
+// Verifikations-Target) hatten nur die 8 Stubs des Startsatzes. Erkennt ein Scan eine neue
+// Komponente, emittiert planToJsx `import { Tabs } from '@/components/ui/tabs'` — fehlt die Datei,
+// bricht der komplette Storybook-Build, und zwar erst beim User. Deshalb hier als Vertrag.
+describe('Jeder Katalog-Import löst in den Emit-Zielen auf', () => {
+  const ZIELE = [
+    'verification/shadcn-target/components/ui',
+    '../storybook-harness/components/ui',
+  ];
+
+  it.each(SHADCN_DEFAULT_CATALOG.map((c) => [c.name, c]))('%s: Stub-Datei + benannter Export vorhanden', async (name, entry) => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const file = `${entry.import.from.replace('@/components/ui/', '')}.jsx`;
+    for (const ziel of ZIELE) {
+      const p = path.resolve(process.cwd(), ziel, file);
+      expect(fs.existsSync(p), `${name}: ${ziel}/${file} fehlt — Storybook-Export würde brechen`).toBe(true);
+      const src = fs.readFileSync(p, 'utf8');
+      expect(src, `${name}: ${ziel}/${file} exportiert kein ${entry.import.name}`)
+        .toMatch(new RegExp(`export function ${entry.import.name}\\b`));
+    }
+  });
+
+  // AppleDouble (`._tabs.jsx`) wird hier BEWUSST nicht geprüft: macOS erzeugt die Dateien auf
+  // diesem exFAT-Volume bei jedem Dateizugriff neu, ein Test darauf wäre dauerhaft rot ohne etwas
+  // über den Code zu sagen. Die Absicherung sitzt an der Quelle — `storybook-harness/sync-shadcn.mjs`
+  // filtert `._*` beim Kopieren heraus (sonst landen sie in components/ui und Storybook lädt sie als
+  // Module; am 26.07. real passiert: 26 statt 17 „Stubs"). Aufräumen per
+  // `find . -name '._*' -delete`, s. CLAUDE.md Regel 7.
+});
+
+describe('Größen mit fester shadcn-Vorgabe stehen am Plan (kein 100×100-Default in Figma)', () => {
+  it('Checkbox ist 16×16 (h-4 w-4), in beiden Zuständen', () => {
+    for (const checked of [false, true]) {
+      const p = getCatalogComponent('Checkbox').plan({ checked });
+      expect([p.width, p.height]).toEqual([16, 16]);
+    }
+  });
+
+  it('Avatar ist 40×40 (h-10 w-10) und zentriert seine Initialen', () => {
+    const p = getCatalogComponent('Avatar').plan();
+    expect([p.width, p.height]).toEqual([40, 40]);
+    expect(p.primaryAlign).toBe('CENTER');
+    expect(p.counterAlign).toBe('CENTER');
+  });
+
+  it('Separator ist 1px dünn — horizontal in der Höhe, vertikal in der Breite', () => {
+    const h = getCatalogComponent('Separator').plan();
+    expect(h.height).toBe(1);
+    expect(h.width).toBeGreaterThan(1);
+    const v = getCatalogComponent('Separator').plan({ orientation: 'vertical' });
+    expect(v.width).toBe(1);
+    expect(v.height).toBeGreaterThan(1);
+  });
+
+  it('kein Katalog-Eintrag liefert eine Wurzel ohne Maße UND ohne Kinder (= 100×100 in Figma)', () => {
+    for (const entry of SHADCN_DEFAULT_CATALOG) {
+      const p = entry.plan();
+      if (p.type !== 'box') continue;
+      const hatMasse = p.width != null || p.height != null;
+      const hatKinder = Array.isArray(p.children) && p.children.length > 0;
+      expect(hatMasse || hatKinder, `${entry.name} würde in Figma auf 100×100 fallen`).toBe(true);
+    }
   });
 });

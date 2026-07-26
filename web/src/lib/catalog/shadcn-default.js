@@ -132,7 +132,12 @@ function cardPlan() {
 // --- Checkbox ------------------------------------------------------------
 // shadcn: h-4 w-4 (16), rounded-sm (4), border border-primary. checked → bg-primary + Häkchen.
 function checkboxPlan({ checked = false } = {}) {
-  const base = box({ layout: 'row', padding: [0, 0, 0, 0], radius: 4, stroke: ref('primary') });
+  // Größe MUSS am Plan stehen (Fund in Robs Figma-Datei 26.07.): ein Box-Knoten ohne width/height
+  // hat in Figma nichts zu huggen, wenn er auch keine Kinder hat → Figma setzt seine Default-Größe
+  // 100×100. Genau so landete `DS/Checkbox` als 100×100-Kasten in der Bibliothek statt als 16×16.
+  // Betrifft nur die Bibliotheks-Exemplare: gegroundete Bausteine holen ihre Maße aus der Messung
+  // (groundContainer nimmt width/height vom fallback, nur fill/stroke/radius aus dem Katalog).
+  const base = box({ layout: 'row', padding: [0, 0, 0, 0], radius: 4, stroke: ref('primary'), width: 16, height: 16 });
   if (!checked) return base;
   const tick = svg(`<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${THEME['primary-foreground']}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`);
   return { ...base, fill: ref('primary'), children: [tick] };
@@ -141,16 +146,150 @@ function checkboxPlan({ checked = false } = {}) {
 // --- Avatar --------------------------------------------------------------
 // shadcn: h-10 w-10 (40), rounded-full, bg-muted, Fallback-Initialen zentriert.
 function avatarPlan() {
+  // h-10 w-10 explizit (s. Begründung bei checkboxPlan): ohne Maße hugte der Avatar nur seine
+  // Initialen und landete als 19×17 in der Bibliothek statt als 40×40-Kreis.
   return box({
-    layout: 'row', padding: [0, 0, 0, 0], radius: 9999, fill: ref('muted'),
+    layout: 'row', padding: [0, 0, 0, 0], radius: 9999, fill: ref('muted'), width: 40, height: 40,
+    primaryAlign: 'CENTER', counterAlign: 'CENTER',
     children: [text('AB', { size: 14, weight: 500, color: 'muted-foreground' })],
   });
 }
 
 // --- Separator -----------------------------------------------------------
 // shadcn: horizontal h-px w-full bg-border.
-function separatorPlan() {
-  return box({ layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: ref('border') });
+function separatorPlan({ orientation = 'horizontal' } = {}) {
+  // h-px: die Höhe ist die ganze Komponente. Ohne sie war `DS/Separator` ein 100×100-Kasten.
+  // `w-full` hat für ein alleinstehendes Bibliotheks-Exemplar keine Bedeutung — 200px ist die
+  // Musterlänge, damit man den Trenner überhaupt sieht. Im Scan gilt die gemessene Breite.
+  return orientation === 'vertical'
+    ? box({ layout: 'column', padding: [0, 0, 0, 0], radius: 0, fill: ref('border'), width: 1, height: 200 })
+    : box({ layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: ref('border'), width: 200, height: 1 });
+}
+
+// =========================================================================
+// Aufstockung 26.07.2026 (Robs Frage „wie wenig nimmst du eigentlich von shadcn?").
+//
+// Der Katalog ist nicht nur Render-Vorlage, sondern das VOKABULAR, mit dem die KI erkennen darf.
+// Mit 8 Einträgen wurde alles andere als generischer Kasten nachgebaut — konkret in Robs Scan: der
+// Day/Week/Month-Umschalter (eigentlich Tabs) landete als schwarzer Button, der Storage-Balken
+// (Progress) und die Tabelle als handgebaute Frames.
+//
+// BEWUSST NICHT AUFGENOMMEN — Select, Table, DropdownMenu, Tooltip: deren Radix-Wurzel rendert
+// NICHTS, solange die Pflicht-Unterkomponenten fehlen (SelectTrigger/SelectContent,
+// DropdownMenuTrigger, TooltipTrigger). Ein gegroundeter Knoten bekommt seine Kinder aber aus der
+// MESSUNG, nicht aus dem Katalog — `<Select><div>…</div></Select>` würde also im Code-Emit sichtbar
+// leer werden, schlechter als der generische Kasten von heute. Bei `Table` käme zusätzlich `<div>`
+// in `<table>`, also ungültiges HTML (React-Warnung). Diese vier brauchen zuerst den
+// Sub-Komponenten-Slots-Mechanismus (Spec 2026-07-25-sub-komponenten-slots-design.md, Scheibe A
+// deckt bisher nur Card→CardHeader/CardContent ab).
+// Aufgenommen sind daher nur Komponenten, deren Wurzel als EIN Element sichtbar rendert.
+// =========================================================================
+
+// --- Tabs ----------------------------------------------------------------
+// shadcn TabsList: h-10 rounded-md bg-muted p-1. Trigger aktiv: bg-background shadow-sm,
+// text-sm (14) font-medium (500); inaktiv: text-muted-foreground.
+function tabsPlan() {
+  const trigger = (label, active) => box({
+    layout: 'row', padding: [6, 12, 6, 12], radius: 4,
+    fill: active ? ref('background') : null,
+    primaryAlign: 'CENTER', counterAlign: 'CENTER',
+    children: [text(label, { size: 14, weight: 500, color: active ? 'foreground' : 'muted-foreground' })],
+  });
+  return box({
+    layout: 'row', padding: [4, 4, 4, 4], radius: 6, gap: 4, fill: ref('muted'),
+    counterAlign: 'CENTER',
+    children: [trigger('Day', true), trigger('Week', false), trigger('Month', false)],
+  });
+}
+
+// --- ToggleGroup ---------------------------------------------------------
+// shadcn: Items wie Button ghost/outline, rounded-md, text-sm font-medium.
+function toggleGroupPlan({ variant = 'default' } = {}) {
+  const outline = variant === 'outline';
+  const item = (label, on) => box({
+    layout: 'row', padding: [6, 12, 6, 12], radius: 6,
+    fill: on ? ref('accent') : null,
+    stroke: outline ? ref('border') : null,
+    primaryAlign: 'CENTER', counterAlign: 'CENTER',
+    children: [text(label, { size: 14, weight: 500, color: on ? 'accent-foreground' : 'muted-foreground' })],
+  });
+  return box({ layout: 'row', gap: 4, counterAlign: 'CENTER', children: [item('Links', true), item('Rechts', false)] });
+}
+
+// --- Progress ------------------------------------------------------------
+// shadcn: h-2 w-full rounded-full bg-secondary, Indicator bg-primary.
+function progressPlan({ value = 60 } = {}) {
+  const width = 200;
+  const filled = Math.max(1, Math.round((width * Math.min(100, Math.max(0, value))) / 100));
+  return box({
+    layout: 'row', radius: 9999, fill: ref('secondary'), width, height: 8,
+    children: [box({ layout: 'row', radius: 9999, fill: ref('primary'), width: filled, height: 8 })],
+  });
+}
+
+// --- Switch --------------------------------------------------------------
+// shadcn: h-6 w-11 rounded-full (checked bg-primary, sonst bg-input), Thumb h-5 w-5 bg-background.
+function switchPlan({ checked = false } = {}) {
+  return box({
+    layout: 'row', padding: [2, 2, 2, 2], radius: 9999, width: 44, height: 24,
+    fill: checked ? ref('primary') : ref('input'),
+    primaryAlign: checked ? 'MAX' : 'MIN', counterAlign: 'CENTER',
+    children: [box({ layout: 'row', radius: 9999, fill: ref('background'), width: 20, height: 20 })],
+  });
+}
+
+// --- Skeleton ------------------------------------------------------------
+// shadcn: animate-pulse rounded-md bg-muted (die Animation hat in Figma keine Entsprechung).
+function skeletonPlan() {
+  return box({ layout: 'row', radius: 6, fill: ref('muted'), width: 200, height: 16 });
+}
+
+// --- Textarea ------------------------------------------------------------
+// shadcn: min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm.
+function textareaPlan() {
+  return box({
+    layout: 'column', padding: [8, 12, 8, 12], radius: 6, stroke: ref('input'),
+    fill: ref('background'), width: 320, height: 80,
+  });
+}
+
+// --- Alert ---------------------------------------------------------------
+// shadcn: rounded-lg border p-4, Titel font-medium, Beschreibung text-sm text-muted-foreground.
+function alertPlan({ variant = 'default' } = {}) {
+  const destructive = variant === 'destructive';
+  return box({
+    layout: 'column', padding: [16, 16, 16, 16], radius: 8, gap: 4,
+    stroke: destructive ? ref('destructive') : ref('border'),
+    children: [
+      text('Hinweis', { size: 14, weight: 500, color: destructive ? 'destructive' : 'foreground' }),
+      text('Beschreibung des Hinweises.', { size: 14, weight: 400, color: 'muted-foreground' }),
+    ],
+  });
+}
+
+// --- Breadcrumb ----------------------------------------------------------
+// shadcn: <nav>, text-sm, Zwischenglieder text-muted-foreground, aktuelle Seite text-foreground.
+function breadcrumbPlan() {
+  return box({
+    layout: 'row', gap: 8, counterAlign: 'CENTER',
+    children: [
+      text('Start', { size: 14, color: 'muted-foreground' }),
+      text('/', { size: 14, color: 'muted-foreground' }),
+      text('Seite', { size: 14, weight: 500, color: 'foreground' }),
+    ],
+  });
+}
+
+// --- Pagination ----------------------------------------------------------
+// shadcn: <nav> mit Button-artigen Seitenzahlen (ghost, aktuelle Seite outline), h-10 w-10.
+function paginationPlan() {
+  const page = (label, current) => box({
+    layout: 'row', radius: 6, width: 36, height: 36,
+    stroke: current ? ref('border') : null,
+    primaryAlign: 'CENTER', counterAlign: 'CENTER',
+    children: [text(label, { size: 14, weight: 500, color: current ? 'foreground' : 'muted-foreground' })],
+  });
+  return box({ layout: 'row', gap: 4, counterAlign: 'CENTER', children: [page('1', true), page('2', false), page('3', false)] });
 }
 
 export const SHADCN_DEFAULT_CATALOG = [
@@ -235,6 +374,86 @@ export const SHADCN_DEFAULT_CATALOG = [
     props: ['orientation'],
     match: { tag: 'hr', hints: ['separator', 'divider', 'rule'] },
     plan: separatorPlan,
+  },
+  // --- Aufstockung 26.07. (s. Block-Kommentar oben) ------------------------
+  {
+    name: 'Tabs',
+    import: { name: 'Tabs', from: '@/components/ui/tabs' },
+    variants: {},
+    props: [],
+    // Der Leitfall: Robs Day/Week/Month-Umschalter. Ohne diesen Eintrag labelte die KI das weiß
+    // gemessene Segment als Button variant="default" — shadcns DUNKLE Primary-Variante — und der
+    // Umschalter landete in Figma als schwarzer Block statt als weiße Pille auf grauer Leiste.
+    match: { tag: 'div', hints: ['tabs', 'tablist', 'segmented', 'switcher', 'period', 'timeframe'] },
+    plan: tabsPlan,
+  },
+  {
+    name: 'ToggleGroup',
+    import: { name: 'ToggleGroup', from: '@/components/ui/toggle-group' },
+    variants: { variant: ['default', 'outline'] },
+    props: [],
+    match: { tag: 'div', hints: ['togglegroup', 'buttongroup', 'segmentedcontrol'] },
+    plan: toggleGroupPlan,
+  },
+  {
+    name: 'Progress',
+    import: { name: 'Progress', from: '@/components/ui/progress' },
+    variants: {},
+    props: ['value'],
+    match: { tag: 'div', hints: ['progress', 'progressbar', 'meter', 'usage', 'storage', 'quota'] },
+    plan: progressPlan,
+  },
+  {
+    name: 'Switch',
+    import: { name: 'Switch', from: '@/components/ui/switch' },
+    variants: {},
+    props: ['checked', 'disabled'],
+    match: { tag: 'input', hints: ['switch', 'toggle'] },
+    plan: switchPlan,
+  },
+  {
+    name: 'Skeleton',
+    import: { name: 'Skeleton', from: '@/components/ui/skeleton' },
+    variants: {},
+    props: [],
+    match: { tag: 'div', hints: ['skeleton', 'placeholder', 'loading', 'shimmer'] },
+    plan: skeletonPlan,
+  },
+  {
+    name: 'Textarea',
+    import: { name: 'Textarea', from: '@/components/ui/textarea' },
+    variants: {},
+    props: ['disabled', 'placeholder'],
+    match: { tag: 'textarea', hints: ['textarea', 'multiline', 'message', 'comment'] },
+    plan: textareaPlan,
+    // Wie Input: shadcns Textarea rendert ein natives <textarea>, das in React keine Children
+    // verträgt (Wert läuft über value/defaultValue). Ohne dieses Flag setzte walkCatalogRef den
+    // gemessenen Platzhaltertext als Children → React-Fehler im exportierten Storybook.
+    voidElement: true,
+  },
+  {
+    name: 'Alert',
+    import: { name: 'Alert', from: '@/components/ui/alert' },
+    variants: { variant: ['default', 'destructive'] },
+    props: [],
+    match: { tag: 'div', hints: ['alert', 'notice', 'banner', 'warning', 'callout'] },
+    plan: alertPlan,
+  },
+  {
+    name: 'Breadcrumb',
+    import: { name: 'Breadcrumb', from: '@/components/ui/breadcrumb' },
+    variants: {},
+    props: [],
+    match: { tag: 'nav', hints: ['breadcrumb', 'crumbs', 'pfad'] },
+    plan: breadcrumbPlan,
+  },
+  {
+    name: 'Pagination',
+    import: { name: 'Pagination', from: '@/components/ui/pagination' },
+    variants: {},
+    props: [],
+    match: { tag: 'nav', hints: ['pagination', 'pager', 'seiten'] },
+    plan: paginationPlan,
   },
 ];
 
