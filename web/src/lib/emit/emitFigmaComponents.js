@@ -9,7 +9,7 @@ import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
 import { groundPlan } from './groundPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
-import { scalePlan, scaleFactor } from './scalePlan.js';
+import { scalePlan, scanScaleFactor } from './scalePlan.js';
 import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 import { resolveCatalog } from './emitComponents.js';
 import { emitFigmaCatalog } from './emitFigmaCatalog.js';
@@ -90,6 +90,15 @@ export function emitFigmaComponents(result, opts = {}) {
   const canvas = (iw && ih)
     ? { w: iw, h: ih }
     : { w: PREVIEW_VIRTUAL_WIDTH, h: PREVIEW_VIRTUAL_WIDTH };
+  // EIN Maßstab für den ganzen Scan (Spec 2026-07-26-einheitlicher-massstab-design.md). Vorher rechnete
+  // sich jeder Baustein seinen eigenen aus slot/natural — dieselbe Schriftgröße landete dadurch je
+  // Baustein anders (gemessen: 11 bis 49 für vergleichbare Texte). Fehlt image_width, bleibt es bei 1.
+  const scanScale = scanScaleFactor(iw, PREVIEW_VIRTUAL_WIDTH);
+  // Außenmaß gestreckter Wurzeln in DESIGN-Pixeln: bbox.w * iw ist die echte Slot-Breite, geteilt
+  // durch scanScale (= iw / PREVIEW_VIRTUAL_WIDTH) kürzt sich iw heraus. Die uniforme Skalierung
+  // danach macht daraus wieder genau die Slot-Breite.
+  const designSlotWidthOf = (bbox) =>
+    (bbox && Number.isFinite(bbox.w) && bbox.w > 0) ? bbox.w * PREVIEW_VIRTUAL_WIDTH : null;
 
   const out = [];
   for (const [rawKey, kind] of KINDS) {
@@ -143,14 +152,14 @@ export function emitFigmaComponents(result, opts = {}) {
               anchorTokens,
             };
           });
-          const { plan, warnings, naturalWidth } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog });
+          const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog, designSlotWidth: designSlotWidthOf(item.bbox) });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
             // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
             // §Entscheidung 4): Katalog-Refs VOR dem Skalieren auflösen, damit Figma dieselbe
             // Hülle+Komposition wie Storybook rendert (kein „Komponente nicht gefunden").
             const grounded = groundPlan(plan, catalog, { instances: true });
-            const scaled = scalePlan(grounded, scaleFactor(item.bbox, iw, naturalWidth));
+            const scaled = scalePlan(grounded, scanScale);
             out.push({
               ...meta,
               placeholder: false,
@@ -183,13 +192,13 @@ export function emitFigmaComponents(result, opts = {}) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings, naturalWidth } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog });
+        const { plan, warnings } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog, designSlotWidth: designSlotWidthOf(item.bbox) });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
           // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
           // §Entscheidung 4): s. Kommentar im composed-spliced-Zweig oben.
           const grounded = groundPlan(plan, catalog, { instances: true });
-          const scaled = scalePlan(grounded, item.bbox ? scaleFactor(item.bbox, iw, naturalWidth) : 1);
+          const scaled = scalePlan(grounded, scanScale);
           out.push({
             ...meta,
             placeholder: false,

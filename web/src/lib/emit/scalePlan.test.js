@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { scalePlan, scaleFactor } from './scalePlan.js';
+import { scalePlan, scanScaleFactor } from './scalePlan.js';
 
 function box(o = {}) {
   return { type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0, fill: null, stroke: null,
@@ -9,12 +9,28 @@ function text(o = {}) {
   return { type: 'text', content: 'x', fontSize: 16, fontWeight: 400, color: { hex: '#000', token: null }, align: 'left', lineHeight: null, ...o };
 }
 
-describe('scaleFactor', () => {
-  it('slotWidth/naturalWidth, Guards → 1', () => {
-    expect(scaleFactor({ w: 0.25 }, 2000, 250)).toBe(2); // 0.25*2000=500 /250
-    expect(scaleFactor({ w: 0.25 }, 2000, 0)).toBe(1);    // naturalWidth 0
-    expect(scaleFactor(null, 2000, 250)).toBe(1);
-    expect(scaleFactor({ w: 0.25 }, undefined, 250)).toBe(1);
+// Spec 2026-07-26-einheitlicher-massstab-design.md: der Faktor kommt NICHT mehr pro Baustein aus
+// slot/naturalWidth (das erzeugte unvergleichbare Maßstäbe — gemessen 11 bis 49 für vergleichbare
+// Texte), sondern EINMAL pro Scan aus Bildbreite/Referenzbreite.
+describe('scanScaleFactor', () => {
+  it('imageWidth/referenceWidth', () => {
+    expect(scanScaleFactor(2048, 1024)).toBe(2);
+    expect(scanScaleFactor(2296, 1024)).toBeCloseTo(2.242, 3); // echter CRAFTUI-Scan
+    expect(scanScaleFactor(512, 1024)).toBe(0.5);
+  });
+
+  it('fehlende/unsinnige Bildbreite → 1 (unverändertes Verhalten statt Raten)', () => {
+    // URL-/Repo-Importe setzen raw.meta.image_width nicht — dort darf nichts skaliert werden.
+    expect(scanScaleFactor(undefined, 1024)).toBe(1);
+    expect(scanScaleFactor(null, 1024)).toBe(1);
+    expect(scanScaleFactor(0, 1024)).toBe(1);
+    expect(scanScaleFactor(-2000, 1024)).toBe(1);
+    expect(scanScaleFactor(NaN, 1024)).toBe(1);
+  });
+
+  it('unsinnige Referenzbreite → 1', () => {
+    expect(scanScaleFactor(2000, 0)).toBe(1);
+    expect(scanScaleFactor(2000, undefined)).toBe(1);
   });
 });
 

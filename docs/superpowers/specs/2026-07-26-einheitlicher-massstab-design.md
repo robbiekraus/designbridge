@@ -1,6 +1,14 @@
 # Ein Maßstab pro Scan statt pro Baustein — Design
 
-**Status:** Richtung festgelegt, Umsetzung offen. Datum 26.07.2026.
+**Status:** **UMGESETZT** 26.07.2026 auf `experiment/einheitlicher-massstab`. Web 822/822.
+Robs Sichtprüfung an einem echten Scan + Figma-Import steht noch aus.
+
+**Zahlen-Korrektur:** die Validierungstabellen weiter unten rechnen mit `imageWidth = 2296` (aus einer
+RESUME-Notiz übernommen). Die Fixture ist real **1680** breit → k = **1,641**, nicht 2,242. Die
+Verhältnisse und damit die Schlussfolgerung bleiben gültig, die absoluten Werte sind zu groß. Korrekte
+Zielwerte: heading-xl 46 · heading-medium 30 · body 23 · caption 20. Der tatsächliche Emit-Vorher/
+Nachher mit den richtigen Zahlen steht in `docs/2026-07-26-skalierungs-messung-ergebnis.md`.
+
 **Messbeleg:** `docs/2026-07-26-skalierungs-messung-ergebnis.md` (15 echte Bausteine, echter Browser).
 **Betrifft:** `web/src/lib/emit/scalePlan.js`, `web/src/lib/emit/htmlToPlan.js` (`naturalWidth`,
 `freezeRootWidth`), `web/src/lib/emit/emitFigmaComponents.js` (die zwei `scaleFactor`-Aufrufe).
@@ -146,9 +154,18 @@ korrigiert.
 
 ## Verifikation
 
-Die Vitest-Suite kann diese Änderung **nicht** absichern: jsdom hat keine Layout-Engine,
-`getBoundingClientRect()` liefert 0, der Riegel in `scaleFactor` macht daraus Faktor 1. Der ganze
-Pfad ist dort unsichtbar — genau deshalb ist der Fehler durch 817 grüne Tests gekommen.
+**Nachtrag nach der Umsetzung — die Prüflast ist kleiner geworden, nicht größer.** Der Faktor kommt
+jetzt aus `imageWidth`, nicht aus einer Messung. Er ist damit **layout-unabhängig** und erstmals in
+jsdom sichtbar: `figma-payload-from-raw.mjs` zeigt „Maßstäbe der Instanzen: 1.64" statt „1.00". Der
+Miniatur-Fehler ist strukturell unmöglich geworden, weil `scanScaleFactor` keinen
+`naturalWidth`-Parameter mehr hat — es gibt nichts mehr, was sich verrechnen könnte. Layout-abhängig
+bleibt allein `freezeRootWidth`; dessen Logik ist per Unit-Test mit gemockter Messung abgedeckt
+(gestreckt → Slot, nicht gestreckt → Messung, ohne bbox → altes Verhalten).
+
+Ursprüngliche Einschätzung (galt für den alten, messungsabhängigen Faktor): Die Vitest-Suite kann
+diese Änderung **nicht** absichern: jsdom hat keine Layout-Engine, `getBoundingClientRect()` liefert 0,
+der Riegel in `scaleFactor` macht daraus Faktor 1. Der ganze Pfad ist dort unsichtbar — genau deshalb
+ist der Fehler durch 817 grüne Tests gekommen.
 
 Absicherung deshalb zweigleisig:
 

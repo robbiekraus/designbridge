@@ -64,9 +64,15 @@ const page = `<!doctype html>
 const ITEMS = ${JSON.stringify(items)};
 const TYPO = ${JSON.stringify(typography)};
 const VIRTUAL_WIDTH = 1024, VIRTUAL_HEIGHT = 768;
-// Bildbreite des eingefrorenen CRAFTUI-Scans. Steht NICHT in den Rohdaten (kein Feld) —
-// bei einem anderen Scan hier anpassen, sonst sind die Ziel-Slots falsch.
-const IMAGE_WIDTH = 2296;
+// Echte Bildbreite aus raw.meta.image_width — NICHT hartkodieren. (Erster Wurf hatte hier 2296
+// stehen, aus dem RESUME übernommen; die Fixture ist aber 1680 breit, wodurch alle Zielwerte
+// daneben lagen.)
+const IMAGE_WIDTH = ${JSON.stringify(raw.raw?.meta?.image_width ?? null)};
+if (!IMAGE_WIDTH) {
+  document.body.insertAdjacentHTML('afterbegin',
+    '<p style="color:#dc2626;font-weight:600">Dieser Scan hat kein raw.meta.image_width — '
+    + 'die Ziel-Slots sind damit unbestimmt (nur Bild-Importe setzen das Feld).</p>');
+}
 
 function measure(htmlStr, { maxContent = false, containerWidth = VIRTUAL_WIDTH } = {}) {
   const c = document.createElement('div');

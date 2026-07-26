@@ -1268,11 +1268,20 @@ function subtreeHasStretchOrGrow(node) {
  *  Bewusst NUR die Breite: ein Höhen-Freeze würde jede Wurzel via clipsContent auf die Browser-
  *  Inhaltshöhe festnageln und bei Figmas abweichenden Font-Metriken Inhalte abschneiden — die
  *  Höhe bleibt HUG und wächst mit Figmas eigenem Textumbruch. */
-function freezeRootWidth(node, el) {
+function freezeRootWidth(node, el, designSlotWidth) {
   if (!node || node.type !== 'box' || node.width != null) return node;
   if (!subtreeHasStretchOrGrow(node)) return node;
-  const width = Math.round(el.getBoundingClientRect().width);
-  if (width <= 0) return node;
+  const measured = Math.round(el.getBoundingClientRect().width);
+  if (measured <= 0) return node;
+  // Spec 2026-07-26-einheitlicher-massstab-design.md §Umsetzungs-Design: eine block-level Wurzel
+  // (display:flex, plain div) streckt sich auf die Behälterbreite. Dieser Wert ist KEINE Eigenschaft
+  // des Bausteins — ihn festzuschreiben war die zweite Hälfte des Miniatur-Fehlers. Ist die gemessene
+  // bbox bekannt, gilt sie als Außenmaß (hier in Design-Pixeln, die uniforme Skalierung macht daraus
+  // die echte Slot-Breite). Ohne bbox bleibt es beim gemessenen Wert = heutiges Verhalten.
+  const stretched = measured >= PREVIEW_VIRTUAL_WIDTH;
+  const width = (stretched && Number.isFinite(designSlotWidth) && designSlotWidth > 0)
+    ? Math.round(designSlotWidth)
+    : measured;
   return { ...node, width };
 }
 
@@ -1292,7 +1301,7 @@ function freezeRootWidth(node, el) {
  *   wie bisher). `components` wird intern zu einer Map name→Eintrag normiert.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
-export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null } = {}) {
+export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null, designSlotWidth = null } = {}) {
   const warnings = new Set();
   // DS-Grounding-Kontext (Spec 2026-07-23 §Q2): SEPARAT von knownComponents gehalten, damit die
   // scan-interne Heuristik (matchKnownComponent) unberührt bleibt — Grounding ist rein explizit
@@ -1367,9 +1376,9 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     // der kein Element zum Messen hat) — Begründung s. freezeRootWidth.
     let plan;
     if (roots.length === 1) {
-      plan = freezeRootWidth(convertElement(roots[0], ctx), roots[0]);
+      plan = freezeRootWidth(convertElement(roots[0], ctx), roots[0], designSlotWidth);
     } else {
-      plan = { ...emptyBoxNode(), children: roots.map((el) => freezeRootWidth(convertElement(el, ctx), el)) };
+      plan = { ...emptyBoxNode(), children: roots.map((el) => freezeRootWidth(convertElement(el, ctx), el, designSlotWidth)) };
     }
 
     // Der Vertrag verlangt PlanBox|null am Wurzelknoten — ein rein-textuelles Root-Element

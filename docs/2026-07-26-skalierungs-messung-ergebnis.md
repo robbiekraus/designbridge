@@ -71,6 +71,61 @@ Betroffen sind **4 von 15** — nur die, deren Wurzel sich streckt: `Event List 
 
 ⚠ = Wurzel streckt sich auf 1024.
 
+## ⚠️ Korrektur zu den Zahlen unten
+
+Die Tabellen dieses Dokuments wurden mit **`IMAGE_WIDTH = 2296`** gerechnet — der Wert stammt aus
+einer RESUME-Notiz und ist für diese Fixture **falsch**. `raw.meta.image_width` der eingefrorenen
+Rohdaten ist **1680** (× 1020). Damit ist k = 1680 / 1024 = **1,641**, nicht 2,242.
+
+Die **Ziel-Slots und Faktoren in den Tabellen unten sind entsprechend zu groß.** Die *Verhältnisse*
+zwischen den Varianten — und damit die Schlussfolgerung — bleiben unberührt, weil alle drei Varianten
+denselben falschen Multiplikator hatten. Die korrekten Zielwerte lauten:
+
+| Token | Rolle | Zielwert (Token × 1,641) |
+|---|---|---|
+| 28 | heading-xl | **46** |
+| 18 | heading-medium | **30** |
+| 14 | body-medium | **23** |
+| 12 | caption | **20** |
+
+Das Messwerkzeug liest die Bildbreite inzwischen aus `raw.meta.image_width` statt sie hartzukodieren.
+
+## Ergebnis nach dem Umbau (echter Emit, nicht nur Messung)
+
+Vorher/Nachher am tatsächlich emittierten Figma-Payload, beide aus denselben eingefrorenen Rohdaten
+(`verification/figma-payload-from-raw.mjs`), größte Schriftgröße je Baustein:
+
+| Baustein | vorher | nachher | Zielwert |
+|---|---|---|---|
+| Category Item Row | 18 | **30** | 30 ✅ |
+| Popular Categories Card | 18 | **30** | 30 ✅ |
+| Latest Events Card | 18 | **30** | 30 ✅ |
+| Conversion History Card | 18 | **30** | 30 ✅ |
+| Income Details Card | 28 | **46** | 46 ✅ |
+| Time Period Filter | 14 | **23** | 23 ✅ |
+| Metric Legend Item | 13 | **21** | 20 ✅ |
+| Top Header Bar | 15 | 25 | 23–30 |
+| Event List Item | 16 | 26 | 23 |
+| Your Sales Chart Card | 30 | 49 | 46 |
+| Income Breakdown Card | 32 | 53 | 46 |
+| Left Sidebar Navigation | 22 | 36 | — |
+| Dashboard Page Layout | 22 | 36 | — |
+
+**Kein einziger Baustein wurde kleiner** (das war das Blocker-Kriterium). Sieben landen auf dem
+Zielwert, der Rest liegt darüber — diese Streuung steckt in den von der KI geschriebenen Größen, nicht
+im Faktor.
+
+**Wichtige Einordnung, damit diese Tabelle nicht überinterpretiert wird:** der „vorher"-Stand ist
+hier der **jsdom**-Stand, also Faktor 1,00 (unskaliert) — nicht der kaputte Browser-Stand mit Faktor
+0,196. In jsdom gab es den Miniatur-Fehler nie. Was diese Tabelle belegt: der einheitliche Faktor
+greift jetzt auch ohne Layout-Engine und trifft die Token-Skala. Was sie **nicht** belegt: das
+Verschwinden des Miniatur-Fehlers im echten Browser — das folgt aus dem Code (der Faktor hat keinen
+`naturalWidth`-Parameter mehr) und aus den Tests zu `freezeRootWidth`.
+
+**Nebeneffekt, der die Testlage dauerhaft verbessert:** weil der Faktor jetzt aus der Bildbreite statt
+aus einer Messung kommt, ist er **layout-unabhängig** und damit erstmals in jsdom sichtbar.
+`figma-payload-from-raw.mjs` zeigt „Maßstäbe der Instanzen: **1.64**" statt vorher „1.00".
+
 ## Der unabhängige Maßstab
 
 Der Scan hat die Schriftgrößen **am Bild selbst gemessen** und Beispieltexte mitgeliefert:

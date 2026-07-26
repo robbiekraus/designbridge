@@ -7,12 +7,26 @@
 const s = (v, f) => Math.round(v * f);
 const sMin1 = (v, f) => Math.max(1, Math.round(v * f));
 
-/** slot/natural, breitengetrieben. bbox.w ist auf das Gesamtbild normiert (0..1). Guards → 1. */
-export function scaleFactor(bbox, imageWidth, naturalWidth) {
-  if (!bbox || !Number.isFinite(imageWidth) || !Number.isFinite(naturalWidth)) return 1;
-  const slotWidth = bbox.w * imageWidth;
-  if (!(slotWidth > 0) || !(naturalWidth > 0)) return 1;
-  return slotWidth / naturalWidth;
+/**
+ * EIN Faktor pro Scan (Spec 2026-07-26-einheitlicher-massstab-design.md).
+ *
+ * Vorher wurde der Faktor pro Baustein aus `slot/natural` gerechnet. Das ist strukturell falsch:
+ * ein Screenshot hat genau EINEN Zoom-Faktor, und `natural` ist bei block-level Wurzeln nicht die
+ * Inhaltsbreite, sondern die volle Messbehälterbreite (1024) — solche Bausteine schrumpften auf
+ * ~20 % (Schrift 36 → 7), Bausteine mit intrinsischer Breite blieben korrekt. Aus einem Scan kamen
+ * dadurch unvergleichbare Maßstäbe; verschachtelte Bausteine waren zwangsläufig widersprüchlich.
+ *
+ * `referenceWidth` ist PREVIEW_VIRTUAL_WIDTH: die KI schreibt ihr HTML ohne Größenvorgabe (das
+ * Scan-Prompt sagt „body ≈ 14px", also 1×-Design-Pixel) und es wird immer in diesem Behälter
+ * vermessen — 1024 ist damit die Design-Referenzbreite des Systems.
+ *
+ * Fehlt die Bildbreite (nur `server/routes/scan.js` setzt `raw.meta.image_width`; URL-/Repo-Importe
+ * nicht) → 1, also unverändertes heutiges Verhalten statt Raten.
+ */
+export function scanScaleFactor(imageWidth, referenceWidth) {
+  if (!Number.isFinite(imageWidth) || !(imageWidth > 0)) return 1;
+  if (!Number.isFinite(referenceWidth) || !(referenceWidth > 0)) return 1;
+  return imageWidth / referenceWidth;
 }
 
 function scaleAbsolute(a, f) {

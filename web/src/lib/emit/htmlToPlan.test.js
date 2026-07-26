@@ -2498,3 +2498,39 @@ describe('htmlToPlan — unsichtbare Phantom-Kästchen (Live-Fund 25.07. nachts,
     expect(empties).toEqual([]);
   });
 });
+
+// Spec 2026-07-26-einheitlicher-massstab-design.md §Umsetzungs-Design.
+// Eine block-level Wurzel (display:flex, plain div) streckt sich auf die Behälterbreite (1024).
+// Dieser Wert ist KEINE Eigenschaft des Bausteins — ihn als width festzuschreiben war die zweite
+// Hälfte des Miniatur-Fehlers (Nav Item mit Schriftgröße 7 in Robs Figma-Datei). jsdom hat keine
+// Layout-Engine, deshalb wird die Messung hier gemockt; die echte Wirkung ist zusätzlich per
+// Browser-Messung belegt (web/verification/measure-natural-widths.mjs).
+describe('freezeRootWidth — Außenmaß gestreckter Wurzeln', () => {
+  const HTML = '<div style="display:flex"><div>x</div></div>';
+  let spy;
+  const mockMeasuredWidth = (width) => {
+    spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, top: 0, left: 0, right: width, bottom: 50, width, height: 50, toJSON: () => ({}),
+    });
+  };
+  afterEach(() => spy?.mockRestore());
+
+  it('gestreckte Wurzel + bekannte bbox → Slot-Breite in Design-Pixeln, nicht 1024', () => {
+    mockMeasuredWidth(1024);
+    const { plan } = htmlToPlan(HTML, { designSlotWidth: 200 });
+    expect(plan.width).toBe(200);
+  });
+
+  it('gestreckte Wurzel ohne bbox → gemessener Wert (unverändertes Verhalten)', () => {
+    mockMeasuredWidth(1024);
+    const { plan } = htmlToPlan(HTML);
+    expect(plan.width).toBe(1024);
+  });
+
+  it('NICHT gestreckte Wurzel → die Messung gewinnt, die bbox wird ignoriert', () => {
+    // Hier ist die gemessene Breite echte Information über den Baustein.
+    mockMeasuredWidth(300);
+    const { plan } = htmlToPlan(HTML, { designSlotWidth: 200 });
+    expect(plan.width).toBe(300);
+  });
+});

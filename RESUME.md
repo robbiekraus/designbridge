@@ -112,24 +112,24 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 | Branch | Inhalt | Status |
 |---|---|---|
 | `fix/storybook-leere-lieferung` | Storybook-Knopf, `963e52d` | fertig, getestet (817/817), auf GitHub, **Merge nach main offen** (Robs Entscheidung) |
-| `experiment/einheitlicher-massstab` | Skalierungs-Umbau | Spec + Messwerkzeug + Vorher-Messung liegen, **Code-Änderung noch nicht angefangen** |
+| `experiment/einheitlicher-massstab` | Skalierungs-Umbau | **UMGEBAUT**, Web 822/822, Vorher/Nachher am echten Emit belegt. **Offen: Robs Scan + Figma-Import** |
 
-**Nächste Schritte in dieser Reihenfolge:**
+**Schritte 1–4 sind erledigt** (Vorfrage geklärt, `k` festgelegt und validiert, umgebaut, nachgemessen
+— Details im Stand-Eintrag 26.07. oben). **Was noch offen ist:**
 
-1. **Vorfrage klären, VOR jeder Code-Änderung:** liegen die Typo-Token des Scans in Design-Pixeln (1×)
-   oder in Bildpixeln? Die Werte 28/18/14/12 sehen nach 1×-Design aus, der Figma-Emit zielt aber
-   bewusst auf echte Bildpixel (2296px-Screenshot ≈ 2,24×). Ohne diese Antwort gibt es keinen
-   Zielwert, gegen den man messen kann — und damit kein Kriterium für „richtig".
-2. **Danach `k` festlegen** (Spec §Was noch NICHT entschieden ist): aus dem Template
-   (`imageWidth / 1024`) oder aus den Typo-Token (KI-HTML-Größen gegen am Bild gemessene Größen).
-3. **Umbauen** — `scaleFactor` bekommt den Faktor von außen; `freezeRootWidth` darf die gestreckte
-   1024er-Breite nicht mehr als Wahrheit festschreiben (zweite Hälfte desselben Fehlers, muss
-   zusammen geändert werden).
-4. **Nachmessen** mit `measure-natural-widths.mjs` und Baustein für Baustein gegen die Vorher-Tabelle
-   in `docs/2026-07-26-skalierungs-messung-ergebnis.md` vergleichen. **Jeder Baustein, der sich
-   verschlechtert, ist ein Blocker** — nicht nur die, die sich verbessern sollen. Die Vitest-Suite
-   kann hier NICHT absichern (jsdom, s. Spec §Verifikation).
-5. **Erst dann ein echter Scan durch Rob** — zur Bestätigung, nicht zur Fehlersuche.
+1. **Robs Sichtprüfung** — ein echter Scan auf dem Branch, dann Figma-Import. Zur Bestätigung, nicht
+   zur Fehlersuche. Erwartung: Nav Item und Brand Logo haben lesbare Schrift statt 7 bzw. 5, und die
+   Sidebar ist keine fast leere Fläche mehr.
+2. **Merge-Entscheidung für BEIDE Branches** — beide liegen bewusst nicht auf `main`, kein Deploy ist
+   ausgelöst. `fix/storybook-leere-lieferung` ist unabhängig und könnte sofort rein.
+3. **Danach die zwei getrennten Scheiben**, in dieser Reihenfolge sinnvoll:
+   - **Grounding-Variantenwahl** (kleiner): die KI labelt ein weiß gemessenes Segment als
+     `data-ds-variant="default"` = shadcns dunkles `#18181b` → schwarzer Button, wo eine weiße Pille
+     hingehört. Gegen die eingefrorene Fixture prüfbar, keine KI-Kosten.
+   - **Sidebar-Scoping** (größer, Prompt-Thema): die KI interpretiert „Left Sidebar Navigation" als
+     halbe Seite (14.903 Zeichen HTML) und deklariert zwei Karten als deren Kinder.
+4. **Roh-Scans persistieren** — der größte Hebel für künftige Fehlersuche. Robs Scan war nicht
+   nachuntersuchbar. Keine Datenbank nötig, das Roh-JSON wegschreiben genügt.
 
 **Danach getrennt zu haben (bewusst nicht vermischt):** Sidebar-Scoping (KI interpretiert die Sidebar
 als halbe Seite) und die Grounding-Variantenwahl (weiß gemessen → als dunkles `default` gelabelt →
