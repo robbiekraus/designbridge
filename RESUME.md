@@ -4,6 +4,17 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **26.07.2026 — ROBS TESTRUNDE: Storybook-Knopf gefixt (Branch, nicht auf main) + Skalierungs-Wurzelursache gefunden und gemessen.** Zwei getrennte Branches, `main` unberührt, kein Deploy ausgelöst.
+  - **Robs Befund 1: „In Storybook öffnen hat nicht funktioniert"** → Branch **`fix/storybook-leere-lieferung`** (`963e52d`, auf GitHub). **Der Builder-Dienst war nie kaputt** — Health, CORS-Preflight, CORS auf der echten POST-Antwort und ein Build mit 16 realen Prod-Komponenten (HTTP 200 in 8,9 s) alle nachgemessen, das gebaute Storybook im Browser geöffnet. Ursache im Client: `emitComponents` gibt bei fehlenden Rohdaten `[]` zurück → eine LEERE Lieferung ging an den Builder → korrektes `400 "Keine Komponenten übergeben."` → in der UI stand „bitte nochmal versuchen", was in diesem Zustand nie helfen kann. Fix: vorher zählen, Knopf deaktivieren, Grund darunter zeigen; dazu öffnet der Vorschau-Tab jetzt **synchron im Klick-Kontext** (nach dem ~9-s-Build ist die Nutzergeste abgelaufen und der Popup-Blocker verwirft ihn). **Drei bestehende Tests prüften den kaputten Zustand als Normalfall** (`imageResult` hat gar keine Bausteine) — umgestellt, zwei neue dazu. Web **817/817**.
+  - **Robs Befund 2: „Sidebar Navigation schaut zerschossen aus, der Button/das Item ganz seltsam"** → in Robs echter Figma-Datei nachgesehen (`8DEydksPP28V2WrfN9TrRI`, Sunstone-Scan): **Miniatur-Bausteine.** Brand Logo Schrift **5**, Nav Item **7** — während Search Input 28 hat und Product Table Row (1203×101) normal ist. `Sidebar Navigation` (`1:260`) ist 442×2366 px mit nur **zwei** Instanzen darin, ~2200 px Leerraum.
+  - **Wurzelursache im Code belegt und im Browser reproduziert:** `scaleFactor` in `scalePlan.js` skaliert jeden Baustein um `Zielbreite / gemessene Breite` (inkl. `fontSize`). Die gemessene Breite ist `getBoundingClientRect()` in einem **1024 px** breiten Behälter — eine block-level Wurzel (`display:flex`, plain `<div>`) **streckt sich darauf** und liefert 1024 statt der Inhaltsbreite. Nachgestellt: `display:flex` → nat. 1024, Faktor 0,196, Schrift 36 → **7**. `display:inline-flex` → nat. 215, Faktor 0,932, Schrift 36 → 34. Deckt sich exakt mit Robs Datei.
+  - **Warum 817 grüne Tests das nie sahen:** jsdom hat keine Layout-Engine → `getBoundingClientRect()` = 0 → der Riegel `if (!(naturalWidth > 0)) return 1` macht daraus Faktor 1. **Der gesamte Skalierungspfad ist in der Vitest-Suite unsichtbar.** `figma-payload-from-raw.mjs` zeigt es sogar an („Maßstäbe der Instanzen: 1.00").
+  - **Der naheliegende Fix ist gemessen widerlegt** (wichtig, damit das nicht nochmal teuer gelernt wird): Wurzel beim Messen auf `max-content` stellen repariert die 4 betroffenen Bausteine und beschädigt andere — `Top Header Bar` Schrift 24 → **104**, `Category Item Row` 25 → **56**. Variante „im Ziel-Slot rendern, Faktor 1" ist risikofrei für die 9 gesunden, drückt aber Header auf 15 und Page Layout von 49 auf 22. **Lehre: die natürliche Breite eines sich streckenden Elements ist keine Eigenschaft des Elements — daraus lässt sich kein Maßstab ableiten, egal wie man misst.**
+  - **Neues KI-freies Messwerkzeug (bleibt nutzbar):** `cd web && node verification/measure-natural-widths.mjs ../storybook-harness/fixtures/prod-scan-raw.json` erzeugt eine Messseite (Ergebnis auch in `window.__ROWS`), die in echtem Chromium alle 15 Bausteine dreifach vermisst. Vorher-Tabelle + der unabhängige Maßstab (im Bild gemessene Typo-Token 28/18/14/12 mit Beispieltexten wie „Dashboard") stehen in **`docs/2026-07-26-skalierungs-messung-ergebnis.md`**.
+  - **Richtung festgelegt, Umsetzung offen:** ein Screenshot hat genau einen Zoom-Faktor → **ein Faktor pro Scan statt pro Baustein**. Spec: **`docs/superpowers/specs/2026-07-26-einheitlicher-massstab-design.md`**. Branch **`experiment/einheitlicher-massstab`** angelegt. **Erste zu klärende Vorfrage vor jeder Code-Änderung:** liegen die Typo-Token in Design-Pixeln (1×) oder in Bildpixeln? Ohne das gibt es keinen belastbaren Zielwert.
+  - **Nebenbefund, eigene Scheibe:** die KI labelt ein weiß gemessenes Segment als `data-ds-variant="default"` (= shadcns dunkles Primary `#18181b`) → der Day/Week/Month-Umschalter landet in Figma als **schwarzer Button**, wo eine weiße Pille hingehört. Und die Sidebar-Interpretation ist **14.903 Zeichen** lang und enthält die halbe Seite (Prompt-/Scoping-Thema).
+  - **`FIGMA_TOKEN` ist jetzt gesetzt** (`.env`, gitignored) — war vorher nur ein auskommentierter Platzhalter `# FIGMA_TOKEN=figd_...`, daher das 403 „Invalid token". Lesezugriff per REST-API verifiziert. **Figmas Dev-Mode-MCP-Server bleibt aus** (Port 3845 antwortet nicht) — braucht einen bezahlten Dev-/Full-Seat, der Menüpunkt existiert auf Starter gar nicht. Der Token-Weg ersetzt ihn vollständig.
+  - **Größter offener Hebel für künftige Fehlersuche:** Robs Scan war **nicht nachuntersuchbar**, weil kein Scan persistiert wird. Der billigste Schritt ist keine Datenbank, sondern das Roh-JSON jedes Scans wegschreiben. (Rob hat nach Supabase gefragt — Antwort: zum Laufen nicht nötig, und wenn, dann Postgres bei Railway statt eines zusätzlichen Anbieters. Der „Verlauf"-Knopf in der Topbar ist noch ausgegraut/unimplementiert.)
 - **25.07.2026 (autonome Folge-Session, nachts) — SUB-KOMPONENTEN-SLOTS (Scheibe A, Code-Emit): `Card` rendert jetzt `CardHeader`/`CardContent` statt flacher Kinder.** Robs angekündigter nächster Schritt, autonom umgesetzt (Sonnet 5, TDD). Spec: `docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md`.
   - **Was sich ändert:** ab zwei Fallback-Kindern verteilt der Code-Emit (`planToJsx.js`) eine gegroundete `Card` auf `<CardHeader>` (erstes Kind) und `<CardContent>` (Rest) statt sie flach unter `<Card>` zu hängen — idiomatischeres shadcn-Markup, **Optik unverändert** (verifiziert, s. u.). Genau 1 Kind oder kein `slots`-Feld am Katalog-Eintrag → unveränderter flacher Fall (Rückwärtskompatibel, z. B. Repo-Kataloge).
   - **Kernproblem gelöst:** die echten shadcn-`CardHeader`/`CardContent` bringen eigenes Padding mit (`p-6`, `p-6 pt-0`). Eine angehängte `className="p-0"` würde das NICHT verlässlich überschreiben — bei gleicher Tailwind-Spezifität entscheidet die generierte Stylesheet-Reihenfolge, nicht die Position im `class`-Attribut. Fix: Tailwinds `!`-Important-Modifier (`!p-0`) — einzige verlässliche Art, eine fremde Utility von außen zu schlagen. `Card` selbst behält seine volle gemessene Klasse (Gap+Padding); `CardContent` bekommt denselben Gap erneut für seine jetzt darin verschachtelten Geschwister.
@@ -94,8 +105,40 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Aktives Ziel / Nächste Schritte
 
-**🌙 SESSION GESCHLOSSEN 25.07.2026 nachts (Rob: „schließen die Session heute") — sauberer Stand,
-nichts hängt offen.** Git-Arbeitsbaum clean, `main` == `origin/main` (`61656c9`), alle vier Suiten
+### 🔴 STAND 26.07.2026 — hier geht es weiter
+
+**Zwei Branches offen, `main` unberührt, kein Deploy ausgelöst.**
+
+| Branch | Inhalt | Status |
+|---|---|---|
+| `fix/storybook-leere-lieferung` | Storybook-Knopf, `963e52d` | fertig, getestet (817/817), auf GitHub, **Merge nach main offen** (Robs Entscheidung) |
+| `experiment/einheitlicher-massstab` | Skalierungs-Umbau | Spec + Messwerkzeug + Vorher-Messung liegen, **Code-Änderung noch nicht angefangen** |
+
+**Nächste Schritte in dieser Reihenfolge:**
+
+1. **Vorfrage klären, VOR jeder Code-Änderung:** liegen die Typo-Token des Scans in Design-Pixeln (1×)
+   oder in Bildpixeln? Die Werte 28/18/14/12 sehen nach 1×-Design aus, der Figma-Emit zielt aber
+   bewusst auf echte Bildpixel (2296px-Screenshot ≈ 2,24×). Ohne diese Antwort gibt es keinen
+   Zielwert, gegen den man messen kann — und damit kein Kriterium für „richtig".
+2. **Danach `k` festlegen** (Spec §Was noch NICHT entschieden ist): aus dem Template
+   (`imageWidth / 1024`) oder aus den Typo-Token (KI-HTML-Größen gegen am Bild gemessene Größen).
+3. **Umbauen** — `scaleFactor` bekommt den Faktor von außen; `freezeRootWidth` darf die gestreckte
+   1024er-Breite nicht mehr als Wahrheit festschreiben (zweite Hälfte desselben Fehlers, muss
+   zusammen geändert werden).
+4. **Nachmessen** mit `measure-natural-widths.mjs` und Baustein für Baustein gegen die Vorher-Tabelle
+   in `docs/2026-07-26-skalierungs-messung-ergebnis.md` vergleichen. **Jeder Baustein, der sich
+   verschlechtert, ist ein Blocker** — nicht nur die, die sich verbessern sollen. Die Vitest-Suite
+   kann hier NICHT absichern (jsdom, s. Spec §Verifikation).
+5. **Erst dann ein echter Scan durch Rob** — zur Bestätigung, nicht zur Fehlersuche.
+
+**Danach getrennt zu haben (bewusst nicht vermischt):** Sidebar-Scoping (KI interpretiert die Sidebar
+als halbe Seite) und die Grounding-Variantenwahl (weiß gemessen → als dunkles `default` gelabelt →
+schwarzer Button). Beides eigene Scheiben, beides im Messergebnis-Dokument belegt.
+
+---
+
+**🌙 Session-Ende 25.07.2026 nachts (historisch, durch den 26.07. überholt) — sauberer Stand.**
+Git-Arbeitsbaum clean, `main` == `origin/main` (`61656c9`), alle vier Suiten
 grün (Web 815 · Server 335 · Plugin 117 · Harness 19), Railway-Deploy durch den Push ausgelöst.
 Diese Nacht in Reihenfolge: Katalog als echte Figma-Komponenten-Bibliothek gebaut → Robs erster
 echter Test dagegen → Phantom-Kästchen-Bugfix (`<br>` u. Ä.) → Sub-Komponenten-Slots Scheibe A

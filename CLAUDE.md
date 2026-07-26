@@ -42,6 +42,9 @@ Designbridge extracts design tokens, atomic components, and patterns from screen
 - [docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md](docs/superpowers/specs/2026-07-25-komposition-gegroundeter-bausteine-design.md) — Komposition INNERHALB gegroundeter Bausteine (Hülle aus dem Katalog, Layout/Inhalt aus der Messung). **KOMPLETT** 25.07.
 - [docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md](docs/superpowers/specs/2026-07-25-katalog-als-figma-library-design.md) — Katalog als echte Figma-Komponenten-Bibliothek (`DS/…`-Komponenten + ◇-Instanzen). **GEBAUT** 25.07. nachts, Robs Plugin-Reload + Sichtprüfung offen.
 - [docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md](docs/superpowers/specs/2026-07-25-sub-komponenten-slots-design.md) — Sub-Komponenten-Slots, Scheibe A (Code-Emit: `Card` → `CardHeader`/`CardContent`). **GEBAUT** 25.07. nachts. Figma-Instanz-Slots + `CardTitle`/`CardDescription` bewusst zurückgestellt.
+- [docs/superpowers/specs/2026-07-26-einheitlicher-massstab-design.md](docs/superpowers/specs/2026-07-26-einheitlicher-massstab-design.md) — Ein Maßstab pro Scan statt pro Baustein (Ursache der Miniatur-Bausteine in Figma). **RICHTUNG FESTGELEGT** 26.07., Umsetzung offen; eine Vorfrage muss vorher geklärt werden. Messbeleg: [docs/2026-07-26-skalierungs-messung-ergebnis.md](docs/2026-07-26-skalierungs-messung-ergebnis.md). Branch `experiment/einheitlicher-massstab`.
+
+**Skalierungspfad ist testblind:** jsdom hat keine Layout-Engine → `getBoundingClientRect()` = 0 → `scaleFactor` fällt auf 1 zurück. Änderungen an `scalePlan.js` / `naturalWidth` / `freezeRootWidth` **müssen** mit `web/verification/measure-natural-widths.mjs` in einem echten Browser vorher/nachher gemessen werden. Grüne Vitest-Läufe beweisen dort nichts.
 
 ## Current goal
 
