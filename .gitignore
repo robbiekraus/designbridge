@@ -34,3 +34,6 @@ web/.verify-*/
 
 # Generat des Messwerkzeugs (web/verification/measure-natural-widths.mjs) — jederzeit neu baubar
 web/verification/natural-widths.html
+# Arbeitskopie der Rohdaten für emit-in-browser.html (Vite serviert nur unterhalb von web/).
+# Original: storybook-harness/fixtures/prod-scan-raw.json — die Kopie nie committen, sie veraltet still.
+web/verification/prod-scan-raw.json

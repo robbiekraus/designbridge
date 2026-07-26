@@ -1,0 +1,173 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Figma-Emit im ECHTEN Browser — Skalierungs-Verifikation</title>
+<body style="font:13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:20px;color:#18181b">
+<h2 style="font-size:16px;margin:0 0 4px">Figma-Emit im echten Browser</h2>
+<p style="color:#71717a;margin:0 0 16px">
+  Warum diese Seite existiert: <code>freezeRootWidth</code> (htmlToPlan.js) steigt bei
+  <code>getBoundingClientRect().width &lt;= 0</code> aus — in jsdom also immer. Der
+  <code>designSlotWidth</code>-Zweig des Maßstabs-Umbaus läuft in KEINEM der 822 Vitest-Tests.
+  Diese Seite fährt <code>emitFigmaComponents</code> mit echter Layout-Engine.
+</p>
+<p style="color:#71717a;margin:0 0 16px">
+  <strong>Aufruf:</strong>
+  <code>cp storybook-harness/fixtures/prod-scan-raw.json web/verification/</code> ·
+  Dev-Server starten (<code>PORT=3047 npm run dev:demo</code>) ·
+  <code>http://localhost:5173/verification/emit-in-browser.html</code> ·
+  Ergebnis auch in <code>window.__RESULT</code>.
+</p>
+<pre id="status" style="background:#f4f4f5;padding:12px;border-radius:6px">lade …</pre>
+<div style="overflow-x:auto"><table id="tab" style="border-collapse:collapse;font-size:12px"></table></div>
+<h3 style="font-size:14px;margin:20px 0 4px">window.__RESULT</h3>
+<pre id="out" style="background:#f4f4f5;padding:12px;border-radius:6px;overflow-x:auto;max-height:300px">…</pre>
+
+<script type="module">
+const status = document.getElementById('status');
+const PREVIEW_VIRTUAL_WIDTH = 1024, VIRTUAL_HEIGHT = 768;
+
+function fail(e) {
+  status.textContent = 'FEHLER: ' + (e && e.stack || e);
+  status.style.color = '#dc2626';
+  window.__RESULT = { error: String(e && e.message || e) };
+}
+
+try {
+  const { emitFigmaComponents } = await import('/src/lib/emit/emitFigmaComponents.js');
+  // Vite serviert nur unterhalb seiner Wurzel (web/), die Fixture liegt daneben — sie muss also
+  // einmal herüberkopiert werden (siehe Aufruf-Anleitung oben). Die Kopie ist gitignoriert.
+  const res = await fetch('/verification/prod-scan-raw.json');
+  if (!res.ok) {
+    throw new Error(`Rohdaten fehlen (HTTP ${res.status}). Erst kopieren:\n`
+      + 'cp storybook-harness/fixtures/prod-scan-raw.json web/verification/');
+  }
+  const result = await res.json();
+
+  const imageWidth = result.raw?.meta?.image_width;
+  const k = imageWidth / PREVIEW_VIRTUAL_WIDTH;
+
+  // bbox pro Baustein (normiert 0..1) — daraus der Ziel-Slot in echten Bildpixeln.
+  const bboxOf = {};
+  for (const grp of ['atoms', 'molecules', 'organisms', 'templates'])
+    for (const it of result.raw?.[grp] || []) bboxOf[it.name] = it.bbox;
+
+  // ── Referenzmessung: exakt was scaleFactor VORHER als naturalWidth benutzte ──
+  // (Wurzel im 1024er-Behälter). Damit lässt sich der alte Faktor im SELBEN Browser
+  // rekonstruieren — echtes Vorher/Nachher statt Vergleich gegen eine jsdom-Zahl.
+  function measureRaw(htmlStr) {
+    const c = document.createElement('div');
+    c.style.cssText = `position:absolute;top:0;left:-99999px;width:${PREVIEW_VIRTUAL_WIDTH}px;height:${VIRTUAL_HEIGHT}px;box-sizing:border-box`;
+    c.innerHTML = htmlStr;
+    document.body.appendChild(c);
+    const root = c.children[0];
+    let width = 0, biggestFont = 0;
+    if (root) {
+      width = Math.round(root.getBoundingClientRect().width);
+      for (const el of [root, ...root.querySelectorAll('*')]) {
+        const fs = parseFloat(getComputedStyle(el).fontSize) || 0;
+        if (el.textContent && el.textContent.trim() && fs > biggestFont) biggestFont = fs;
+      }
+    }
+    c.remove();
+    return { width, biggestFont };
+  }
+
+  // ── Der echte Emit, mit echter Layout-Engine ──
+  const components = emitFigmaComponents(result);
+
+  function walk(node, visit) {
+    if (!node || typeof node !== 'object') return;
+    visit(node);
+    if (node.type === 'component-ref') return walk(node.fallback, visit);
+    for (const c of node.children || []) walk(c, visit);
+  }
+
+  const rows = [];
+  for (const comp of components) {
+    const plan = comp.variants?.[0]?.plan;
+    if (!plan) continue;
+    let maxFont = 0, minFont = Infinity, textNodes = 0;
+    walk(plan, (n) => {
+      if (n.type === 'text' && n.fontSize) {
+        maxFont = Math.max(maxFont, n.fontSize);
+        minFont = Math.min(minFont, n.fontSize);
+        textNodes++;
+      }
+    });
+    const html = result.interpretations?.[comp.name]?.html;
+    const ref = html ? measureRaw(html) : { width: 0, biggestFont: 0 };
+    const bbox = bboxOf[comp.name];
+    const slot = bbox ? Math.round(bbox.w * imageWidth) : null;
+    const altFaktor = slot && ref.width ? slot / ref.width : null;
+
+    rows.push({
+      name: comp.name,
+      slot,
+      rootWidth: plan.width ?? null,
+      rootGestreckt: ref.width >= PREVIEW_VIRTUAL_WIDTH,
+      schriftRoh: ref.biggestFont ? Math.round(ref.biggestFont) : null,
+      // Was der ALTE Code in DIESEM Browser produziert hätte:
+      schriftVorher: ref.biggestFont && altFaktor
+        ? Math.max(1, Math.round(ref.biggestFont * altFaktor)) : null,
+      faktorVorher: altFaktor ? +altFaktor.toFixed(3) : null,
+      // Was der NEUE Code hier tatsächlich produziert:
+      schriftNachher: maxFont || null,
+      schriftKleinste: Number.isFinite(minFont) ? minFont : null,
+      textKnoten: textNodes,
+    });
+  }
+
+  // ── Urteile ──
+  const MINI = 12;                      // darunter = Miniatur-Fehler
+  const problems = [];
+  for (const r of rows) {
+    if (r.schriftNachher != null && r.schriftNachher < MINI)
+      problems.push(`MINIATUR: ${r.name} — größte Schrift ${r.schriftNachher}px`);
+    if (r.schriftVorher != null && r.schriftNachher != null && r.schriftNachher < r.schriftVorher)
+      problems.push(`KLEINER ALS VORHER: ${r.name} — ${r.schriftVorher} → ${r.schriftNachher}`);
+    // Kernprüfung des designSlotWidth-Zweigs: eine gestreckte Wurzel darf NICHT
+    // bildbreit werden (1024 * k), sondern muss auf ihrem Slot landen.
+    if (r.rootGestreckt && r.rootWidth != null && r.slot != null) {
+      const bildbreit = Math.round(PREVIEW_VIRTUAL_WIDTH * k);
+      if (Math.abs(r.rootWidth - bildbreit) <= 2 && Math.abs(r.slot - bildbreit) > 2)
+        problems.push(`BILDBREIT STATT SLOT: ${r.name} — Wurzel ${r.rootWidth}, Slot ${r.slot}`);
+      if (Math.abs(r.rootWidth - r.slot) > Math.max(4, r.slot * 0.02))
+        problems.push(`SLOT VERFEHLT: ${r.name} — Wurzel ${r.rootWidth}, erwartet ${r.slot}`);
+    }
+  }
+
+  const stretched = rows.filter((r) => r.rootGestreckt);
+  const summary = {
+    imageWidth, k: +k.toFixed(3),
+    bausteine: rows.length,
+    gestreckteWurzeln: stretched.map((r) => r.name),
+    miniaturVorher: rows.filter((r) => r.schriftVorher != null && r.schriftVorher < MINI).map((r) => r.name),
+    miniaturNachher: rows.filter((r) => r.schriftNachher != null && r.schriftNachher < MINI).map((r) => r.name),
+    problems,
+  };
+
+  const COLS = [
+    ['Baustein', 'name'], ['Ziel-Slot', 'slot'], ['Wurzel-Breite', 'rootWidth'],
+    ['gestreckt', 'rootGestreckt'], ['Schrift roh', 'schriftRoh'],
+    ['Faktor VORHER', 'faktorVorher'], ['Schrift VORHER', 'schriftVorher'],
+    ['Schrift NACHHER', 'schriftNachher'], ['kleinste', 'schriftKleinste'],
+  ];
+  document.getElementById('tab').innerHTML =
+    '<tr>' + COLS.map(([h]) => `<th style="text-align:left;padding:4px 10px;border-bottom:1px solid #d4d4d8">${h}</th>`).join('') + '</tr>'
+    + rows.map((r) => '<tr>' + COLS.map(([, key]) => {
+        const v = r[key] === true ? 'JA' : r[key] === false ? '–' : (r[key] ?? '—');
+        const bad = (key === 'schriftVorher' && r[key] != null && r[key] < MINI)
+          || (key === 'schriftNachher' && r[key] != null && r[key] < MINI);
+        const good = key === 'schriftNachher' && r[key] != null && r[key] >= MINI;
+        return `<td style="padding:4px 10px;border-bottom:1px solid #f4f4f5;${bad ? 'color:#dc2626;font-weight:600' : good ? 'color:#15803d;font-weight:600' : ''}">${v}</td>`;
+      }).join('') + '</tr>').join('');
+
+  status.textContent = (problems.length ? `${problems.length} PROBLEM(E):\n- ` + problems.join('\n- ')
+    : 'KEINE PROBLEME') + '\n\n' + JSON.stringify(summary, null, 1);
+  status.style.color = problems.length ? '#dc2626' : '#15803d';
+  document.getElementById('out').textContent = JSON.stringify(rows, null, 1);
+  window.__RESULT = { summary, rows };
+} catch (e) {
+  fail(e);
+}
+</script>
+</body>
