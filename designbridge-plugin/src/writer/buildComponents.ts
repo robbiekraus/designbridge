@@ -3,6 +3,7 @@
 import { ImportComponent } from './parsePayload';
 import { renderPlan } from './renderPlan';
 import { layOutVariants } from './variantLayout';
+import { orderComponentsByDependency } from './buildOrder';
 
 export interface BuildResult {
   created: number;
@@ -110,7 +111,9 @@ export async function buildComponents(
     updatedByKind: { atom: 0, molecule: 0, organism: 0, template: 0 },
   };
 
-  for (const comp of components) {
+  // Abhängigkeiten zuerst bauen: ein `component-ref` findet über `findComponentByName` nur,
+  // was bereits in einer Sektion hängt (s. buildOrder.ts).
+  for (const comp of orderComponentsByDependency(components)) {
     const section = sections[comp.kind];
     // Vor dem try deklariert, damit der catch bereits erzeugte Nodes wieder
     // entfernen kann: Halb gebaute ComponentNodes tauchen sonst als Waisen

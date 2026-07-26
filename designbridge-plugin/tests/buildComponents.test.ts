@@ -38,6 +38,18 @@ function makeNode(type: string): any {
       node.width = w;
       node.height = h;
     },
+    // Nur für den component-ref-Pfad (Writer-Ordering-Test): eine gefundene COMPONENT
+    // wird instanziiert. Die Instanz trägt ihren Ursprung, damit der Test prüfen kann,
+    // dass wirklich die echte Komponente und nicht der Fallback gerendert wurde.
+    createInstance() {
+      const inst = makeNode('INSTANCE');
+      inst.name = node.name;
+      inst.mainComponent = node;
+      return inst;
+    },
+    findAll() {
+      return [];
+    },
   };
   return node;
 }
@@ -161,4 +173,38 @@ test('re-running against existing components tallies updatedByKind per kind', as
   assert.equal(result.updated, 2); // A1 + P1
   assert.deepEqual(result.createdByKind, { atom: 1, molecule: 0, organism: 0, template: 0 });
   assert.deepEqual(result.updatedByKind, { atom: 1, molecule: 0, organism: 0, template: 1 });
+});
+
+// ─── Writer-Ordering (27.07.2026) ─────────────────────────────────────────────
+// Befund aus dem E2E-Lauf: „Komponente „Popular Categories Card" nicht gefunden — Fallback
+// gerendert". `Left Sidebar Navigation` splict zwei Organismen ein, die in der Payload NACH ihr
+// stehen; `findComponentByName` sieht nur bereits gebaute Sektions-Kinder.
+test('ein später in der Payload stehender Baustein wird trotzdem als Instanz aufgelöst', async () => {
+  const emptyBox = () => ({
+    type: 'box' as const, layout: 'column' as const, padding: [0, 0, 0, 0] as [number, number, number, number],
+    radius: 0, fill: null, stroke: null, strokeWeight: 1, gap: 0, width: null, height: null,
+    primaryAlign: 'MIN' as const, counterAlign: 'MIN' as const, children: [] as any[],
+  });
+  const parentPlan = { ...emptyBox(), children: [
+    { type: 'component-ref' as const, name: 'Popular Categories Card', variant: null, fallback: emptyBox() },
+  ] };
+  const components: ImportComponent[] = [
+    { name: 'Left Sidebar Navigation', kind: 'organism', confidence: null, source: null, notes: null,
+      placeholder: false, variants: [{ name: 'default', plan: parentPlan }] },
+    placeholderComponent('Popular Categories Card', 'organism'),
+  ];
+  const sections = makeSections();
+
+  const result = await buildComponents(components, sections, new Map());
+
+  assert.deepEqual(result.skipped, []);
+  // Die Abhängigkeit steht jetzt VOR ihrem Elternteil in der Sektion.
+  const built = (sections.organism as any).children.map((c: any) => c.name);
+  assert.deepEqual(built, ['Popular Categories Card', 'Left Sidebar Navigation']);
+  // Und im Elternteil hängt eine echte Instanz, kein Fallback-Frame.
+  const parentSet = (sections.organism as any).children[1];
+  const parentVariant = parentSet.children[0];
+  const child = parentVariant.children[0];
+  assert.equal(child.type, 'INSTANCE', 'Ref wurde als Instanz aufgelöst, nicht als Fallback-Frame');
+  assert.equal(child.mainComponent.name, 'Popular Categories Card');
 });
