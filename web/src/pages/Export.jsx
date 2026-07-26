@@ -37,6 +37,20 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
       return [];
     }
   }, [exports]);
+  // Live-Fund 26.07.: Ergebnisse ohne verwertbare Bausteine (emitComponents gibt bei
+  // fehlenden Rohdaten [] zurück) schickten eine LEERE Lieferung an den Builder. Der
+  // antwortete korrekt mit 400 „Keine Komponenten übergeben." — in der UI stand aber
+  // „bitte nochmal versuchen", was in diesem Zustand nie helfen kann. Vorher wissen
+  // statt hinterher raten: einmal pro Ergebnis zählen.
+  const storybookComponentCount = useMemo(() => {
+    try {
+      return Object.keys(storybookFiles(result)).filter((p) => p.startsWith('components/')).length;
+    } catch {
+      return 0;
+    }
+  }, [result]);
+  const storybookBuildable = storybookComponentCount > 0;
+
   const [activeId, setActiveId] = useState('css');
   const [copied, setCopied] = useState(null);
   const [sent, setSent] = useState(null);
@@ -104,6 +118,13 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
   };
 
   const handleOpenStorybookPreview = async () => {
+    // Doppelter Boden: der Knopf ist in diesem Zustand schon deaktiviert, die Begründung
+    // steht dauerhaft darunter. Ein leerer Request an den Builder darf trotzdem nie raus.
+    if (!storybookBuildable) return;
+    // Der Tab MUSS synchron im Klick-Kontext aufgehen. Nach dem await (der Build läuft
+    // ~9 s) ist die Nutzergeste abgelaufen und der Popup-Blocker greift. Liefert
+    // window.open nichts (z. B. im Test), fällt es unten auf den alten Weg zurück.
+    const tab = window.open('', '_blank');
     setStorybookPreview('building');
     try {
       const files = storybookFiles(result);
@@ -128,10 +149,13 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
       });
       if (!res.ok) throw new Error('Storybook-Builder antwortete mit Fehler');
       const { url } = await res.json();
-      window.open(`${builderUrl}${url}`, '_blank');
+      const previewUrl = `${builderUrl}${url}`;
+      if (tab) tab.location = previewUrl;
+      else window.open(previewUrl, '_blank');
       setStorybookPreview(null);
     } catch (err) {
       console.error('Storybook-Live-Preview fehlgeschlagen:', err);
+      if (tab) tab.close();
       setStorybookPreview('error');
       setTimeout(() => setStorybookPreview(null), 4000);
     }
@@ -176,11 +200,17 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
           </p>
           <button
             onClick={handleOpenStorybookPreview}
-            disabled={storybookPreview === 'building'}
+            disabled={storybookPreview === 'building' || !storybookBuildable}
+            title={storybookBuildable ? undefined : 'Dieser Import enthält keine Bausteine.'}
             className="w-full text-xs px-2.5 py-1.5 rounded border border-zinc-200 text-zinc-700 hover:bg-zinc-50 transition-colors disabled:opacity-50"
           >
             {storybookPreview === 'building' ? 'Storybook wird gebaut …' : 'In Storybook öffnen'}
           </button>
+          {!storybookBuildable && (
+            <span className="text-[11px] text-zinc-500">
+              Dieser Import enthält keine Bausteine — es gibt nichts zu bauen. Erst ein Bild scannen und interpretieren lassen.
+            </span>
+          )}
           {storybookPreview === 'error' && (
             <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
           )}
