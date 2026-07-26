@@ -1367,6 +1367,26 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
       return { plan: null, warnings: Array.from(warnings) };
     }
 
+    // Scheibe C, zweite Hälfte (Spec 2026-07-26-geometrie-im-echten-slot-design.md §Vollausbau):
+    // Der Behälter allein erreicht nur Wurzeln, die sich strecken. Trägt die KI-Wurzel eine EIGENE
+    // px-Breite, ignoriert sie ihn — im echten Emit blieben so 9 von 15 Bausteinen zu breit (Nav Icon
+    // 2,70× · sechs Karten 1,34–1,90×), weil die KI ihre Bausteine größer zeichnet als die Vorlage.
+    // Die bbox ist die MESSUNG am echten Bild und damit die bessere Information als die geratene
+    // px-Breite: wir setzen sie der Wurzel auf und lassen den Browser das Innere neu umbrechen.
+    // Bewusst so statt per Geometrie-Faktor: ein Faktor müsste Paddings, Gaps, absolute Rects UND
+    // DS-Instanzen mitskalieren (deren instance.rescale() auch die Schrift trifft — genau die
+    // Inkonsistenz, die der einheitliche Maßstab beseitigt hat). Der Reflow braucht davon nichts.
+    // Untersizing kann daraus nicht folgen: passt der Inhalt wirklich nicht, greift Fix A vom 18.07.
+    // (scrollWidth > width → der Frame wächst, s. readSize) und verhindert das Clipping.
+    const slotWidth = Number.isFinite(designSlotWidth) && designSlotWidth > 0
+      ? Math.round(designSlotWidth)
+      : null;
+    if (slotWidth && roots.length === 1) {
+      // Nur bei EINER Wurzel: bei mehreren ist die bbox das umschließende Rechteck aller, ihre
+      // Einzelbreiten sind daraus nicht ableitbar (jede auf slotWidth zu setzen wäre falsch).
+      roots[0].style.width = `${slotWidth}px`;
+    }
+
     // Composition-Splice (Spec §1): Referenzrahmen = Rect der (einzigen) Wurzel bzw. umschließendes
     // Rect aller Wurzeln bei mehreren Roots, dann global gegen alle Elemente auflösen (s.
     // computeSpliceAssignment). Leere/undefinierte spliceTargets → assignment bleibt leer, ctx.

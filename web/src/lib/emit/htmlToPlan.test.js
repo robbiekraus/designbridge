@@ -2551,17 +2551,51 @@ describe('freezeRootWidth — friert die GEMESSENE Breite ein (Scheibe C: zurüc
     expect(plan.width).toBe(200);
   });
 
-  it('designSlotWidth ersetzt die Messung NICHT mehr — sonst wäre C an zwei Stellen aktiv', () => {
-    // Regressionsschutz gegen den Ersatzzweig aus f625731: würde er noch greifen, käme hier 200
-    // heraus statt 900. Doppelte Korrektur hätte die Breite ein zweites Mal verkleinert.
+  it('mit bekanntem Slot gewinnt der Slot, nicht die Messung — die Korrektur wirkt an EINER Stelle', () => {
+    // Arbeitsteilung nach dem Vollausbau: die Slot-Breite wird der Wurzel aufgesetzt (dort ist sie
+    // die Messung am echten Bild und damit die verlässlichste Information), freezeRootWidth ist nur
+    // noch für Bausteine OHNE bbox zuständig. Würde beides greifen, wäre die Breite zweimal
+    // korrigiert worden — deshalb gewinnt hier 200 und nicht die gemockten 900.
     mockMeasuredWidth(900);
     const { plan } = htmlToPlan(HTML, { designSlotWidth: 200 });
-    expect(plan.width).toBe(900);
+    expect(plan.width).toBe(200);
   });
 
   it('ohne designSlotWidth unverändert', () => {
     mockMeasuredWidth(1024);
     const { plan } = htmlToPlan(HTML);
     expect(plan.width).toBe(1024);
+  });
+});
+
+// Scheibe C, zweite Hälfte: die bbox wird der WURZEL aufgesetzt, nicht nur dem Behälter — sonst
+// bleiben Bausteine mit eigener px-Breite unberührt (im echten Emit 9 von 15). jsdom löst kein
+// Layout auf, kann den Reflow also nicht zeigen; prüfbar ist hier, DASS die Breite gesetzt wird,
+// dass sie im Plan ankommt und dass der Mehrfach-Wurzel-Fall ausgenommen bleibt. Die Wirkung auf
+// echte Geometrie belegt web/verification/emit-in-browser.html (Spec §Ergebnis).
+describe('Slot-Breite auf der Wurzel (Scheibe C, Vollausbau)', () => {
+  it('eine Wurzel mit eigener px-Breite → die gemessene Slot-Breite gewinnt', () => {
+    // Die KI zeichnet 560px, die bbox sagt 195px. Die Messung am Bild ist die bessere Information.
+    const { plan } = htmlToPlan('<div style="width:560px;padding:8px">Karte</div>', { designSlotWidth: 195 });
+    expect(plan.width).toBe(195);
+  });
+
+  it('ohne designSlotWidth bleibt die KI-Breite stehen (URL-/Repo-Import unberührt)', () => {
+    const { plan } = htmlToPlan('<div style="width:560px;padding:8px">Karte</div>');
+    expect(plan.width).toBe(560);
+  });
+
+  it('MEHRERE Wurzeln → keine bekommt die Slot-Breite (bbox ist ihr Umschließendes)', () => {
+    const html = '<div style="width:300px">A</div><div style="width:400px">B</div>';
+    const { plan } = htmlToPlan(html, { designSlotWidth: 195 });
+    expect(plan.children[0].width).toBe(300);
+    expect(plan.children[1].width).toBe(400);
+  });
+
+  it('unbrauchbare designSlotWidth setzt nichts (nie eine 0px-Wurzel)', () => {
+    for (const bad of [0, -5, NaN, '195']) {
+      const { plan } = htmlToPlan('<div style="width:560px">K</div>', { designSlotWidth: bad });
+      expect(plan.width).toBe(560);
+    }
   });
 });

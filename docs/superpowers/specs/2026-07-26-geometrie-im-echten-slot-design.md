@@ -101,6 +101,23 @@ nicht Teil von C1.
 auf). Vitest deckt ab: unveränderte Behälterbreite ohne `designSlotWidth`, `freezeRootWidth` in
 seiner zurückgebauten Form, kein neuer Warnungspfad.
 
+## Vollausbau: die Slot-Breite gehört auf die WURZEL, nicht nur auf den Behälter
+
+Der erste Wurf setzte nur den Messbehälter auf die echte Breite. Das erreicht ausschließlich Wurzeln,
+die sich strecken — trägt die KI-Wurzel eine eigene px-Breite, ignoriert sie den Behälter. Gemessen
+blieben so 9 von 15 Bausteinen zu breit. **Deshalb bekommt die Wurzel selbst die gemessene Breite
+aufgesetzt** (`roots[0].style.width = slotWidth`), danach bricht der Browser das Innere um.
+
+Bewusst so und nicht per Geometrie-Faktor `slot/natural`: ein Faktor müsste Paddings, Gaps, absolute
+Rects **und DS-Instanzen** mitskalieren — und `instance.rescale()` trifft in Figma auch die Schrift
+innerhalb der Instanz, also genau die Inkonsistenz, die der einheitliche Maßstab beseitigt hat. Der
+Reflow braucht davon nichts und lässt die Typografie unberührt.
+
+**Untersizing ist strukturell ausgeschlossen:** passt der Inhalt wirklich nicht in den Slot, greift
+Fix A vom 18.07. (`scrollWidth > width` → der Frame wächst, `readSize`). Der Emit weigert sich dann
+korrekt zu schrumpfen, statt abzuschneiden. Nur bei EINER Wurzel angewandt — bei mehreren ist die
+bbox ihr umschließendes Rechteck, die Einzelbreiten sind daraus nicht ableitbar.
+
 ## Ergebnis (gemessen 26.07. abends, echtes Chromium, kein KI-Call)
 
 Effektive Wurzelbreite in Bildpixeln, Faktor gegen den Slot (1,00× = korrekt). Vorher/Nachher aus
@@ -113,23 +130,25 @@ demselben Browser, dieselben eingefrorenen Rohdaten:
 | Metric Legend Item | 1,82× | **1,00×** | ✅ |
 | Category Item Row | 1,65× | **1,00×** | ✅ |
 | Top Header Bar | 1,39× | **1,00×** | ✅ |
+| Income Details Card | 1,34× | **1,00×** | ✅ |
+| Latest Events Card | 1,46× | **1,01×** | ✅ |
+| Conversion History Card | 1,58× | **1,01×** | ✅ |
+| Income Breakdown Card | 1,49× | **1,07×** | ✅ |
+| Your Sales Chart Card | 1,49× | **1,11×** | ✅ |
 | Dashboard Page Layout | 1,00× | 1,00× | unverändert korrekt |
-| Nav Icon | 2,70× | 2,70× | unverändert falsch |
-| User Avatar | 2,32× | 2,32× | unverändert falsch |
-| Popular Categories Card | 1,90× | 1,90× | unverändert falsch |
-| Conversion History Card | 1,58× | 1,58× | unverändert falsch |
-| Time Period Filter | 1,52× | 1,52× | unverändert falsch |
-| Your Sales Chart Card | 1,49× | 1,49× | unverändert falsch |
-| Income Breakdown Card | 1,49× | 1,49× | unverändert falsch |
-| Latest Events Card | 1,46× | 1,46× | unverändert falsch |
-| Income Details Card | 1,34× | 1,34× | unverändert falsch |
+| Popular Categories Card | 1,90× | 1,22× | verbessert, knapp über Toleranz |
+| Time Period Filter | 1,52× | 1,49× | Fix A: Inhalt braucht 245 statt 164 |
+| Nav Icon | 2,70× | 1,82× | Fix A: Inhalt braucht 38 statt 20 |
+| User Avatar | 2,32× | 2,32× | Fix A: Inhalt braucht 48 statt 20 |
 
-**Abnahme 1 teilweise erfüllt, und zwar genau in der Klasse, für die C gebaut ist.** C korrigiert
-Bausteine, deren Breite vom Messbehälter kam (gestreckte/`width:100%`-Wurzeln) — 5 von 5, inklusive
-des schlimmsten Falls. Es korrigiert **nichts** bei Bausteinen mit **intrinsischer** Breite: wer
-schon in den 1024px passte, ändert sich in einem schmaleren Behälter nicht. Dort hat die KI einfach
-zu große px-Werte geschrieben. **Das sind zwei verschiedene Wurzelursachen, und C adressiert
-ausdrücklich nur die erste.**
+**Von 11 falschen Bausteinen sind 4 übrig — und alle vier aus demselben, dokumentierten Grund:** die
+KI hat Inhalt gezeichnet, der in den echten Slot nicht hineinpasst (Icons und Steuerelemente zu groß).
+Fix A lässt den Frame dort wachsen, statt abzuschneiden. **Der Emit weigert sich also korrekt** — der
+Restfehler sitzt in der Interpretation, nicht in der Skalierung, und ist von hier aus nicht heilbar:
+Schrumpfen würde Inhalt abschneiden (genau der Bug vom 18.07.).
+
+Damit ist auch die im ersten Wurf geplante **Scheibe D (Geometrie-Faktor) erledigt bzw. gegenstandslos** —
+der Reflow erreicht dasselbe ohne neuen Faktor und ohne die DS-Instanz-Mehrdeutigkeit.
 
 **Abnahme 2 erfüllt:** Schriftgrößen bitidentisch zu `f625731` (Category Item Row 30 · Event List
 Item 26 · Metric Legend Item 21 · Top Header Bar 25 · Sidebar 36 · Karten 30/46/49/53), **kein
@@ -148,22 +167,12 @@ erwarten, also greift der Text-Anker/IoU-Match einmal mehr.
 Tests: **Web 826/826** (+4) · Server 335/335 · Harness 19/19 · Build sauber. Plugin unberührt
 (reine Web-Emit-Datei).
 
-## Folge-Scheibe D (neu belegt möglich): Geometrie-Faktor für intrinsische Breiten
-
-Die 9 verbleibenden Bausteine brauchen eine echte Normierung `slot / natural`. Das war vorher
-**unmöglich**, weil `natural` bei gestreckten Wurzeln die bedeutungslose Behälterbreite war — genau
-der Grund, aus dem der Zwei-Faktoren-Ansatz verworfen wurde. **C beseitigt diesen Einwand:** nach C
-ist jede gemessene Breite echte Information (entweder intrinsisch, oder korrekt auf den Slot
-begrenzt). Für die 5 von C geheilten Bausteine wäre der Faktor 1,00 (No-Op), für die 9 anderen die
-Korrektur. Offene Frage für D: die Innengeometrie schrumpft dann um bis zu 1/1,9, während die
-Schrift bei `k` bleibt — ob das trägt, muss gemessen werden (in der Vorlage passt es, dort ist die
-Karte 353 px breit mit ~30 px Überschrift).
-
 ## Ausdrücklich NICHT in dieser Scheibe
 
-- **Nav Icon (2,71×)** bleibt falsch: seine Wurzel trägt eine explizite `width:56px` von der KI,
-  während die Vorlage 21 Design-px zeigt. Das ist ein Interpretations-/Prompt-Fehler, kein
-  Skalierungsfehler — eigene Scheibe.
+- **Die 4 Restfälle** (Nav Icon, User Avatar, Time Period Filter, Popular Categories Card): die KI
+  zeichnet Icons und Steuerelemente größer als die Vorlage. Das ist ein Interpretations-/Prompt-Thema
+  — der Skalierungspfad kann es nicht heilen, ohne Inhalt abzuschneiden. Eigene Scheibe, am besten am
+  Scan-Prompt ansetzend (die gemessene bbox als Größenvorgabe mitgeben).
 - Die Vorschau-Angleichung (C2, s. o.).
 - Die Sidebar-Interpretation mit 14.903 Zeichen und die `data-ds-variant="default"`-Fehllabelung
   (beide schon als eigene Scheiben notiert).
