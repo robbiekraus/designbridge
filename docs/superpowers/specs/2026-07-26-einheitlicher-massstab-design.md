@@ -50,21 +50,99 @@ Konsequenzen:
 3. `freezeRootWidth` darf die gestreckte 1024er-Breite **nicht** als Wahrheit festschreiben. Das ist
    die zweite Hälfte desselben Fehlers und muss zusammen mit der Messung geändert werden.
 
-## Was noch NICHT entschieden ist
+## Vorfrage: GEKLÄRT (26.07.)
 
-**Woraus `k` konkret bestimmt wird.** Zwei Kandidaten, beide ungeprüft:
+**Liegen die Typo-Token in Design-Pixeln oder in Bildpixeln? → Design-Pixel (1×).**
 
-- **(a) Aus dem Template.** Dessen `bbox.w` ist 1.0, es deckt das ganze Bild ab, seine
-  Referenzbreite ist der Messbehälter → `k = imageWidth / 1024` (beim CRAFTUI-Scan 2,24). Einfach,
-  aber setzt voraus, dass jeder Scan ein Template hat und dass 1024 die richtige Referenz ist.
-- **(b) Aus den Typo-Token.** Der Scan misst Schriftgrößen am echten Bild (28/18/14/12 mit
-  Beispieltexten wie „Dashboard"). Ein Vergleich „was die KI ins HTML geschrieben hat" gegen „was
-  am Bild gemessen wurde" liefert `k` direkt aus der Typografie — unabhängig von jeder Geometrie.
+Belegt aus der Quelle, nicht erschlossen — `server/lib/claude.js:46` instruiert die KI wörtlich:
 
-**Ungeklärte Vorfrage zu (b):** liegen die Typo-Token in Design-Pixeln (1×) oder in Bildpixeln? Die
-Werte 28/18/14/12 sehen nach 1×-Design-Größen aus, der Figma-Emit zielt aber bewusst auf echte
-Bildpixel. Solange das offen ist, gibt es keinen belastbaren Zielwert, gegen den man messen kann.
-**Das ist der erste zu klärende Punkt, vor jeder Code-Änderung.**
+> „For typography: estimate sizes based on visual proportion (**body ≈ 14px**, headings scale from
+> there)"
+
+Von der zweiten Seite bestätigt: die Schriftgrößen, die die KI in ihr Interpretations-HTML schreibt,
+liegen über alle 15 Bausteine bei **12,9–32** — genau der Bereich, den diese Anweisung erzeugt.
+Interpretation und Token liegen also im selben Raum, und dieser Raum ist 1×.
+
+Damit gibt es einen belastbaren Zielwert: Token × k. Beim CRAFTUI-Scan (k = 2,242):
+heading-xl 28 → 63 · heading-medium 18 → 40 · body-medium 14 → 31 · caption 12 → 27.
+
+## Woraus `k` bestimmt wird: `imageWidth / PREVIEW_VIRTUAL_WIDTH`
+
+Die KI schreibt ihr HTML ohne Größenvorgabe, es wird aber immer im Behälter
+`PREVIEW_VIRTUAL_WIDTH = 1024` vermessen. 1024 ist damit de facto die Design-Referenzbreite des
+gesamten Systems (dieselbe Konstante nutzt auch die Live-Vorschau). Also:
+
+```
+k = imageWidth / PREVIEW_VIRTUAL_WIDTH        // CRAFTUI: 2296 / 1024 = 2,242
+```
+
+**Am echten Scan validiert** (Messung 26.07., alle 15 Bausteine): mit diesem einen `k` fallen die
+Schriftgrößen auf die unabhängig am Bild gemessene Token-Skala:
+
+| Baustein | heute | mit einheitlichem k | Zielwert |
+|---|---|---|---|
+| Popular Categories Card | 21 | **40** | 40 |
+| Conversion History Card | 26 | **41** | 40 |
+| Latest Events Card | 28 | **41** | 40 |
+| Category Item Row | 25 | **41** | 40 |
+| Income Details Card | 47 | **63** | 63 |
+| Your Sales Chart Card | 45 | 67 | 63 |
+| Income Breakdown Card | 48 | 72 | 63 |
+| Left Sidebar Navigation | **14** | **50** | — |
+| Top Header Bar | 24 | 33 | 31–40 |
+| Time Period Filter | 21 | 32 | 31 |
+| Metric Legend Item | 16 | 29 | 27–31 |
+| Event List Item | 11 | 37 | 31 |
+| Dashboard Page Layout | 49 | 49 | 63 |
+
+Vier Bausteine landen punktgenau auf 40–41, die Geld-Karten auf 63–72 bei Zielwert 63. Heute streuen
+dieselben Werte zwischen 11 und 49.
+
+**Sanity-Anker:** `Dashboard Page Layout` ändert sich nicht (49 → 49). Es ist der einzige Baustein,
+dessen `bbox.w` das ganze Bild abdeckt — also der einzige, bei dem `slot/natural` heute schon
+zufällig `imageWidth/1024` ergibt. Genau deshalb sah das Template immer richtig aus und alles andere
+nicht. Das ist ein starkes Indiz, dass `imageWidth/1024` die gesuchte Größe ist und nicht ein
+zufällig passender Wert.
+
+**Verbleibende Unschärfe, bewusst nicht wegdefiniert:** die drei Karten mit großen Geldbeträgen
+landen bei 63/67/72 statt exakt 63, und `Dashboard Page Layout` bleibt mit 49 unter dem Zielwert 63.
+Das ist Streuung in den von der KI geschriebenen Größen, nicht im Faktor — sie ist mit einem
+uniformen `k` strukturell nicht behebbar und auch nicht das Ziel dieser Scheibe. Ziel ist
+**Konsistenz zwischen Bausteinen**; absolute Treffgenauigkeit pro Baustein hängt an der
+Interpretationsqualität.
+
+**Woher `imageWidth` kommt** muss beim Umbau geprüft werden — `emitFigmaComponents.js` hat es heute
+als `iw` zur Hand, aber ob es bei jedem Quelltyp (Bild/URL/Repo) gesetzt ist, ist offen. Fehlt es,
+muss der Faktor sauber auf 1 zurückfallen (heutiges Verhalten), nicht raten.
+
+## Umsetzungs-Design: zwei Größen, zwei Quellen
+
+Beim Durchdenken der Umsetzung fällt ein Punkt auf, den die erste Fassung dieser Spec übersehen hat
+und der sie präzisiert:
+
+`freezeRootWidth` (`htmlToPlan.js:1271`) schreibt für Wurzeln mit stretch/grow im Unterbaum die
+**gemessene** Breite als `width` in den Plan. Bei gestreckten Wurzeln ist das die Behälterbreite 1024.
+Heute wird das mit dem winzigen Faktor multipliziert und ergibt zufällig ~die Slot-Breite
+(1024 × 0,196 = 200). Mit einem einheitlichen `k` würde daraus **1024 × 2,242 = 2296** — die Sidebar
+bekäme die volle Bildbreite als Rahmen. **Der Faktor allein reicht also nicht; beides muss zusammen
+geändert werden.**
+
+Die saubere Trennung, die daraus folgt:
+
+| Größe | Quelle | Begründung |
+|---|---|---|
+| Typografie, Padding, Gaps, Radien, Icon-Maße, Strichstärken | **einheitliches `k`** | Eigenschaften des Designs, im ganzen Bild derselbe Zoom |
+| Außenbreite eines **gestreckten** Bausteins | **`bbox.w × imageWidth`** (der Slot) | Bei gestreckten Wurzeln ist die gemessene Breite keine Eigenschaft des Bausteins — der Slot ist die einzige verlässliche Information |
+| Außenbreite eines Bausteins mit **intrinsischer** Breite | gemessene Breite × `k` | Die Messung ist hier echte Information |
+
+Konkreter Weg: `freezeRootWidth` bekommt die Slot-Breite in **Design-Pixeln** (`slotWidth / k`)
+hereingereicht und pinnt bei gestreckter Wurzel diesen Wert statt der Behälterbreite. Die anschließende
+uniforme Skalierung um `k` ergibt dann exakt `slotWidth`. Damit bleibt `scalePlan` eine reine,
+faktor-getriebene Transformation — die Slot-Information wird vorher eingespeist, nicht nachträglich
+korrigiert.
+
+`bbox` behält damit eine echte Rolle (Außenmaß gestreckter Bausteine), verliert aber die falsche
+(Quelle des Maßstabs).
 
 ## Verifikation
 
