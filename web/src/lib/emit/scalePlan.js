@@ -73,7 +73,13 @@ function scaleNode(node, f) {
   if (node.width != null) out.width = sMin1(node.width, f);
   if (node.height != null) out.height = sMin1(node.height, f);
   out.padding = (node.padding || [0, 0, 0, 0]).map((p) => s(p, f));
-  out.gap = s(node.gap, f);
+  // Guard (Live-Fund 27.07., Sunstone-Scan „Metric Funnel Progress Bar"): htmlToPlan.js setzt gap
+  // über readGap IMMER auf eine Zahl (nie undefined), aber ein hand-authored Katalog-Plan (s.
+  // shadcn-default.js box()) konnte das früher auslassen — `Math.round(undefined * f)` wurde dann
+  // NaN und landete unverändert im Figma-Payload. shadcn-default.js defaultet `gap` jetzt selbst auf
+  // 0; dieser Guard ist die zweite Verteidigungslinie für JEDEN box-Knoten ohne gap, unabhängig von
+  // der Quelle.
+  out.gap = Number.isFinite(node.gap) ? s(node.gap, f) : 0;
   out.radius = s(node.radius, f);
   out.strokeWeight = sMin1(node.strokeWeight ?? 1, f);
   if (node.absolute) out.absolute = scaleAbsolute(node.absolute, f);

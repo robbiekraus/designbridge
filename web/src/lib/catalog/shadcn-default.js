@@ -42,9 +42,24 @@ const THEME = {
 
 const ref = (token) => ({ token, hex: THEME[token] });
 
+// `gap`/`primaryAlign`/`counterAlign` MÜSSEN einen Default tragen (Bug 27.07., Sunstone-Scan
+// „Shopping Cart Performance Card" / Molekül „Metric Funnel Progress Bar"): ohne sie blieben diese
+// Felder bei jedem plan()-Aufruf, der sie nicht explizit setzt (progressPlan & Co.), `undefined` —
+// htmlToPlan.js setzt sie über readGap/readAlignment IMMER (nie undefined), Katalog-Pläne waren die
+// einzige Quelle für `box`-Knoten ohne diese Felder. Zwei Symptome, beide nur im Figma-Emit sichtbar
+// (der Tailwind/JSX-Emit schützt sich defensiv, s. planToJsx.js layoutClasses/JUSTIFY_CLASS):
+//   1. scalePlan.js skaliert `gap` ungeschützt (`Math.round(node.gap * factor)`) → bei jedem Scan mit
+//      scanScale ≠ 1 (der Normalfall) wird `undefined * factor` zu `NaN` — bewiesen live gegen
+//      Testdaten/sunstone-scan-27-07.json: das gegroundete Progress-Blatt in „Metric Funnel Progress
+//      Bar" trägt nach dem Emit `gap: NaN`.
+//   2. designbridge-plugin/src/writer/renderPlan.ts weist `plan.primaryAlign`/`plan.counterAlign`
+//      ungeprüft `frame.primaryAxisAlignItems`/`frame.counterAxisAlignItems` zu — beide Figma-API-
+//      Setter erwarten ein gültiges Enum-Mitglied, kein `undefined`.
+// Defaults spiegeln exakt das, was ein CSS-Block ohne eigenes Flex/Gap in htmlToPlan.js bekäme
+// (readGap → 0, readAlignment für Nicht-Flex → MIN/MIN) — überschreibbar wie bisher über `...o`.
 const box = (o = {}) => ({
   type: 'box', layout: 'row', padding: [0, 0, 0, 0], radius: 0,
-  fill: null, stroke: null, children: [], ...o,
+  fill: null, stroke: null, gap: 0, primaryAlign: 'MIN', counterAlign: 'MIN', children: [], ...o,
 });
 const text = (content, { size = 14, weight = 400, color = 'foreground' } = {}) => ({
   type: 'text', content, fontSize: size, fontWeight: weight, color: ref(color),

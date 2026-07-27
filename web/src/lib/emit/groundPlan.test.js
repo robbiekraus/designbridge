@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { groundPlan } from './groundPlan.js';
+import { scalePlan } from './scalePlan.js';
 import { SHADCN_DEFAULT_CATALOG_OPTION } from '../catalog/shadcn-default.js';
 
 const CATALOG = SHADCN_DEFAULT_CATALOG_OPTION;
@@ -197,5 +198,48 @@ describe('groundPlan — scan-interne Refs (Atomic-Nesting) bleiben unangetastet
     const groundedButton = result.fallback.children[1];
     expect(groundedButton.type).not.toBe('component-ref');
     expect(groundedButton.fill).toEqual({ token: 'secondary', hex: '#f4f4f5' });
+  });
+});
+
+// Live-Fund 27.07.2026 (Rob's Sunstone-Scan, Testdaten/sunstone-scan-27-07.json): im Figma-Import
+// lag über den Metrik-Zeilen der „Shopping Cart Performance Card" ein durchgehender schwarzer Balken.
+// Phase-1-Recherche (real-browser-Nachbau der KOMPONENTE selbst) zeigte: die Karte ist strukturell
+// sauber (7px Abstand Label→Balken, korrekte Proportionen, kein Overlap). Der reproduzierbare Fehler
+// steckt im daneben erzeugten Katalog-Baustein „Metric Funnel Progress Bar" — dessen Progress-Balken
+// tragen `data-ds-component="Progress"` und werden dadurch über `groundLeaf` (Blatt-Zweig, kein
+// Container, kein Text/SVG zum Ersetzen) 1:1 aus dem Katalog übernommen. shadcn-default.js' Blatt-
+// Pläne (progressPlan & Co.) setzen `gap`/`primaryAlign`/`counterAlign` nie explizit — anders als
+// htmlToPlan.js's readGap/readAlignment, die diese Felder IMMER auf eine Zahl/ein gültiges Enum
+// setzen, blieben sie hier `undefined`. scalePlan.js skalierte `gap` bis 27.07. ungeschützt
+// (`Math.round(node.gap * factor)`), also wurde daraus bei jedem realistischen Scan (scanScale ≠ 1)
+// `NaN` — und `primaryAlign`/`counterAlign` blieben `undefined`, was die Figma-Plugin-Seite
+// (designbridge-plugin/src/writer/renderPlan.ts: `frame.primaryAxisAlignItems = plan.primaryAlign`)
+// ungeprüft an die Figma-API durchreicht, die dort ein gültiges Enum erwartet.
+describe('groundPlan + scalePlan — Katalog-Blatt ohne eigenes gap/primaryAlign/counterAlign bleibt sauber (Live-Fund 27.07., Sunstone-Scan)', () => {
+  it('Progress-Blatt (wie in „Metric Funnel Progress Bar") hat nach Grounding+Skalierung eine Zahl in gap und ein gültiges Alignment, nie NaN/undefined', () => {
+    const progressRef = catalogRef({
+      name: 'Progress',
+      // Blatt ohne Text/SVG im Fallback (reine Deko-Leiste) — genau der Fall, der in groundLeaf auf
+      // mode:'plain' bleibt und daher NICHT als Figma-Instanz, sondern inline aus dem Katalog-Plan
+      // übernommen wird (s. instanceRefFor: canInstance nur bei mode 'text' oder 'plain'+skipText).
+      fallback: box({ width: 359, height: 3 }),
+    });
+
+    const grounded = groundPlan(progressRef, CATALOG);
+    expect(grounded.type).toBe('box');
+    // VORHER (Bug): grounded.gap war hier bereits `undefined` (Katalog-Plan reicht es nie durch).
+    expect(Number.isFinite(grounded.gap)).toBe(true);
+    expect(['MIN', 'CENTER', 'MAX', 'SPACE_BETWEEN']).toContain(grounded.primaryAlign);
+    expect(['MIN', 'CENTER', 'MAX', 'STRETCH']).toContain(grounded.counterAlign);
+    // Das innere Fill-Kind kommt ebenfalls direkt aus dem Katalog (progressPlan) — derselbe Fehler
+    // wäre dort genauso reproduzierbar.
+    const [fill] = grounded.children;
+    expect(Number.isFinite(fill.gap)).toBe(true);
+
+    // Realer Scan-Maßstab (Sunstone: scanScale ≈ 2,4) — VORHER wurde grounded.gap hier zu NaN.
+    const scaled = scalePlan(grounded, 2.4);
+    expect(scaled.gap).not.toBeNaN();
+    expect(Number.isFinite(scaled.gap)).toBe(true);
+    expect(scaled.children[0].gap).not.toBeNaN();
   });
 });

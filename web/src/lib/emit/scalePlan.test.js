@@ -56,6 +56,20 @@ describe('scalePlan', () => {
     expect(p.width).toBe(100); // Original unangetastet (rein)
   });
 
+  // Live-Fund 27.07.2026 (Rob's Sunstone-Scan): ein hand-authored Katalog-Blatt-Plan (z. B.
+  // progressPlan() in shadcn-default.js) setzte `gap` nie explizit — anders als htmlToPlan.js
+  // (readGap liefert IMMER eine Zahl), sodass `node.gap` hier `undefined` ankam. Vorher rechnete
+  // diese Zeile ungeschützt `Math.round(undefined * factor)` → `NaN`, der unverändert im Figma-
+  // Payload landete (bewiesen gegen Testdaten/sunstone-scan-27-07.json: „Metric Funnel Progress
+  // Bar" trug nach dem Emit `gap: NaN`). shadcn-default.js defaultet `gap` inzwischen selbst auf 0;
+  // dieser Test sichert scalePlan.js als zweite Verteidigungslinie für JEDEN Aufrufer.
+  it('box ohne gap (undefined) → skaliert zu 0, nie NaN', () => {
+    const p = { ...box({ width: 200 }), gap: undefined };
+    const r = scalePlan(p, 2.4);
+    expect(r.gap).toBe(0);
+    expect(r.gap).not.toBeNaN();
+  });
+
   it('strokeWeight-Floor 1 beim Runterskalieren', () => {
     const r = scalePlan(box({ stroke: { hex: '#000', token: null }, strokeWeight: 1 }), 0.4);
     expect(r.strokeWeight).toBe(1);
