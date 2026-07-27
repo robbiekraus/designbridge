@@ -45,6 +45,11 @@ type FrameStub = {
   // eines freundlich vorbelegten "leeren" Werts prüfen.
   layoutAlign: string;
   layoutGrow: number;
+  // Bugfix 28.07.2026 (applyStretchGrow nutzt jetzt layoutSizingHorizontal/Vertical='FILL'
+  // statt layoutAlign/layoutGrow direkt zu setzen, s. attachLayoutSizing()-Kommentar unten).
+  layoutSizingHorizontal: string;
+  layoutSizingVertical: string;
+  parent: unknown;
   children: unknown[];
   removed: boolean;
   appendChild(node: unknown): void;
@@ -52,8 +57,64 @@ type FrameStub = {
   remove(): void;
 };
 
+/** Bugfix-Vertrag 28.07.2026 (renderPlan.ts applyStretchGrow, Diagnose s. Commit-Message: waage-
+ *  rechte Kinder in senkrechten Eltern blieben AUTO/hugging statt zu füllen). Der Stub muss das
+ *  reale Verhalten von `layoutSizingHorizontal/Vertical = 'FILL'` nachbilden — laut
+ *  @figma/plugin-typings ein "shorthand for setting layoutGrow, layoutAlign,
+ *  primaryAxisSizingMode, and counterAxisSizingMode" — sonst würden die längst bestehenden
+ *  Assertions auf layoutAlign/layoutGrow unbemerkt grün bleiben, ohne dass der Produktivcode sie
+ *  überhaupt noch direkt setzt (der Stub würde den Fix beschönigen statt ihn zu prüfen).
+ *
+ *  Welche physische Achse (horizontal/vertical) für ein Kind STRETCH (Gegenachse des Parents)
+ *  bzw. GROW (Primärachse des Parents) bedeutet, hängt vom `layoutMode` des ELTERNTEILS ab
+ *  (`node.parent`, von appendChild() unten gesetzt). Ob dieselbe physische Achse beim Kind
+ *  SELBST auch dessen eigene Primär- oder Gegenachse ist, bestimmt, ob `primaryAxisSizingMode`/
+ *  `counterAxisSizingMode` des Kindes auf FIXED gestellt wird — genau DAS ist der Fix: vorher
+ *  blieb diese Achse bei waagerechten Kindern in senkrechten Eltern auf AUTO (hugging). */
+function attachLayoutSizing(node: {
+  layoutMode?: string;
+  layoutAlign?: string;
+  layoutGrow?: number;
+  primaryAxisSizingMode?: string;
+  counterAxisSizingMode?: string;
+  parent?: { layoutMode?: string } | null;
+}): void {
+  let horizontal = 'HUG';
+  let vertical = 'HUG';
+  Object.defineProperty(node, 'layoutSizingHorizontal', {
+    get: () => horizontal,
+    set: (value: string) => {
+      horizontal = value;
+      if (value !== 'FILL') return;
+      const parentLayout = node.parent?.layoutMode;
+      if (parentLayout === 'VERTICAL') node.layoutAlign = 'STRETCH'; // Gegenachse eines column-Parents
+      if (parentLayout === 'HORIZONTAL') node.layoutGrow = 1; // Primärachse eines row-Parents
+      // Kind selbst waagerecht → horizontal ist SEINE Primärachse (der eigentliche Bugfix).
+      if (node.layoutMode === 'HORIZONTAL') node.primaryAxisSizingMode = 'FIXED';
+      if (node.layoutMode === 'VERTICAL') node.counterAxisSizingMode = 'FIXED';
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  Object.defineProperty(node, 'layoutSizingVertical', {
+    get: () => vertical,
+    set: (value: string) => {
+      vertical = value;
+      if (value !== 'FILL') return;
+      const parentLayout = node.parent?.layoutMode;
+      if (parentLayout === 'HORIZONTAL') node.layoutAlign = 'STRETCH'; // Gegenachse eines row-Parents
+      if (parentLayout === 'VERTICAL') node.layoutGrow = 1; // Primärachse eines column-Parents
+      // Kind selbst senkrecht → vertical ist SEINE Primärachse.
+      if (node.layoutMode === 'VERTICAL') node.primaryAxisSizingMode = 'FIXED';
+      if (node.layoutMode === 'HORIZONTAL') node.counterAxisSizingMode = 'FIXED';
+    },
+    enumerable: true,
+    configurable: true,
+  });
+}
+
 function makeFrameStub(): FrameStub {
-  return {
+  const frame: FrameStub = {
     type: 'FRAME',
     layoutMode: 'NONE',
     primaryAxisSizingMode: 'AUTO',
@@ -81,9 +142,16 @@ function makeFrameStub(): FrameStub {
     layoutPositioning: 'AUTO',
     layoutAlign: 'INHERIT',
     layoutGrow: 0,
+    layoutSizingHorizontal: 'HUG',
+    layoutSizingVertical: 'HUG',
+    parent: null,
     children: [],
     removed: false,
     appendChild(node: unknown) {
+      // Figma-Realverhalten: ein Kind kennt seinen Parent, sobald es eingehängt ist — die
+      // layoutSizing-Setter (attachLayoutSizing) brauchen das, um zu wissen, ob die gefüllte
+      // physische Achse beim ELTERNTEIL Primär- oder Gegenachse ist.
+      (node as { parent?: unknown }).parent = frame;
       this.children.push(node);
     },
     resize(w: number, h: number) {
@@ -94,6 +162,8 @@ function makeFrameStub(): FrameStub {
       this.removed = true;
     },
   };
+  attachLayoutSizing(frame);
+  return frame;
 }
 
 type TextStub = {
@@ -109,6 +179,9 @@ type TextStub = {
   layoutPositioning: string;
   layoutAlign: string;
   layoutGrow: number;
+  layoutSizingHorizontal: string;
+  layoutSizingVertical: string;
+  parent: unknown;
   width: number;
   height: number;
   textAutoResize: string;
@@ -117,7 +190,7 @@ type TextStub = {
 };
 
 function makeTextStub(): TextStub {
-  return {
+  const text: TextStub = {
     type: 'TEXT',
     characters: '',
     fontSize: 16,
@@ -130,6 +203,9 @@ function makeTextStub(): TextStub {
     layoutPositioning: 'AUTO',
     layoutAlign: 'INHERIT',
     layoutGrow: 0,
+    layoutSizingHorizontal: 'HUG',
+    layoutSizingVertical: 'HUG',
+    parent: null,
     width: 100,
     height: 20,
     textAutoResize: 'WIDTH_AND_HEIGHT',
@@ -139,6 +215,11 @@ function makeTextStub(): TextStub {
       this.height = h;
     },
   };
+  // Text-Knoten haben kein eigenes layoutMode — die "eigene Achse wird FIXED"-Hälfte des Fixes
+  // greift für sie also nie (textAutoResize regelt das stattdessen explizit in applyStretchGrow),
+  // aber die Eltern-relative Hälfte (layoutAlign/layoutGrow) muss trotzdem stimmen.
+  attachLayoutSizing(text);
+  return text;
 }
 
 type SvgStub = {
@@ -234,6 +315,12 @@ type InstanceStub = {
   layoutPositioning: string;
   layoutAlign: string;
   layoutGrow: number;
+  layoutSizingHorizontal: string;
+  layoutSizingVertical: string;
+  parent: unknown;
+  layoutMode: string;
+  primaryAxisSizingMode: string;
+  counterAxisSizingMode: string;
   resize(w: number, h: number): void;
 };
 
@@ -244,7 +331,7 @@ function makeInstanceStub(
   // damit verhalten sich alle Bestandstests unverändert (dort wird weiterhin verkleinert).
   sizing: { layoutMode?: 'NONE' | 'HORIZONTAL' | 'VERTICAL'; primaryAxisSizingMode?: 'AUTO' | 'FIXED'; counterAxisSizingMode?: 'AUTO' | 'FIXED' } = {}
 ): InstanceStub {
-  return {
+  const instance: InstanceStub = {
     type: 'INSTANCE',
     x: 0,
     y: 0,
@@ -253,6 +340,9 @@ function makeInstanceStub(
     layoutPositioning: 'AUTO',
     layoutAlign: 'INHERIT',
     layoutGrow: 0,
+    layoutSizingHorizontal: 'HUG',
+    layoutSizingVertical: 'HUG',
+    parent: null,
     layoutMode: sizing.layoutMode ?? 'NONE',
     primaryAxisSizingMode: sizing.primaryAxisSizingMode ?? 'FIXED',
     counterAxisSizingMode: sizing.counterAxisSizingMode ?? 'FIXED',
@@ -261,6 +351,8 @@ function makeInstanceStub(
       this.height = h;
     },
   };
+  attachLayoutSizing(instance);
+  return instance;
 }
 
 // naturalSize: Größe der referenzierten Komponente NACH createInstance(), VOR resize() —
@@ -584,6 +676,62 @@ test('Bestimmtheits-Propagation über 2 Ebenen: Stretch/Grow-Achse korrekt weite
     1,
     'Ebene 2: Ebene-1-Primärachse (Breite) kam über Ebene-1-Stretch durch — Grow darf greifen'
   );
+});
+
+// ─── Bugfix 28.07.2026: waagerechtes Kind in senkrechten Eltern füllt, statt zu huggen ─────
+//
+// Messbeleg an Robs echter Figma-Datei (29/29 Fälle, keine Ausnahme, s. Commit-Message): jeder
+// SENKRECHTE Rahmen mit STRETCH war ok (Figma stellt die betroffene Achse dort selbst um), aber
+// von 29 WAAGERECHTEN Rahmen mit STRETCH waren 22 kaputt — genau die, deren eigene
+// primaryAxisSizingMode auf AUTO blieb, statt auf FIXED umgestellt zu werden. Konkreter Fall:
+// die drei KPI-Karten im DashboardLayoutTemplate (layout:'row') in einer column-Wurzel wurden
+// auf 119px statt 583px gequetscht. Die vorherige Implementierung (layoutAlign='STRETCH' ohne
+// begleitendes FIXED) konnte das nicht zeigen, weil layoutAlign selbst korrekt STRETCH wurde —
+// der eigentliche Fehler saß in primaryAxisSizingMode, das vorher gar nicht geprüft wurde. Ohne
+// den Fix in applyStretchGrow (renderPlan.ts) bleibt dieser Test rot (per Stash-Probe geprüft).
+
+test('Bugfix: waagerechtes Kind (layout row) in column-Parent mit stretch:true → primaryAxisSizingMode FIXED (füllt, huggt nicht mehr)', async () => {
+  installFigmaStub();
+  const kpiCard = emptyBox({ layout: 'row', stretch: true });
+  const kpiRow = emptyBox({ layout: 'column', width: 1802, children: [kpiCard] });
+  const frame = (await renderPlan(kpiRow, new Map(), [], emptySections())) as unknown as FrameStub;
+  const renderedCard = frame.children[0] as FrameStub;
+  assert.equal(renderedCard.layoutAlign, 'STRETCH', 'Eltern-relative Ausrichtung war schon vorher korrekt');
+  assert.equal(
+    renderedCard.primaryAxisSizingMode,
+    'FIXED',
+    'BUG: ohne den Fix bleibt das auf AUTO — der waagerechte Rahmen huggt weiter statt zu füllen'
+  );
+});
+
+test('Bugfix-Kontrastfall: senkrechtes Kind (layout column) in column-Parent mit stretch:true → counterAxisSizingMode FIXED', async () => {
+  // Gegenprobe zur obigen Diagnose: die häufigste Verschachtelung für "senkrechte Kinder" ist
+  // Spalte-in-Spalte (Sektionen, die sich untereinander stapeln, jede stretcht auf die
+  // Seitenbreite). Dort ist die zu füllende Gegenachse des Parents (Breite) zugleich die
+  // GEGENachse des Kindes selbst (Kind ist column → seine Primärachse ist die Höhe) — laut
+  // Messbeleg lief das schon vorher glatt (9/9 ok in Robs Datei). Muss nach dem Fix weiter
+  // gelten. (Ein column-Kind in einem row-Parent wäre stattdessen wieder der Primärachse-Fall,
+  // s. Test oben — deshalb hier bewusst column-in-column, nicht column-in-row.)
+  installFigmaStub();
+  const section = emptyBox({ layout: 'column', stretch: true });
+  const page = emptyBox({ layout: 'column', width: 320, children: [section] });
+  const frame = (await renderPlan(page, new Map(), [], emptySections())) as unknown as FrameStub;
+  const renderedSection = frame.children[0] as FrameStub;
+  assert.equal(renderedSection.layoutAlign, 'STRETCH');
+  assert.equal(renderedSection.counterAxisSizingMode, 'FIXED');
+});
+
+test('Bugfix, grow-Variante: waagerechtes Kind (layout row) in row-Parent mit grow:true → primaryAxisSizingMode FIXED', async () => {
+  // grow betrifft die PRIMÄRachse des Parents (hier: Breite eines row-Parents), die beim Kind
+  // (selbst row) ebenfalls dessen eigene Primärachse ist — dieselbe Doppelrolle wie im
+  // Stretch-Fall oben, nur über layoutGrow statt layoutAlign.
+  installFigmaStub();
+  const chartCard = emptyBox({ layout: 'row', grow: true });
+  const chartRow = emptyBox({ layout: 'row', width: 1119, children: [chartCard] });
+  const frame = (await renderPlan(chartRow, new Map(), [], emptySections())) as unknown as FrameStub;
+  const renderedCard = frame.children[0] as FrameStub;
+  assert.equal(renderedCard.layoutGrow, 1);
+  assert.equal(renderedCard.primaryAxisSizingMode, 'FIXED');
 });
 
 // ─── Composition-Nesting (Spec 2026-07-18-composition-nesting-figma-design.md §5) ──────────

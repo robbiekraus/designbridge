@@ -243,10 +243,39 @@ function decideStretchGrow(
 
 /** Wendet eine bereits getroffene stretch/grow-Entscheidung auf den eingehängten Node an.
  *  MUSS nach appendChild passieren (Auto-Layout-Property, gleiche Reihenfolge-Regel wie
- *  applyAbsolute — layoutAlign/layoutGrow auf einem noch nicht eingehängten Kind ist
- *  undefiniert/wirft). Text-Sonderregeln (Spec §Plugin): Text-Stretch (nur column-Parents,
- *  s. decideStretchGrow) UND Text-Grow (row-Parents) fixieren die Breite extern und setzen
- *  daher textAutoResize='HEIGHT' (Höhe wächst weiter automatisch). */
+ *  applyAbsolute — layoutSizingHorizontal/Vertical auf einem noch nicht eingehängten Kind ist
+ *  undefiniert/wirft).
+ *
+ *  Bugfix 28.07.2026 (Messbeleg: 29/29 Fälle in Robs EcoMetrics-Datei, s. Commit-Message):
+ *  vorher setzte diese Funktion nur `layoutAlign='STRETCH'` bzw. `layoutGrow=1`, OHNE die dazu
+ *  gehörige Achse auf FIXED zu stellen. Die Figma-Typings sagen zu `layoutAlign` wörtlich: "if
+ *  you set layoutAlign to 'STRETCH' you should set the corresponding axis ... to be 'FIXED' ...
+ *  an auto-layout frame cannot simultaneously stretch to fill its parent and shrink to hug its
+ *  children." Bei einem SENKRECHTEN Kind (layoutMode='VERTICAL') in einem waagerechten oder
+ *  senkrechten Eltern übernahm Figma selbst automatisch das Umstellen der betroffenen Achse
+ *  (deshalb funktionierte der senkrechte Fall bisher). Bei einem WAAGERECHTEN Kind ist die zu
+ *  füllende Gegenachse-des-Parents zugleich die PRIMÄRachse des Kindes selbst — die blieb auf
+ *  AUTO (hugging), der Rahmen huggte also weiter, statt zu füllen (drei KPI-Karten je 119px statt
+ *  583px, Überlappung, buchstabenweiser Zeilenumbruch im Titel).
+ *
+ *  Fix: `layoutSizingHorizontal`/`layoutSizingVertical = 'FILL'` statt `layoutAlign`/
+ *  `layoutGrow` direkt zu setzen. Laut Typings-Doku (`LayoutMixin.layoutSizingHorizontal`) ist
+ *  das "a shorthand for setting layoutGrow, layoutAlign, primaryAxisSizingMode, and
+ *  counterAxisSizingMode" — es stellt also in einem Zug sowohl die Eltern-relative Ausrichtung
+ *  (Stretch/Grow) als auch die davon betroffene EIGENE Achse des Kindes auf FIXED, falls das
+ *  Kind selbst ein Auto-Layout-Frame ist. `layoutSizingHorizontal/Vertical` ist "Applicable only
+ *  on auto-layout frames, their children, and text nodes" (@figma/plugin-typings ^1.90.0) — als
+ *  Kind, das gerade erst appendChild()t wurde, ist das hier immer erfüllt, ein zusätzlicher
+ *  Guard wäre daher nur Attrappe.
+ *
+ *  Welche der beiden physischen Achsen (horizontal/vertical) STRETCH (Gegenachse des Parents)
+ *  bzw. GROW (Primärachse des Parents) entspricht, hängt vom `parentLayout` ab — exakt dieselbe
+ *  Zuordnung wie in `childDeterminacy` (stretchGivesWidth/Height, growGivesWidth/Height).
+ *
+ *  Text-Sonderregeln (Spec §Plugin) bleiben unverändert explizit gesetzt (nicht aus dem
+ *  FILL-Kürzel abgeleitet, dessen Text-spezifisches Verhalten die Typings nicht dokumentieren):
+ *  Text-Stretch (nur column-Parents, s. decideStretchGrow) UND Text-Grow (row-Parents) fixieren
+ *  die Breite extern und setzen daher textAutoResize='HEIGHT' (Höhe wächst weiter automatisch). */
 function applyStretchGrow(
   node: SceneNode,
   child: PlanNode,
@@ -254,18 +283,28 @@ function applyStretchGrow(
   decision: { appliedStretch: boolean; appliedGrow: boolean }
 ): void {
   const isText = child.type === 'text';
-  const alignable = node as SceneNode & {
-    layoutAlign?: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'INHERIT';
-    layoutGrow?: number;
+  const sizable = node as SceneNode & {
+    layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
+    layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL';
   };
   if (decision.appliedStretch) {
-    alignable.layoutAlign = 'STRETCH';
+    // Gegenachse DES PARENTS füllen: column-Parent → Breite, row-Parent → Höhe.
+    if (parentLayout === 'column') {
+      sizable.layoutSizingHorizontal = 'FILL';
+    } else {
+      sizable.layoutSizingVertical = 'FILL';
+    }
     if (isText && parentLayout === 'column') {
       (node as TextNode).textAutoResize = 'HEIGHT';
     }
   }
   if (decision.appliedGrow) {
-    alignable.layoutGrow = 1;
+    // Primärachse DES PARENTS füllen: row-Parent → Breite, column-Parent → Höhe.
+    if (parentLayout === 'row') {
+      sizable.layoutSizingHorizontal = 'FILL';
+    } else {
+      sizable.layoutSizingVertical = 'FILL';
+    }
     if (isText && parentLayout === 'row') {
       (node as TextNode).textAutoResize = 'HEIGHT';
     }
