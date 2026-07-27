@@ -105,3 +105,36 @@ describe('matchTemplate — dropdown triggers and compound search bars route to 
     expect(matchTemplate('search input BAR')).toBeNull();
   });
 });
+
+describe('matchTemplate — "Category: Specific Name" scanner instances never route to a template', () => {
+  // Live-Fund 27.07. nachmittags (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-
+  // nachmittag.json): "Badge: Premium" matchte per Namensteil ("badge") das generische Badge-
+  // Template und "Button: Export" per "butt" das generische Button-Template — beide sind FÜR
+  // IHRE EIGENE Kategorie benannt, eine Ausschluss-Token-Liste wie bei Dropdown/Bar greift hier
+  // nicht (der Namensteil, der matcht, IST die Kategorie). Beide kamen dadurch nie bei
+  // componentsNeedingInterpretation an und wurden als leerer/falsch positionierter Platzhalter
+  // gerendert statt echt interpretiert (kein "Export"-Text, kein Icon, falsche Position).
+  it('rejects colon-qualified names for Badge/Button even when the category word itself matches', () => {
+    expect(matchTemplate('Badge: Premium')).toBeNull();
+    expect(matchTemplate('Button: Export')).toBeNull();
+  });
+
+  it('rejects colon-qualified names generally, regardless of which template would otherwise match', () => {
+    expect(matchTemplate('Input: Search')).toBeNull();
+    expect(matchTemplate('KPI Card: Biogenic Emissions')).toBeNull();
+    expect(matchTemplate('Dropdown: Country Filter')).toBeNull();
+  });
+
+  it('is case-insensitive for the colon exclusion', () => {
+    expect(matchTemplate('badge: PREMIUM')).toBeNull();
+    expect(matchTemplate('BUTTON: export')).toBeNull();
+  });
+
+  it('still matches plain, non-colon Badge/Button/Input names (no regression)', () => {
+    expect(matchTemplate('Badge')?.key).toBe('badge');
+    expect(matchTemplate('Premium Badge')?.key).toBe('badge');
+    expect(matchTemplate('Button')?.key).toBe('button');
+    expect(matchTemplate('Export Button')?.key).toBe('button');
+    expect(matchTemplate('Search Input')?.key).toBe('input');
+  });
+});
