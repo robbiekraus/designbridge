@@ -381,6 +381,13 @@ export const SHADCN_DEFAULT_CATALOG = [
     props: [],
     match: { tag: 'div', hints: ['avatar', 'profile', 'user-pic'] },
     plan: avatarPlan,
+    // Live-Fund 27.07. (EcoMetrics-Scan „Plant Item Row"): der API-kompatible Avatar-Stub (und auch
+    // ein Avatar OHNE AvatarFallback) zentriert/stylt seinen Inhalt nicht selbst — ohne dieses Flag
+    // rendert planToJsx.js den interpretierten Fallback-Buchstaben ("B") als nackten, unformatierten
+    // Text (`<Avatar>B</Avatar>`, keine Klasse), sichtbar als dünne, unzentrierte System-Schrift statt
+    // der interpretierten Initialen-Optik. Nur die Hülle (bg-muted/rounded-full/Größe) bleibt Katalog-
+    // Default — Schriftgröße/-gewicht/-farbe des Buchstabens kommen weiter aus der Interpretation.
+    styledFallbackText: true,
   },
   {
     name: 'Separator',
@@ -469,6 +476,19 @@ export const SHADCN_DEFAULT_CATALOG = [
     props: [],
     match: { tag: 'nav', hints: ['pagination', 'pager', 'seiten'] },
     plan: paginationPlan,
+    // Live-Fund 27.07. nachmittags (Robs EcoMetrics-Scan, „Table Card: Reports"): ohne `container`
+    // lief Pagination durch groundLeaf() (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
+    // §Entscheidung 4, Blatt-Zweig) — der einzige Textknoten des Katalog-Plans (die erste 36×36-Pille)
+    // bekommt dort den KOMPLETTEN sichtbaren Fallback-Text als EINEN String ersetzt
+    // (collectFallbackText sammelt "15 to 29 out of 96 1 2 ... 16" zusammen). Ergebnis: das ganze
+    // Pager-Label+die echten Seitenzahlen landen als EIN überlanger String in einer einzelnen
+    // Katalog-Pille bei fontSize/weight der Pille (14/500, satt größer und fetter als die 13px/400
+    // der echten Vorlage) — echte Chevrons, "16" und "…" fallen komplett weg, Pille 2/3 zeigen
+    // weiter die katalogeigenen Platzhalter "2"/"3". Genau das Muster, das `container:true` bei
+    // `Card` schon löst (Spec §Entscheidung 3): Katalog gewinnt nur die Hülle (fill/stroke/radius —
+    // hier ohnehin beide null/0, s. `paginationPlan()`), Layout/Maße/echter Inhalt (Label, Chevrons,
+    // ALLE echten Seitenzahlen) kommen unverändert aus der Messung.
+    container: true,
   },
 ];
 

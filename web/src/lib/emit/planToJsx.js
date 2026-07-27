@@ -283,6 +283,42 @@ function isCatalogContainer(node) {
   return Boolean(node.container) && !node.voidElement && (node.fallback?.children?.length > 0);
 }
 
+/** Ersten Text-Knoten (mit eigenem fontSize/fontWeight/color, ANDERS als extractText — das nur den
+ *  nackten Inhalt sammelt) im fallback-Subtree finden. Live-Fund 27.07. (EcoMetrics-Scan, „Plant Item
+ *  Row"): ein gegroundeter Avatar-Fallback-Buchstabe („B") verlor beim Grounding jede Stilinfo —
+ *  <Avatar>B</Avatar> ohne jede Klasse rendert als dünne, unzentrierte System-Schrift statt der
+ *  interpretierten Initialen-Optik. Steigt wie extractText/collectSvgNodes in verschachtelte Refs ab. */
+function firstStyledText(node) {
+  if (!node || typeof node !== 'object') return null;
+  if (node.type === 'text') return node;
+  if (node.type === 'component-ref') return firstStyledText(node.fallback);
+  for (const c of node.children || []) {
+    const found = firstStyledText(c);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Sicherer Klassen-Ausschnitt für einen Katalog-Fallback-Buchstaben: NUR Schriftgröße/-gewicht/
+ *  -farbe (via dieselbe Snap-Logik wie textClasses), bewusst OHNE align/lineHeight/stretch/grow —
+ *  die landen hier auf dem Katalog-Tag selbst (z. B. <Avatar>, ein flex-Element fester Größe), nicht
+ *  auf einem eigenen <span>, und stretch/flex-1 aus dem ORIGINAL-Kontext des Fallback-Textknotens
+ *  wären dort falsch angewendet. */
+function avatarFallbackClasses(textNode, tokens) {
+  if (!textNode) return [];
+  const out = [];
+  const fontName = snapFont(textNode.fontSize, textNode.fontWeight, tokens?.fonts);
+  if (fontName) {
+    out.push(`text-${fontName}`, `font-${fontName}`);
+  } else if (textNode.fontSize) {
+    out.push(`text-[${Math.round(textNode.fontSize)}px]`);
+    out.push(FONT_WEIGHT_NAME[textNode.fontWeight] || (textNode.fontWeight ? `font-[${textNode.fontWeight}]` : null));
+  }
+  const colorSym = colorSymbol(textNode.color);
+  if (colorSym) out.push(`text-${colorSym}`);
+  return out.filter(Boolean);
+}
+
 /** Sichtbare SVG-Knoten eines (fallback-)Subtrees einsammeln (Dokumentreihenfolge, beliebig tief,
  *  steigt auch in Fallbacks verschachtelter Refs ab) — spiegelt extractText strukturell. Live-Fund
  *  25.07. (Prod-Scan): ein Icon-Button-Fallback trägt NUR ein SVG, keinen Text; ohne diese Sammlung
@@ -361,7 +397,19 @@ function walkCatalogRef(node, depth, componentName, tokens) {
   // NIE JSX-Children bekommen — React wirft sonst zur Laufzeit (Live-Fund 24.07., echter Prod-Scan:
   // die KI-Interpretation hatte Platzhaltertext im Input-Fallback-HTML).
   const text = node.voidElement ? '' : extractText(node.fallback).replace(/\s+/g, ' ').trim();
-  if (text) return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
+  if (text) {
+    // `styledFallbackText` (Katalog-Eintrag, Spec-Anhang „Avatar-Fallback-Stil", Live-Fund 27.07.):
+    // ohne dieses Opt-in bleibt hier bewusst ALLES beim alten Verhalten (Button/Badge/… bekommen ihre
+    // Typografie schon von der echten shadcn-Komponente selbst) — nur Katalog-Einträge, deren echte
+    // Komponente KEINE eigene Fallback-Typografie mitbringt (Avatar: der Root-Span zentriert/stylt
+    // seinen Inhalt nicht selbst), holen sich Schriftgröße/-gewicht/-farbe aus dem interpretierten
+    // Fallback zurück + Basis-Zentrierung, statt als nackter, unformatierter Text zu rendern.
+    if (node.styledFallbackText) {
+      const cls = ['flex', 'items-center', 'justify-center', ...avatarFallbackClasses(firstStyledText(node.fallback), tokens)];
+      return `${pad}<${tag} className="${cls.join(' ')}"${attrStr}>${escapeJsxText(text)}</${tag}>`;
+    }
+    return `${pad}<${tag}${attrStr}>${escapeJsxText(text)}</${tag}>`;
+  }
   // Kein sichtbarer Text — Live-Fund 25.07. (Prod-Scan): trägt der Fallback stattdessen ein Icon
   // (SVG), rendern wir es als Kind statt das Tag leer zu lassen (Spec 2026-07-25 §Blatt-Zweig). Ein
   // voidElement bleibt IMMER selbstschließend, auch wenn sein Fallback ein SVG enthält.

@@ -38,6 +38,27 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(ref.import).toEqual({ name: 'Button', from: '@/components/ui/button' });
   });
 
+  // Live-Fund 27.07. (EcoMetrics-Scan „Plant Item Row", ganze Kette htmlToPlan → planToJsx): ein
+  // gegroundeter Avatar-Fallback-Buchstabe verlor beim Grounding jede Stilinfo, weil
+  // `matchCatalogComponent` das Katalog-Flag zwar auslas, der component-ref-Knoten in htmlToPlan()
+  // es aber NICHT in den plan übernahm (nur voidElement/container/slots wurden kopiert) — der Wert
+  // ging also schon vor planToJsx.js verloren. Dieser Test deckt die GANZE Kette ab, nicht nur den
+  // isolierten planToJsx-Baustein (der die Weitergabe stillschweigend voraussetzt).
+  it('Katalog-Flag styledFallbackText reist bis zum component-ref-Knoten UND bis ins fertige JSX (Avatar: End-to-End)', () => {
+    const html = '<div data-ds-component="Avatar" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#fcf6bd,#e3d55c);color:#5352ed;font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center">B</div>';
+    const { plan } = htmlToPlan(html, { catalog: CATALOG });
+    const ref = findCatalogRef(plan);
+    expect(ref.styledFallbackText).toBe(true);
+    const code = planToJsx(plan, { name: 'PlantItemRow' });
+    expect(code).toContain('<Avatar className="flex items-center justify-center text-[18px] font-bold text-[#5352ed]">B</Avatar>');
+  });
+
+  it('Katalog-Einträge OHNE das Flag (z. B. Button) tragen styledFallbackText:false am Ref', () => {
+    const html = '<button data-ds-component="Button" style="padding:8px">Speichern</button>';
+    const ref = findCatalogRef(htmlToPlan(html, { catalog: CATALOG }).plan);
+    expect(ref.styledFallbackText).toBe(false);
+  });
+
   it('Container-Katalog-Einträge tragen container:true am Ref, Blätter nicht', () => {
     // Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Entscheidung 3: Card darf den
     // interpretierten Unterbaum tragen, Button bleibt Label-Träger.

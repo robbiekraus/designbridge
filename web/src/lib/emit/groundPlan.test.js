@@ -107,6 +107,54 @@ describe('groundPlan — Container-Eintrag (Card)', () => {
   });
 });
 
+// Live-Fund 27.07. nachmittags (Robs EcoMetrics-Scan, „Table Card: Reports"): Pagination war der
+// einzige Katalog-Eintrag mit mehreren strukturell eigenständigen Fallback-Kindern (Label + Pager-
+// Zeile mit Chevrons/Seitenzahlen), aber OHNE `container:true` — lief also über groundLeaf (s.
+// „Blatt-Eintrag"-Tests unten) und bekam den GESAMTEN sichtbaren Fallback-Text als EIN String in
+// die erste Katalog-Pille gestopft, bei deren fontSize/weight (14/500) statt der echten Werte.
+// `container:true` (Fix, s. shadcn-default.js) muss denselben Card-Pfad nehmen: Hülle aus dem
+// Katalog (hier: kein fill/stroke — Pagination setzt keine), Layout/Maße/ALLE echten Kinder aus
+// der Messung.
+describe('groundPlan — Container-Eintrag (Pagination, Fix 27.07.)', () => {
+  it('Pagination-Ref → Box mit gemessenem Layout und BEIDEN echten Kindern (Label + Pager-Zeile), keine Text-Verschmelzung', () => {
+    const pagerRow = box({
+      layout: 'row', gap: 12,
+      children: [text('1'), text('2'), text('...'), text('16')],
+    });
+    const paginationRef = catalogRef({
+      name: 'Pagination',
+      fallback: box({
+        layout: 'row', gap: 20, padding: [8, 16, 8, 16],
+        // Fallback trägt eigene fill/stroke (echte Scan-Farben) — Katalog-Pagination setzt keine
+        // eigene Hülle, das Ergebnis muss trotzdem den Katalog-Wert (null/null/0) übernehmen, NIE
+        // stillschweigend beim Fallback-Wert bleiben (sonst wäre das kein Container-Grounding).
+        fill: { token: 'destructive', hex: '#ef4444' }, stroke: { token: 'ring', hex: '#18181b' }, radius: 2,
+        children: [text('15 to 29 out of 96'), pagerRow],
+      }),
+    });
+
+    const result = groundPlan(paginationRef, CATALOG);
+
+    expect(result.type).toBe('box');
+    // Hülle aus dem Katalog: paginationPlan() setzt kein eigenes fill/stroke/radius → null/null/0.
+    expect(result.fill).toBeNull();
+    expect(result.stroke).toBeNull();
+    expect(result.radius).toBe(0);
+    // Layout/Maße/Kinder kommen unverändert aus der Messung — BEIDE echten Kinder bleiben erhalten.
+    expect(result.layout).toBe('row');
+    expect(result.gap).toBe(20);
+    expect(result.padding).toEqual([8, 16, 8, 16]);
+    expect(result.children).toHaveLength(2);
+    expect(result.children[0]).toMatchObject({ type: 'text', content: '15 to 29 out of 96', fontSize: 14 });
+    const row = result.children[1];
+    expect(row.type).toBe('box');
+    expect(row.children.map((c) => c.content)).toEqual(['1', '2', '...', '16']);
+    // Keine Text-Verschmelzung: der gesamte Fallback-Text landet NICHT als ein String irgendwo.
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain('15 to 29 out of 96 1 2 ... 16');
+  });
+});
+
 describe('groundPlan — Blatt-Eintrag (Button/Badge)', () => {
   it('Button-Ref variant:secondary mit Fallback-Text "Speichern" → Secondary-Optik, echter Text', () => {
     const buttonRef = catalogRef({

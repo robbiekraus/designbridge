@@ -451,6 +451,68 @@ describe('htmlToPlan — gap (jetzt abgebildet statt nur gewarnt, Spec §Vertrag
   });
 });
 
+// Live-Fund 27.07. nachmittags (Robs EcoMetrics-Scan, „KPI Card: Biogenic Emissions"): margin statt
+// gap als Abstandsmittel zwischen Flex-Geschwistern — s. Kommentar bei readGap/readMarginGap in
+// htmlToPlan.js. Label und Wert rutschten im Emit aufeinander (gap kam als 0 an), weil `readGap`
+// bislang NUR `computed.rowGap`/`columnGap` las und jeden margin-basierten Abstand verwarf.
+describe('htmlToPlan — margin-Fallback für gap (Live-Fund 27.07., Biogenic-Emissions-Karte)', () => {
+  it('kein CSS-gap, aber einheitliches margin-bottom zwischen Kindern (column) → gap aus margin', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex;flex-direction:column">'
+      + '<span style="margin-bottom:6px">Label</span>'
+      + '<div>Wert</div>'
+      + '</div>'
+    );
+    expect(plan.gap).toBe(6);
+  });
+
+  it('kein CSS-gap, aber einheitliches margin-right zwischen Kindern (row) → gap aus margin', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex">'
+      + '<span style="margin-right:8px">A</span>'
+      + '<span>B</span>'
+      + '</div>'
+    );
+    expect(plan.gap).toBe(8);
+  });
+
+  it('CSS-gap gesetzt gewinnt gegen ein zusätzliches margin (margin nie als Bonus obendrauf)', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex;flex-direction:column;row-gap:10px">'
+      + '<span style="margin-bottom:6px">Label</span>'
+      + '<div>Wert</div>'
+      + '</div>'
+    );
+    expect(plan.gap).toBe(10);
+  });
+
+  it('uneinheitliches margin zwischen Geschwister-Paaren → gap bleibt 0 (kein erzwungener Einheitswert)', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex;flex-direction:column">'
+      + '<span style="margin-bottom:6px">A</span>'
+      + '<span style="margin-bottom:12px">B</span>'
+      + '<div>C</div>'
+      + '</div>'
+    );
+    expect(plan.gap).toBe(0);
+  });
+
+  it('nur ein Kind → gap bleibt 0 (kein Geschwister-Paar zum Messen)', () => {
+    const { plan } = htmlToPlan(
+      '<div style="display:flex;flex-direction:column"><span style="margin-bottom:6px">Solo</span></div>'
+    );
+    expect(plan.gap).toBe(0);
+  });
+
+  it('Block-Container (kein flex) mit einheitlichem margin-bottom → gap ebenfalls aus margin (Fix 6 gilt auch hier)', () => {
+    const { plan } = htmlToPlan(
+      '<div><div style="margin-bottom:4px">A</div><div>B</div></div>'
+    );
+    expect(plan.layout).toBe('column');
+    expect(plan.gap).toBe(4);
+  });
+});
+
 describe('htmlToPlan — border-* → stroke + strokeWeight (Spec §Mapping)', () => {
   it('sichtbarer Rahmen (Breite>0, Farbe nicht transparent) → stroke gesetzt, strokeWeight aus Breite', () => {
     const { plan } = htmlToPlan('<div style="border:2px solid #e5e7eb"></div>');
@@ -1460,6 +1522,57 @@ describe('htmlToPlan — stretch/grow (Pattern-Fidelity-Scheibe „Stretch & Gro
       expect(chartBody.stretch).toBe(true);
       expect(chartBody.width).toBeNull();
       expect(chartBody.height).toBe(240);
+    });
+
+    // (k) Leeres-Blatt-Ausnahme (Befund 27.07., Robs EcoMetrics-Scan, Figma-REST-Inspektion):
+    // ein Sidebar-Trenner-`<div>` OHNE jedes Kind (nur height/background/margin, kein Text, kein
+    // Element-Kind) bekam bislang width:null + stretch:true — im Plugin (renderPlan.ts) läuft der
+    // Kinder-Anhänge-Loop für so einen Node nie, also bleibt Figmas figma.createFrame()-Default
+    // (100×100) auf der stretch-gemeinten Achse stehen: Rob bekam beide Trenner als 100×2 statt
+    // 351×2/330×2. Der Fix friert die fehlende Achse hier IMMER aus dem gemessenen Rect ein, auch
+    // wenn stretch/grow gesetzt ist (anders als beim Absolute-Kinder-Fall oben, wo zur Laufzeit
+    // noch etwas die Achse füllen könnte).
+    it('(k) Sidebar-Trenner ohne jedes Kind: Breite wird aus dem Rect eingefroren statt null zu bleiben (Figma-Default 100 sonst stehen bleibt)', () => {
+      const html = `
+        <div style="display:flex;flex-direction:column" data-mock-rect='{"x":0,"y":0,"width":351,"height":300}'>
+          <div style="height:1px;background:rgba(255,255,255,0.12);margin:16px 0 12px 0" data-mock-rect='{"x":0,"y":16,"width":351,"height":1}'></div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      const divider = plan.children[0];
+      expect(divider.children).toHaveLength(0);
+      expect(divider.stretch).toBe(true);
+      expect(divider.height).toBe(1);
+      expect(divider.width).toBe(351);
+    });
+
+    // (l) Dieselbe Ausnahme gilt für die grow-Achse (Progress-Fill-Muster: `height:100%` in einer
+    // Nicht-Flex-Spalte löst über den Punkt-5-Sonderfall zu `grow` auf, s. readStretchGrow). Auch
+    // hier hat der Fill-Node keine Kinder — dieselbe Figma-Default-Falle träfe die Höhe.
+    it('(l) Progress-Fill ohne Kinder (height:100%-Sonderfall → grow): Höhe wird aus dem Rect eingefroren statt null zu bleiben', () => {
+      const html = `
+        <div style="height:3px;overflow:hidden" data-mock-rect='{"x":0,"y":0,"width":31,"height":3}'>
+          <div style="width:23%;height:100%;background:#fff" data-mock-rect='{"x":0,"y":0,"width":31,"height":3}'></div>
+        </div>
+      `;
+      const { plan } = htmlToPlan(html);
+      const fill = plan.children[0];
+      expect(fill.children).toHaveLength(0);
+      expect(fill.grow).toBe(true);
+      expect(fill.width).toBe(23);
+      expect(fill.height).toBe(3);
+    });
+
+    // (m) Regressions-Wächter: die Leeres-Blatt-Ausnahme darf NICHT auf ein Blatt ausgeweitet
+    // werden, das gar kein stretch/grow hat — eine bewusst feste Breite mit HUG-Höhe (kein
+    // Trenner-Muster) muss HUG bleiben, selbst mit einem großen ungleich-Null gemockten Rect.
+    // Live-Regression beim ersten Anlauf dieses Fixes: `<div style="width:200px"></div>` bekam
+    // fälschlich height:1 statt null.
+    it('(m) leeres Blatt mit fester Breite aber OHNE stretch/grow bleibt in der Höhe HUG', () => {
+      const html = '<div style="width:200px" data-mock-rect=\'{"x":0,"y":0,"width":200,"height":999}\'></div>';
+      const { plan } = htmlToPlan(html);
+      expect(plan.width).toBe(200);
+      expect(plan.height).toBeNull();
     });
   });
 

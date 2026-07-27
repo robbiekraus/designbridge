@@ -219,10 +219,42 @@ function readAlignment(computed) {
 }
 
 /** gap (Spec §Mapping: gap/column-gap (px) → gap). Primärachse bestimmt, welcher Shorthand-Teil
- *  zählt: row-Layout → column-gap (horizontaler Abstand), column-Layout → row-gap (vertikal). */
-function readGap(computed, layout) {
+ *  zählt: row-Layout → column-gap (horizontaler Abstand), column-Layout → row-gap (vertikal).
+ *
+ *  Live-Fund 27.07. nachmittags (Robs EcoMetrics-Scan, „KPI Card: Biogenic Emissions"): die KI
+ *  erzeugt den Abstand zwischen Label und Wert regelmässig NICHT über CSS `gap` auf dem
+ *  Flex-Container, sondern über `margin-bottom` auf dem ersten Kind (bei den Geschwisterkarten
+ *  „Carbon Emissions"/„Energy Consumption" stand an derselben Stelle `gap:4px`) — exakt dasselbe
+ *  Absicht-vs-Mittel-Muster wie bei `min-width:0` (die KI schreibt die Kürzungs-ABSICHT, aber nie
+ *  das dafür nötige CSS). `readGap` las bislang NUR `computed.rowGap`/`columnGap`; ein rein
+ *  margin-basierter Abstand kam als 0 an, Label und Wert rutschten im Figma-/Storybook-Output
+ *  aufeinander. `readMarginGap` (unten) ist die zweite Verteidigungslinie: NUR wenn kein CSS-Gap
+ *  gesetzt ist, UND der Margin-Abstand zwischen JEDEM Geschwisterpaar auf der Primärachse gleich
+ *  UND > 0 ist (sonst wäre ein einzelner Gap-Wert für alle Kinder eine Verzerrung — lieber 0 als
+ *  ein falscher Einheitswert). */
+function readGap(computed, layout, el) {
   const raw = layout === 'column' ? computed.rowGap : computed.columnGap;
-  return pxOr0(raw);
+  const gap = pxOr0(raw);
+  if (gap > 0 || !el) return gap;
+  return readMarginGap(el, layout);
+}
+
+/** Fallback für `readGap`: Abstand aus `margin-bottom` (column) / `margin-right` (row) zwischen
+ *  aufeinanderfolgenden IN-FLOW-Kindern von `el`, wenn kein CSS-`gap` gesetzt ist. Absolut/fixed
+ *  positionierte Kinder zählen nicht mit (sie liegen nicht im normalen Fluss, ihr Margin sagt
+ *  nichts über den Geschwister-Abstand). Weniger als zwei in-flow-Kinder, ein uneinheitlicher
+ *  Margin-Wert unter den Paaren, oder Margin 0 → 0 (kein Rateergebnis erzwingen). */
+function readMarginGap(el, layout) {
+  const kids = Array.from(el.children || []).filter((c) => {
+    const pos = getComputedStyle(c).position;
+    return pos !== 'absolute' && pos !== 'fixed';
+  });
+  if (kids.length < 2) return 0;
+  const prop = layout === 'column' ? 'marginBottom' : 'marginRight';
+  const gaps = kids.slice(0, -1).map((kid) => pxOr0(getComputedStyle(kid)[prop]));
+  const [first] = gaps;
+  if (first <= 0 || gaps.some((g) => g !== first)) return 0;
+  return first;
 }
 
 /** border-radius (Spec §Mapping: erster Wert, 9999-Kappung für „full"). */
@@ -510,10 +542,35 @@ function buildBoxNode(el, computed, children, ctx, parent, isRoot, ownStretchGro
   // Laufzeit vom Parent. Welche physische Achse (Breite/Höhe) das ist, hängt vom Eltern-Layout ab
   // (`parent.layout`): 'row'-Eltern → Gegenachse=Höhe/Primärachse=Breite; 'column'-Eltern (bzw.
   // fehlender Parent) → umgekehrt.
-  if ((width == null || height == null) && children.some((c) => c && c.absolute)) {
+  //
+  // AUSNAHME „leeres Blatt mit HALBER Größe" (Befund 27.07., Sidebar-Trenner in Robs EcoMetrics-
+  // Scan): hat die Box GAR KEINE Kinder — weder in-flow noch absolut, ein reiner Trenner-`<div>`
+  // ohne Inhalt (nur `height`/`background`/`margin`) — UND bereits GENAU EINE Achse explizit über
+  // `readSize` gesetzt (die andere bleibt null, weil sie via stretch/grow aufgelöst werden soll),
+  // läuft im Plugin (`renderPlan.ts`) der Anhänge-Loop nie, und Figmas `figma.createFrame()`-
+  // Default (100×100) bleibt auf der stretch-gemeinten Achse stehen: Rob bekam beide Sidebar-
+  // Trenner als 100×2 statt 351×2/330×2, obwohl `stretch:true` gesetzt war (jede ANDERE Stretch-
+  // Box in derselben Sidebar hat mindestens ein Kind und wurde korrekt gestreckt). Anders als beim
+  // Absolute-Kinder-Fall oben gibt es hier zur Laufzeit NICHTS, das die Achse noch befüllen könnte
+  // — deshalb hier IMMER aus dem gemessenen Rect einfrieren, auch wenn stretch/grow gesetzt ist
+  // (Guard unten übersprungen: `isEmptyLeaf` macht stretchAxis/growAxis null).
+  //
+  // Bewusst NICHT auf ein rundum stilloses `<div></div>` (BEIDE Achsen null) ausgeweitet — das ist
+  // die unsichtbare Phantom-Box aus der Live-Fund-25.07.-Suite (`<hr style="border:none">`, `<br>`
+  // zwischen Textzeilen, u. Ä.), die absichtlich HUG/null bleibt, damit sie andernorts als
+  // Phantom erkannt und verworfen wird — „genau eine Achse gesetzt" grenzt sauber ab.
+  //
+  // Ebenso bewusst NICHT auf ein Blatt ohne jedes stretch/grow ausgeweitet (Regressionsfund:
+  // `<div style="width:200px"></div>` — feste Breite, ABSICHTLICH huggende Höhe, kein Trenner-
+  // Muster). Nur wenn die fehlende Achse überhaupt vom (potenziell unzuverlässigen) Stretch/Grow
+  // aufgelöst werden SOLLTE, greift die Ausnahme — sonst bleibt HUG einfach HUG.
+  const isEmptyLeaf = children.length === 0
+    && (width == null) !== (height == null)
+    && (ownStretchGrow.stretch || ownStretchGrow.grow);
+  if ((width == null || height == null) && (children.some((c) => c && c.absolute) || isEmptyLeaf)) {
     const rect = el.getBoundingClientRect();
-    const stretchAxis = ownStretchGrow.stretch && parent ? (parent.layout === 'row' ? 'height' : 'width') : null;
-    const growAxis = ownStretchGrow.grow && parent ? (parent.layout === 'row' ? 'width' : 'height') : null;
+    const stretchAxis = !isEmptyLeaf && ownStretchGrow.stretch && parent ? (parent.layout === 'row' ? 'height' : 'width') : null;
+    const growAxis = !isEmptyLeaf && ownStretchGrow.grow && parent ? (parent.layout === 'row' ? 'width' : 'height') : null;
     if (width == null && stretchAxis !== 'width' && growAxis !== 'width') {
       width = Math.max(1, Math.round(rect.width));
     }
@@ -534,7 +591,7 @@ function buildBoxNode(el, computed, children, ctx, parent, isRoot, ownStretchGro
     fill: readFill(computed, ctx),
     stroke,
     strokeWeight,
-    gap: readGap(computed, layout),
+    gap: readGap(computed, layout, el),
     width,
     height,
     primaryAlign,
@@ -978,6 +1035,12 @@ function matchCatalogComponent(el, ctx) {
     // alle Kataloge ohne dieses Feld (additiv, kein Zwang). Nur planToJsx.js liest es; groundPlan.js
     // (Figma) ignoriert es bewusst (eigene, spätere Scheibe).
     slots: entry.slots,
+    // `styledFallbackText` (Live-Fund 27.07., EcoMetrics-Scan „Plant Item Row"): Opt-in für Katalog-
+    // Einträge, deren ECHTE Komponente ihren Fallback-Inhalt (z. B. Avatar-Initialen) nicht selbst
+    // zentriert/stylt — ohne das Flag rendert planToJsx.js nackten, unformatierten Text (Live-Fund:
+    // <Avatar>B</Avatar> ganz ohne Klasse). Nur `Avatar` trägt es bisher (s. shadcn-default.js);
+    // Button/Badge/… bleiben unverändert, weil ihre echte Komponente die Typografie selbst mitbringt.
+    styledFallbackText: Boolean(entry.styledFallbackText),
   };
 }
 
@@ -1335,6 +1398,7 @@ function convertElement(el, ctx, parent = null) {
       voidElement: catalogRef.voidElement,
       container: catalogRef.container,
       slots: catalogRef.slots,
+      styledFallbackText: catalogRef.styledFallbackText,
       fallback: ensureBox(buildNormalNode(el, ctx, parent)),
     };
     return absolute ? { ...refNode, absolute } : attachStretchGrow(refNode, stretchGrow);

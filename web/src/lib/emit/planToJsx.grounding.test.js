@@ -99,6 +99,41 @@ describe('planToJsx — DS-Grounding: Katalog-refs als echte Komponenten', () =>
     const code = planToJsx(box({ children: [text('nur Text')] }), { name: 'X' });
     expect(code.startsWith('export function X(')).toBe(true);
   });
+
+  // Live-Fund 27.07. (EcoMetrics-Scan „Plant Item Row"): ein gegroundeter Avatar-Fallback-Buchstabe
+  // ("B") verlor beim Grounding jede Stilinfo — <Avatar>B</Avatar> ganz ohne Klasse rendert als
+  // dünne, unzentrierte System-Schrift statt der interpretierten Initialen-Optik (gemessen im echten
+  // Browser: Storybook-Story „Plant Item Row"). `styledFallbackText` (Katalog-Eintrag-Flag, s.
+  // shadcn-default.js Avatar) ist das gezielte Opt-in-Gegenmittel.
+  it('styledFallbackText: true → Fallback-Text behält Schriftgröße/-gewicht/-farbe + Basis-Zentrierung', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Avatar', import: { name: 'Avatar', from: '@/components/ui/avatar' },
+      props: {}, styledFallbackText: true,
+      fallback: box({ children: [{ type: 'text', content: 'B', fontSize: 18, fontWeight: 700, color: { hex: '#5352ed', token: null } }] }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Avatar className="flex items-center justify-center text-[18px] font-bold text-[#5352ed]">B</Avatar>');
+  });
+
+  it('styledFallbackText fehlt/false → unverändertes altes Verhalten (nackter Text, KEINE className) — schützt Button/Badge/… vor unbeabsichtigten Stil-Änderungen', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Avatar', import: { name: 'Avatar', from: '@/components/ui/avatar' },
+      props: {},
+      fallback: box({ children: [{ type: 'text', content: 'B', fontSize: 18, fontWeight: 700, color: { hex: '#5352ed', token: null } }] }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Avatar>B</Avatar>');
+  });
+
+  it('styledFallbackText: true ohne erkennbaren Text-Knoten im Fallback (nur eine leere Box) → Basis-Zentrierung ohne Schrift-Klassen, kein Crash', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Avatar', import: { name: 'Avatar', from: '@/components/ui/avatar' },
+      props: {}, styledFallbackText: true,
+      fallback: box({ children: [{ type: 'text', content: 'AB', fontSize: 0, fontWeight: 0, color: null }] }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Avatar className="flex items-center justify-center">AB</Avatar>');
+  });
 });
 
 // Task 2 (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Umbau → planToJsx.js):
