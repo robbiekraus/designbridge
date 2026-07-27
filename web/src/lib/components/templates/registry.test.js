@@ -138,3 +138,35 @@ describe('matchTemplate — "Category: Specific Name" scanner instances never ro
     expect(matchTemplate('Search Input')?.key).toBe('input');
   });
 });
+
+describe('matchTemplate — "Category - Specific Name" (dash) scanner instances never route to a template', () => {
+  // Live-Fund 27.07. abends (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-abend.json):
+  // derselbe Scanner benutzte diesmal Bindestrich statt Doppelpunkt — "Badge - Tag" matchte per
+  // "badge" das Badge-Template, "Button - Export" per "butt" das Button-Template. Beide kamen
+  // nie bei componentsNeedingInterpretation an (siehe interpret.test.js für den zweiten,
+  // namenskonventions-unabhängigen Fix dort).
+  it('rejects dash-qualified names for Badge/Button even when the category word itself matches', () => {
+    expect(matchTemplate('Badge - Tag')).toBeNull();
+    expect(matchTemplate('Button - Export')).toBeNull();
+  });
+
+  it('rejects dash-qualified names generally, regardless of which template would otherwise match', () => {
+    expect(matchTemplate('Input - Search')).toBeNull();
+    expect(matchTemplate('KPI Card - Biogenic Emissions')).toBeNull();
+  });
+
+  it('is case-insensitive for the dash exclusion', () => {
+    expect(matchTemplate('badge - PREMIUM')).toBeNull();
+    expect(matchTemplate('BUTTON - export')).toBeNull();
+  });
+
+  it('does not exclude word-internal hyphens (compound words, no surrounding spaces)', () => {
+    expect(matchTemplate('Multi-Color Button')?.key).toBe('button');
+  });
+
+  it('still matches plain, non-dash Badge/Button/Input names (no regression)', () => {
+    expect(matchTemplate('Badge')?.key).toBe('badge');
+    expect(matchTemplate('Button')?.key).toBe('button');
+    expect(matchTemplate('Search Input')?.key).toBe('input');
+  });
+});

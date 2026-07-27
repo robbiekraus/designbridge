@@ -15,13 +15,29 @@ export function componentsNeedingInterpretation(result) {
   const raw = result?.raw;
   if (!raw) return [];
   const have = result?.interpretations ?? {};
+  // Live-Fund 27.07. abends (Robs EcoMetrics-Scan, dash-Namenskonvention statt Doppelpunkt):
+  // "Badge - Tag"/"Button - Export"/"Search Field" — alle drei vom Scanner als benannte Kinder
+  // von "Header / Topbar" in raw.composition.children extrahiert — matchten je einen
+  // Namensteil ihres EIGENEN generischen Templates (badge/button/"field") und kamen dadurch nie
+  // hier an, unabhängig von jedem Trennzeichen-Fix in matchTemplate. Der punktuationsunabhängige
+  // Fix: JEDER Name, den der Scanner bereits als konkretes Kind eines Organismus benannt hat, ist
+  // per Definition eine vom Scanner konkret bezeichnete Instanz (nicht bloß ein generisches
+  // Namensteil-Match) und darf NIE per Template kurzgeschlossen werden — egal ob die
+  // Namenskonvention diesmal Doppelpunkt, Bindestrich oder gar keinen Trenner benutzt.
+  const compositionChildNames = new Set();
+  for (const kids of Object.values(raw.composition?.children ?? {})) {
+    for (const kidName of kids ?? []) compositionChildNames.add(kidName);
+  }
   const out = [];
   for (const [rawKey, kind] of KINDS) {
     for (const item of raw[rawKey] ?? []) {
       const lifted = Boolean(item.sourceCode);
+      const isComposedChild = compositionChildNames.has(item.name);
       // FF2-Konsistenz: bei gehobenem Code zählt der echte Code, nicht ein
-      // zufälliger Template-Namenstreffer (CardSkeleton → card).
-      if (!lifted && matchTemplate(item.name)) continue;
+      // zufälliger Template-Namenstreffer (CardSkeleton → card). Ist der Name
+      // zusätzlich ein vom Scanner benanntes composition-Kind, zählt das
+      // Template-Match ohnehin nie (s. o.).
+      if (!lifted && !isComposedChild && matchTemplate(item.name)) continue;
       // Repo-Bausteine ohne gehobenen Code (Patterns, pfad-only Dateien) haben
       // kein Material — sie würden im Batch nur als "failed" enden.
       if (result?.source === 'repo' && !lifted) continue;

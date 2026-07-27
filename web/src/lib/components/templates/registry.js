@@ -39,10 +39,24 @@ const COMPOUND_CONTAINER_TOKENS = /\bbar\b/;
 // inhaltlich reicherer Name darf die atomare Vorlage nie kapern.
 const NAMED_INSTANCE_PATTERN = /:\s*\S/;
 
+// Live-Fund 27.07. abends (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-abend.json):
+// derselbe Scanner benutzte diesmal Bindestrich statt Doppelpunkt als Trenner — "Badge - Tag"
+// und "Button - Export" matchten dadurch (wieder) ihre eigene Kategorie und wurden nie zur
+// Interpretation durchgereicht, weil NAMED_INSTANCE_PATTERN nur auf ":" achtete. Das ist
+// dieselbe "Kategorie <Trenner> Konkreter Name"-Konvention, nur mit anderem Trennzeichen —
+// deshalb hier als eigenes Pattern statt eines regex-Alternativ-Zweigs (Bindestrich braucht
+// Leerzeichen auf beiden Seiten, sonst würden zusammengesetzte Wörter wie "Multi-Select" fälschlich
+// ausgeschlossen). Der robustere, namenskonventions-unabhängige Fix sitzt zusätzlich in
+// interpret.js (componentsNeedingInterpretation): jeder Name, der laut
+// raw.composition.children ein vom Scanner benanntes Kind eines Organismus ist, wird NIE per
+// Template kurzgeschlossen — unabhängig von Trennzeichen oder ob überhaupt eins existiert
+// ("Search Field" hatte gar keinen Trenner und matchte trotzdem "field" im Input-Template).
+const DASH_INSTANCE_PATTERN = /\s-\s\S/;
+
 export function matchTemplate(name) {
   const n = String(name ?? '').toLowerCase();
   if (!n) return null;
-  if (NAMED_INSTANCE_PATTERN.test(n)) return null;
+  if (NAMED_INSTANCE_PATTERN.test(n) || DASH_INSTANCE_PATTERN.test(n)) return null;
   const t = TEMPLATES.find((tmpl) => tmpl.match(n)) ?? null;
   if (!t) return null;
   if (t === buttonTemplate && DROPDOWN_TOKENS.test(n)) return null;

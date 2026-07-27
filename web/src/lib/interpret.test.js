@@ -90,6 +90,53 @@ describe('componentsNeedingInterpretation', () => {
     };
     expect(componentsNeedingInterpretation(result).map((t) => t.name)).toEqual(['CardSkeleton']);
   });
+
+  // Live-Fund 27.07. abends (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-abend.json):
+  // "Badge - Tag", "Button - Export" und "Search Field" — alle drei laut raw.composition.children
+  // benannte Kinder von "Header / Topbar" — matchten je einen Namensteil ihres EIGENEN
+  // generischen Templates (badge/button/"field" im Input-Regex) und kamen NIE hier an, egal
+  // welche Trenner-Konvention der Scanner benutzte. Der Fix: ein Name, den der Scanner bereits
+  // als composition-Kind eines Organismus benannt hat, wird nie per Template kurzgeschlossen.
+  it('routet composition-Kinder immer zur Interpretation, auch wenn matchTemplate einen Treffer meldet', () => {
+    const result = {
+      source: 'image',
+      raw: {
+        meta: { import_id: 'eco1' },
+        atoms: [
+          { name: 'Badge - Tag', confidence: 'high' },
+          { name: 'Button - Export', confidence: 'high' },
+        ],
+        molecules: [
+          { name: 'Search Field', confidence: 'high' },
+          { name: 'Dropdown Selector', confidence: 'high' },
+        ],
+        organisms: [{ name: 'Header / Topbar', confidence: 'high' }],
+        templates: [],
+        composition: {
+          roots: ['Header / Topbar'],
+          children: {
+            'Header / Topbar': ['Badge - Tag', 'Button - Export', 'Search Field', 'Dropdown Selector'],
+          },
+        },
+      },
+    };
+    const names = componentsNeedingInterpretation(result).map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(['Badge - Tag', 'Button - Export', 'Search Field', 'Dropdown Selector']));
+  });
+
+  it('ohne composition-Daten bleibt das alte Verhalten unverändert (Template-Treffer fliegen raus)', () => {
+    const result = {
+      source: 'image',
+      raw: {
+        meta: { import_id: 'eco2' },
+        atoms: [{ name: 'Button', confidence: 'high' }],
+        molecules: [],
+        organisms: [],
+        templates: [],
+      },
+    };
+    expect(componentsNeedingInterpretation(result)).toEqual([]);
+  });
 });
 
 describe('requestInterpretations', () => {
