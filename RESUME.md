@@ -4,6 +4,31 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **27.07.2026 (vormittags, mit Rob) — ROBS BEFUND „ES WIRD IMMER BESCHISSENER" AUFGEKLÄRT: zwei verschiedene Ursachen, beide gefixt.** Suiten: **Web 880 · Server 366 · Plugin 141 · Harness 19**, Build + Typecheck sauber, alles auf `main` gepusht (`ed4019a`).
+
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT:**
+  1. **Robs frischer Bild-Scan** — jetzt der einzige Test für Fix B (Prompt-Änderung). Danach `cd web && node verification/fetch-scan-run.mjs`, Payload nach Figma, und die **12 verbliebenen Überläufe** erneut messen (Skript-Muster s. u.).
+  2. **Die 9 geklemmten Instanzen** — falls Fix B sie nicht erledigt, ist die Alternative, `applyAbsolute` das Schrumpfen auch auf FESTEN Achsen zu verbieten, wenn dabei geclippt würde. Das kehrt Composition-Fidelity v2 teilweise um → Robs Entscheidung.
+  3. **C2 (Vorschau-WYSIWYG)** — unverändert offen. **Neu relevant:** die Vorschau rechnet `vh` jetzt gegen eine feste virtuelle Viewport-Höhe, der Emit gegen das echte Browserfenster. Heute ohne Wirkung (Inhalt höher als beide), aber eine Divergenz, die zu C2 gehört.
+
+  **① „Das Template wird immer länger" — eine echte Endlosschleife (`c060ea7`).** Die Template-Interpretation trägt `min-height:100vh` (genau EIN Vorkommen im ganzen Scan, nur im Template — deshalb war nur das Template betroffen). Im Thumbnail-iframe ist `100vh` die iframe-Höhe, und die setzt `InterpretedPreview` aus der gemeldeten Inhaltshöhe: **Inhalt 100vh → `body.scrollHeight` = iframe-Höhe + 24 (Body-Padding) → neue iframe-Höhe → …**, angetrieben vom ResizeObserver. Gemessen: **+24 px pro Runde, unbegrenzt**. Weil der Maßstab `420/frameHeight` ist, schrumpft der Inhalt dabei gegen null — genau Robs Bild (Miniatur oben links, Rest weiß).
+  - **Fix:** im Thumbnail hat „Viewport" keine Bedeutung; vh-Höhen werden VOR der Messung auf eine feste Basis umgerechnet — per CSS für `min-h-screen`/`h-screen`, per Skript für Inline-`style="…100vh"` (eine Stilregel kommt gegen ein Inline-Style nicht an). Damit ist die Rückkopplung **konstruktiv unmöglich**, nicht nur gedämpft. Vollbild-Modal bleibt unangetastet (dort ist der Viewport echt).
+  - Gegengemessen: vorher `1320 → 1344 → 1368 → …`, nachher `1320 → 1320 → 1320`. In der echten App über 5 s stabil.
+
+  **② „Die Figma-Qualität wird mystiger" — Robs Eindruck war richtig, und es ist ein bekannter Trade-off.** Per Figma-REST an seiner Datei `TjZhKKzgOXYr6SbjaihK91` gemessen: **23 Stellen, an denen Inhalt aus seinem Rahmen ragt — ALLE waagerecht, keine einzige senkrecht.** Nicht die Rahmen sind zu klein, **die Schrift ist zu groß**: Brand Logo 451 breit, 54 px Padding je Seite, Schrift **72** → „EcoMetrics" braucht allein 400. Nav Item 296 breit, 45 px Padding, Schrift **45** → „Dashboard" braucht 232.
+  - **Warum es schlechter wurde:** der alte Faktor `slot/naturalWidth` normierte die Breite per Konstruktion auf den Slot (Preis: Schrift teils 7 px). Der einheitliche Maßstab (26.07.) rettete die Schrift und entfernte diese Selbstkorrektur; Scheibe C heilte die **Wurzel**breiten, nicht den Inhalt darin. An der Fixture blieben 4 Fälle — an Robs echten Daten sind es 23.
+
+  **③ Fix A: Rahmen wachsen mit ihren Fluss-Kindern (`01591cd`).** `growToFitFlowChildren` in `renderPlan.ts` — dieselbe Entscheidung wie Fix A vom 18.07. und wie `growToFitLoneAbsoluteChild`, jetzt auch für normale Auto-Layout-Kinder. Nur wachsen, nie schrumpfen, und nur auf einer Achse, die der Plan explizit gesetzt hat (huggende Achse clippt ohnehin nicht, und `resize()` würde sie auf FIXED umstellen — Falle vom 27.07.).
+  - **ECHTER A/B-LAUF, nicht nur Mock** (Figma hatte vormittags endlich ein Fenster): Payload aus Robs Scan auf Prod, Figma per AppleScript ferngesteuert, Ergebnis per REST nachgemessen. **23 → 12 Überläufe.** Die Komponenten selbst sind geheilt: **Brand Logo 451 → 629, Sidebar Nav Item 296 → 421**, beide tragen ihren Text jetzt vollständig. Import ohne „nicht gefunden"-Warnungen — der Writer-Ordering-Fix hielt an echten Daten mit.
+  - **Rest sauber isoliert: 9 der 12 haben eine INSTANCE als klemmenden Elternteil.** Die Komponente ist richtig, aber `applyAbsolute` klemmt die Instanz per `min()` auf einen Slot aus der Interpretation des ELTERNTEILS (der in CLAUDE.md dokumentierte Fall). Die übrigen 3 sind klein (Pagination „1" in einem 81×81-Frame, Vector 49 in 58).
+
+  **④ Fix B: die gemessene bbox als Größenvorgabe im Prompt (`ed4019a`).** Jede Namenszeile trägt jetzt `Component: Brand Logo — RENDER AT 201x74 px`, plus eine Regel, dass Schrift/Padding/Icons hineinpassen müssen und der Crop eine VERGRÖSSERTE Detailansicht ist. `imageDecomposer` liefert `pixel: {w,h,imageWidth}`, umgerechnet wird im Prompt mit für beide Achsen demselben Faktor. `PROMPT_VIRTUAL_WIDTH` ist an `web/src/lib/previewWidth.js` gepinnt — der Test LIEST die Zahl aus der Quelldatei, statt eine Kopie zu vergleichen.
+  - **⚠️ NICHT an echten Daten belegt** (Prompt-Änderung). Belegt ist nur: Vorgabe wird korrekt berechnet, kommt an der richtigen Stelle an, Regel erklärt sie.
+
+  **⑤ Der Mitschnitt von heute Nacht hat sich sofort bezahlt gemacht.** Robs Scan lag um 07:02 im Puffer und war per `fetch-scan-run.mjs` in Sekunden da — die ganze Diagnose oben lief an ECHTEN Daten statt an der Fixture. Ohne ihn wäre keiner der beiden Befunde belegbar gewesen.
+
+  **Neu gelernt (steht in CLAUDE.md):** eine Höhenmeldung aus einem iframe, die zur iframe-Höhe wird, ist eine Rückkopplung, sobald der Inhalt Viewport-Einheiten benutzt. Und: der leere 100×100-Frame ist in Robs Datei **genau einmal** da — jetzt endlich mit reproduzierbaren Daten.
+
 - **27.07.2026 (Nacht, autonome Session Opus 5) — DREI OFFENE TODO-PUNKTE ABGEARBEITET: Writer-Ordering, Scan-Mitschnitt, DECOMPOSE im URL-Pfad.** Alles auf `main`, **gepusht, NICHT deployt** (Railway hängt an main → siehe „Deploy" unten). Suiten: **Plugin 134** (vorher 124) · **Server 357** (vorher 337) · **Web 876** (unverändert) · **Harness 19**, Typecheck + Build sauber, `dist` neu gebaut.
 
   **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT:**
