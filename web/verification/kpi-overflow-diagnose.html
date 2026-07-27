@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>KPI-Überlauf-Diagnose (Template)</title>
+<body style="font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;padding:16px;color:#18181b">
+<h2 style="font:600 15px system-ui">KPI-Überlauf-Diagnose — DashboardLayoutTemplate</h2>
+<pre id="status" style="background:#f4f4f5;padding:10px;border-radius:6px">lade …</pre>
+<h3 style="font:600 13px system-ui">Plan-Baum (skaliert, wie er nach Figma geht)</h3>
+<pre id="tree" style="background:#fafafa;padding:10px;border-radius:6px;overflow:auto;max-height:70vh"></pre>
+
+<script type="module">
+const status = document.getElementById('status');
+try {
+  const { emitFigmaComponents } = await import('/src/lib/emit/emitFigmaComponents.js');
+  const result = await (await fetch('/verification/prod-scan-raw.json')).json();
+  const components = emitFigmaComponents(result);
+  window.__COMPONENTS = components;
+
+  const tpl = components.find((c) => c.name === 'DashboardLayoutTemplate');
+  const plan = tpl?.variants?.[0]?.plan;
+  window.__PLAN = plan;
+
+  const lines = [];
+  function label(n) {
+    if (!n) return 'null';
+    if (n.type === 'text') return `TEXT "${(n.content || '').slice(0, 34)}" fs=${n.fontSize}`;
+    if (n.type === 'svg') {
+      const m = /width="(\d+)"[^>]*height="(\d+)"/.exec(n.markup) || [];
+      return `SVG ${m[1] || '?'}x${m[2] || '?'}`;
+    }
+    if (n.type === 'component-ref') {
+      return `REF ${n.name}${n.catalogInstance ? ' [DS-INSTANZ]' : ''}${n.catalog ? ' cat=' + n.catalog : ''}`;
+    }
+    return 'BOX';
+  }
+  function flags(n) {
+    const f = [];
+    if (n.width != null) f.push('w=' + n.width); else f.push('w=HUG');
+    if (n.height != null) f.push('h=' + n.height); else f.push('h=HUG');
+    if (n.layout) f.push(n.layout);
+    if (n.gap) f.push('gap=' + n.gap);
+    if (n.padding && n.padding.some((p) => p)) f.push('pad=' + n.padding.join('/'));
+    if (n.stretch) f.push('STRETCH');
+    if (n.grow) f.push('GROW');
+    if (n.absolute) f.push(`abs=${n.absolute.x},${n.absolute.y} ${n.absolute.width}x${n.absolute.height}`);
+    if (n.scale) f.push('scale=' + (+n.scale).toFixed(2));
+    return f.join(' ');
+  }
+  function walk(n, depth, path) {
+    if (!n) return;
+    lines.push('  '.repeat(depth) + `${path} ${label(n)} ${flags(n)}`);
+    const kids = n.type === 'component-ref' ? (n.fallback ? [n.fallback] : []) : (n.children || []);
+    const tag = n.type === 'component-ref' ? 'fb' : '';
+    kids.forEach((c, i) => walk(c, depth + 1, `${path}${tag}.${i}`));
+  }
+  walk(plan, 0, '#');
+  document.getElementById('tree').textContent = lines.join('\n');
+
+  // Instanz-Zählung + Katalog-Refs
+  const refs = [];
+  (function collect(n) {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'component-ref') refs.push({ name: n.name, catalog: n.catalog || null, inst: !!n.catalogInstance, abs: n.absolute || null });
+    const kids = n.type === 'component-ref' ? (n.fallback ? [n.fallback] : []) : (n.children || []);
+    kids.forEach(collect);
+  })(plan);
+
+  status.textContent = JSON.stringify({
+    components: components.length,
+    templateSource: tpl?.source,
+    rootWidth: plan?.width, rootHeight: plan?.height, rootLayout: plan?.layout,
+    refs,
+    warnings: (result.raw?.warnings || []).filter((w) => /Splice/.test(w)),
+  }, null, 1);
+  window.__READY = true;
+} catch (e) {
+  status.textContent = 'FEHLER: ' + (e && e.stack || e);
+  window.__READY = 'error';
+}
+</script>
+</body>

@@ -4,6 +4,63 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **28.07.2026 (nachts) — VOLLER E2E-TESTLAUF AUF PROD GEFAHREN. Kein Code geändert, reine Verifikation. Ergebnis: Pipeline grün, EIN neuer Storybook-Befund, Figma-Template weiter das Sorgenkind. Videoaufnahme auf heute Vormittag verschoben, zwei Fix-Stränge laufen.**
+
+  **Der Lauf (alles gegen Prod, frischer Scan von `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png`):**
+  | Schritt | Ergebnis |
+  |---|---|
+  | Bild-Scan `/api/scan/image` | 200, 23 s, echter Gemini-Call, 22 Bausteine (4 Atoms · 7 Molecules · 10 Organisms · 1 Template) |
+  | Interpretation | **22/22**, kein Fehlschlag |
+  | App-Vorschau (Template + alle Organismen) | sauber |
+  | Figma-Payload → Prod | 22 Bausteine, 16 Katalog-Einträge, 6 composed-spliced |
+  | **Storybook-Build auf Prod** | **200 in 8,3 s — der 500er-Blocker vom 27.07. ist WEG** |
+  | Figma-Import (Robs 2 Klicks) | durchgelaufen, Datei `5aqGy2xzYmSLkyM95yPNgy` |
+
+  Rohdaten dauerhaft gesichert: **`Testdaten/ecometrics-scan-27-07-final-test.json`** (Bundle `{source, raw, interpretations}`, import_id `6da6bc95244a444d`) — Drop-in für alle Verifikationswerkzeuge, enthält beide unten genannten Fehler nachweislich.
+
+  **✅ Die Befunde der Vortage sind in diesem Scan alle weg:** keine Textüberlappungen, Emissions-Trend-Chart füllt die volle Kartenbreite, kein weißer Rahmen ums Sidebar-Profil, KPI-Kartenhöhen korrekt, kein „broken image"-Icon, Storage-Widget lesbar, Reports-Spalten fluchten sogar.
+
+  **✅ Figma-Import strukturell top:** eigene Seite `🌉 DesignBridge`, 5 Sektionen, 16 DS-Katalog-Komponenten (`DS/Button` mit 24 Varianten als Spalte 109×1202 → Varianten-Stapel-Fix hält), Template 2296×2408 = exakt die Bildmaße. **Atoms/Molecules/Organisms/DS-Katalog: 0 Überläufe**, 0 Miniatur-Schrift (<10 px), 1 leeres Kästchen bei 1038 Knoten. `Sidebar`-Instanz Faktor **1,00** (395×1583) → geklemmte Instanzen bleiben erledigt.
+
+  **❌ BEFUND 1 (neu, nur Storybook): vier Beschriftungen weiß auf weiß, also unsichtbar.** „Reports" (Sidebar-Nav), „Storage", „3.4 GB", „of 15 GB". Objektiv gemessen: `color: rgb(255,255,255)` auf effektivem Hintergrund `rgb(255,255,255)`. Die Elternebene trägt KEINE `bg-*`-Klasse, rendert aber weiß → gegroundete Katalog-Hülle ersetzt die dunkle Originalfüllung, Text bleibt weiß. **Vermutete Ursache:** der Legibility-Guard `containerHullWouldClash` (`web/src/lib/emit/htmlToPlan.js:1040`) läuft NUR im expliziten `data-ds-component`-Pfad (`matchCatalogComponent`, :1084), nicht im heuristischen `matchKnownComponent` (:980–998). Tritt in App-Vorschau und Figma NICHT auf.
+
+  **❌ BEFUND 2 (bekannt, C2): alle 18 Überläufe stecken ausschließlich im `DashboardLayoutTemplate`.** Sichtbar: die drei KPI-Karten oben sind zusammengequetscht (Titel/Werte abgeschnitten: „bon E", „rgy C", „33,66"), die Titel „Top Emissions By Plants"/„Category Of Emissions" brechen buchstabenweise um, zwei leere weiße Kästchen an den Tasks-/Help-Center-Icons. Größte Überläufe, alle waagerecht: `FRAME 1043x269` in Eltern `472x314` = **+571** (die KPI-Zeile), dann +431, +317, +301, +293, +283, +204, +184, +181, +179, 7× +27 (Monatslabels Dec…Jun), +19. **Nur 6 INSTANCE-Knoten im Template** → die KPI-Karten sind KEINE geklemmten Instanzen, das Template zeichnet sie selbst zu schmal. **Dieselben Bausteine rendern in HTML-Vorschau und Storybook KORREKT** — reine Figma-Pfad-Divergenz, gehört zu C2.
+
+  **⚠️ Methodenfalle, in die ich gelaufen bin (für die Zukunft):** `storybookFiles()` in **Node** ausgeführt meldete 18 von 22 Bausteinen als generische Stubs — komplett falsch. `htmlToPlan` ist geometrisch, ohne DOM fällt jeder Baustein auf `genericStub` zurück. Im echten Browser: **22/22 echte Komponenten, 0 Stubs**, mit echten shadcn-Imports. Also: der Emit gehört IMMER in einen echten Browser, auch wenn man „nur mal schnell zählen" will.
+
+  **⚠️ Figma-Fernsteuerung per AppleScript ist unzuverlässig geworden:** das Plugins-Menü warf `-1728` (bekannt), und der Ausweich-Versuch über Quick Actions (`⌘/` + Tippen) holte stattdessen eine Community-Datei in den Vordergrund. Nichts beschädigt, aber: **nicht blind in Robs laufendes Figma tippen** — im Zweifel die zwei Klicks von Rob machen lassen.
+
+  **✅ BEFUND 1 GEFIXT (`59de5e6`, lokal auf `main`, NICHT gepusht) — und die vermutete Ursache war falsch.** Nicht der Legibility-Guard: „Reports"/Storage werden gar nicht gegen den Katalog gegroundet, das sind schlichte Boxen. Echte Ursache: **`readFill()` (`htmlToPlan.js:263`) verwarf den Alpha-Kanal.** Ein zu 15 % deckendes weißes Overlay auf der lila Sidebar wurde volldeckend `#ffffff` und snappte per Zufall exakt auf den Token `card-background` (die echten weißen Karten), weil `matchColorToken` nur den nackten Hex kennt, keine Herkunft. Exakt dieselbe Lücke, die `readBorder()` am 27.07. für Rahmen gefixt bekam (`FAINT_BORDER_ALPHA_MAX`), nur nie auf Fills übertragen. Fix: `FAINT_FILL_ALPHA_MAX = 0.2`, gleiche Schwelle. Im echten Browser gegengemessen: die vier Labels stehen jetzt auf transparentem Grund, also lesbar auf Lila. **Blast Radius gemessen: 7 Füllungen in 2 von 21 Bausteinen**, alle Original-Alpha ≤ 0,18; keine der 6 Card-Groundings verändert. Suite **945/945** (selbst nachgelaufen, nicht nur Agent-Bericht). **Behebt zugleich die zwei leeren weißen Kästchen (Tasks/Help Center) im Figma-Template** — der Punkt „OFFEN 2 (leerer 100×100-Frame)" ist damit erledigt: es war nie ein leerer Frame, sondern ein fälschlich opakes Overlay.
+
+  **🔍 BEFUND 2 DIAGNOSTIZIERT — Ursache belegt, Fix auf `experiment/stretch-sizing` in Arbeit.** Es ist **kein** Skalierungs-, Mess- oder bbox-Problem: Wurzel 2296 = 2296, Sidebar 404 = 404, Hauptspalte 1892 = 1892 stimmen alle exakt. **Ursache: `applyStretchGrow` (`designbridge-plugin/src/writer/renderPlan.ts:250`) setzt `layoutAlign = 'STRETCH'`, ohne die zugehörige Achse auf `FIXED` zu stellen** — genau das verlangen die Figma-Typings ausdrücklich („an auto-layout frame cannot simultaneously stretch to fill its parent and shrink to hug its children"). Bei einem WAAGERECHTEN Kind ist die zu füllende Achse dessen Primärachse, die bleibt `AUTO` → der Rahmen huggt weiter. Bei senkrechten Kindern zieht Figma die Gegenachse selbst auf FIXED, deshalb funktioniert dort alles. **Beleg: 29 von 29 Fällen folgen der Regel ohne Ausnahme** — senkrecht 9 ok/0 kaputt, TEXT 4 ok/0 kaputt, waagerecht 7 ok/22 kaputt, wobei alle 7 „ok" `primaryAxisSizingMode = FIXED` haben und alle 22 kaputten `AUTO`.
+  - Die 472 px waren eine **falsche Fährte** — sie stehen nirgends im Plan, sondern sind Figmas Rechenergebnis zur Renderzeit (Chart-Zeile huggt auf 1115 → zwei GROW-Kinder à 544 → minus 2×36 Padding = 472).
+  - Die KPI-Karten werden **nicht geclippt, sondern überdeckt**: Plan-Breite und -Höhe sind `null` → `clipsContent = false`, der überstehende Inhalt verschwindet unter der weißen Füllung der Nachbarkarte. Daher „bon E", „rgy C", „33,66".
+  - **Warum Fix A nicht greift:** `growToFitFlowChildren` steigt bei `plan.width === null && plan.height === null` sofort aus — genau das sind alle kollabierten Rahmen. `growToFitLoneAbsoluteChild` ist nicht zuständig (drei Fluss-Kinder, kein einzelnes absolutes). Beides vertragskonform, der Fall liegt außerhalb.
+  - **Alle** großen Überläufe (+431, +317, +301, die 7× +27 der Monatslabels) liegen unterhalb eines kollabierten STRETCH-Rahmens. **Eine** Ursache, nicht mehrere.
+  - **Harte Vorhersage zum Gegenprüfen nach dem Fix: KPI-Zeile 1802 px, jede KPI-Karte 583 px** (= (1802−54)/3, identisch zum HTML-Wert 260 × Maßstab 2,2422). Trifft das nicht zu, ist die Diagnose falsch.
+  - **Testgrenze, ehrlich:** Die Plugin-Tests laufen gegen einen Stub OHNE Layout-Engine — sie können nur prüfen, dass Felder gesetzt werden, nie dass es wirkt. Dieselbe Testblindheits-Klasse wie beim Skalierungspfad. Beweisbar nur durch echten Figma-Import.
+  - **Blast Radius:** 22 Rahmen im Template + 21 in den Organismen ändern ihre Größe; Atoms, Molecules und DS-Katalog **0 betroffene Knoten**. Risiko ist nicht Logik, sondern **Optik**: die Organismen sehen danach anders aus (Nav-Zeilen 214 → 341 breit). Vermutlich richtiger — aber eine Sichtänderung an fast allem.
+  - **Bekannter Rest, bewusst NICHT angefasst:** Der Plan speichert `grow` nur als Boolean, das HTML nutzt `flex:1.8` vs `flex:1`. Nach dem Fix bekämen beide Chart-Karten 887 statt 1119/661 → das Emissions-Trend-SVG (1043 breit) clippt weiter um ~228 px. Figmas `layoutGrow` kennt nur 0 und 1; proportionales Wachsen ist im Auto-Layout nicht direkt abbildbar. Eigenes Thema.
+  - Messwerkzeug: `web/verification/kpi-overflow-diagnose.html`.
+
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT — ZWEI ENTSCHEIDUNGEN + ZWEI KLICKS, SONST NICHTS:**
+
+  Rob ist am 28.07. nachts raus („mach weiter, wo du ohne mich kannst"). Beides unten liegt bewusst bei ihm und wurde NICHT eigenmächtig gemacht.
+
+  1. **ENTSCHEIDUNG: `59de5e6` (Alpha-Fix) nach `main` pushen?** Liegt fertig und grün lokal auf `main`, **nicht gepusht**. Railway deployt bei Push automatisch → wirkt sofort auf Prod, vor der Aufnahme. Deshalb bewusst liegengelassen. Ohne Push bleibt der Weiß-auf-Weiß-Fehler in der Storybook-Sidebar (und die zwei weißen Kästchen in Figma) drin. Empfehlung: pushen — rein korrektiv, Blast Radius gemessen (7 Füllungen / 2 von 21 Bausteinen), Suite 945/945 selbst nachgelaufen.
+
+  2. **ENTSCHEIDUNG + 2 KLICKS: STRETCH-Fix testen?** Liegt auf Branch `experiment/stretch-sizing`, `main` hat ihn nie gesehen.
+     - Ablauf: Branch auschecken, `dist` bauen, Dev-Plugin **neu laden**, in Figma eine **NEUE leere Datei** (⌘N) anlegen, Plugin „UIPrism" → „Aus DesignBridge übernehmen".
+     - ⚠️ Vorher prüfen, ob der Payload noch auf Prod liegt (`GET /api/figma-export/latest`) — **der Store ist flüchtig und überlebt keinen Railway-Neustart**. Falls weg: Bundle `Testdaten/ecometrics-scan-27-07-final-test.json` in die Prod-App laden (same-origin über `/api/scan/runs/<id>` oder localStorage-Injektion) und „An Figma senden" klicken.
+     - Dann **ein Befehl**: `node web/verification/measure-stretch-fix.mjs <FILE_KEY>` — prüft die harte Vorhersage (KPI-Zeile 1802, jede Karte 583), zählt Überläufe und Miniatur-Text und hat einen Regressionswächter auf die Sektionsumfänge (Atoms 4 / Molecules 7 / Organisms 10 / DS 16). Exit-Code 0 = Fix greift.
+     - Das Werkzeug ist **gegen den Ist-Zustand validiert**: es liest am ungefixten Import exakt 411 / 119 / 119 / 119 und 9 Überläufe — also genau die Zahlen der Diagnose, unabhängig reproduziert.
+     - **Trifft die Vorhersage nicht zu: NICHT nachjustieren.** Dann ist die Diagnose falsch und muss neu belegt werden.
+     - ⚠️ **Nach dem A/B `dist` wieder aus `main` bauen**, sonst läuft Robs Video-Demo unbemerkt auf experimentellem Plugin-Code.
+
+  3. Danach Videoaufnahme. **Sie ist durch nichts davon blockiert** — auch mit dem Ist-Stand gibt es für jedes Ziel eine saubere Stelle: App-Vorschau zeigt das komplette Dashboard korrekt, Storybook läuft (Sidebar-Story meiden), Figma ist auf Ebene DS-Katalog + Organisms/Molecules objektiv sauber (0 Überläufe).
+
+  **Warum der Figma-A/B nicht schon in der Nacht gefahren wurde:** Die AppleScript-Fernsteuerung ist auf dieser Maschine gerade unzuverlässig (Plugins-Menü `-1728` trotz 2 s Delays; der Quick-Actions-Ausweg holte eine fremde Community-Datei nach vorn). Unbeaufsichtigt in Robs laufendem Figma herumzuklicken war das Risiko nicht wert — die zwei Klicks von Hand kosten ihn 10 Minuten, ein verkorkstes Figma kostet mehr.
+
 - **27.07.2026 (abends, bis kurz vor dem Videoshoot) — STORYBOOK-500-BLOCKER + 10 WEITERE LIVE-BEFUNDE AUS DREI TESTRUNDEN (Sunstone + zwei EcoMetrics-Scans) GEFIXT, ALLES GEPUSHT AUF MAIN, Suite durchgehend grün (zuletzt 942/942). Nächster Schritt: Robs letzter Kurztest, danach direkt Videoaufnahme.**
 
   **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT:**
