@@ -4,6 +4,29 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **27.07.2026 (mittags, weiter) — HÖHEN-FIX C2a GEBAUT, GEGENGEMESSEN & BESTÄTIGT (`de6401e`). Drei NEUE Befunde aus Robs eigenem Vorschau-Screenshot — Session hier bewusst geschnitten, geht nächstes Mal weiter.**
+
+  **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT (in dieser Reihenfolge):**
+  1. **Text-Überlappungen in der Vorschau** (neu, s. ①).
+  2. **Emissions Trend Card: Diagramm füllt nur die halbe Breite** (neu, s. ②).
+  3. **Weißer Rahmen um das Profil in der Sidebar** (neu, s. ③).
+  4. Die Pagination-„1" (4 von 10 Figma-Überläufen, ein Muster) und die eine verbliebene geklemmte Instanz — unverändert von heute Mittag offen.
+
+  **✅ Höhen-Fix C2a (`de6401e`), gebaut NACH dem letzten RESUME-Eintrag von heute:** das fehlende Gegenstück zu Scheibe C. Der Messbehälter hatte seit dem 26.07. die echte Slot-BREITE, aber weiter eine feste Höhe (768). Die KPI-Karten emittieren `height:100%` — löste damit für JEDEN Baustein zu 768 auf, mal Scan-Maßstab 2,24 ≈ 1720 px hohe Karten. Genau Robs Bild „die Karten sind riesig, ewig lang, aber wahrscheinlich korrekte Breite". Neu `measureContainerHeight`/`designSlotHeightOf`, symmetrisch zu `measureContainerWidth`/`designSlotWidthOf`. Gegengemessen im echten Browser: **Carbon/Energy/Biogenic KPI Card 768px → 96px (= Sollmaß)**, über alle 21 Bausteine 6 besser, 15 gleich, 0 schlechter. Figma-Beleg: Organismen-Sektion 13036 → 6094, Carbon Emissions KPI Card 556×236 statt Riesenhöhe. **Robs eigener Screenshot der Vorschau bestätigt: Kartenhöhen sehen jetzt richtig aus.**
+
+  **① NEU — Text-Überlappungen in der Vorschau (nicht untersucht, nur beobachtet).** Aus Robs Screenshot, mehrere Stellen:
+  - „-12.56%" liegt ÜBER „vs last month" (Carbon Emissions Card) statt daneben/darüber mit Abstand.
+  - „-54.32%" liegt ÜBER „vs last month" (Biogenic Emissions Card), gleiches Muster.
+  - „Wert eingeben..." (ein Input/Suchfeld?) liegt über „Jane Smith" + einer „Premium"-Pille im Header — der Pillentext ist komplett verdeckt.
+  - „Emissions Trend" (Kartentitel) hat eine Unterstreichung, die wie eine zweite, verschobene Textzeile aussieht — evtl. `text-decoration` oder ein zweites überlagerndes Element.
+  - **Verdacht, ungeprüft:** könnte dieselbe Ursachen-Familie wie die Höhen-/Breiten-Fixes sein — absolut positionierte Kinder, deren Koordinaten aus der ALTEN Container-Größe stammen und nach dem heutigen Fix nicht neu einsortiert wurden. Oder ein `position:absolute`-Layout im KI-HTML, das sich auf einen Referenzrahmen verlässt, den es so nicht mehr gibt. **Erster Schritt nächste Session:** das rohe interpretierte HTML dieser 2-3 Bausteine ansehen (`interpretations['Carbon Emissions KPI Card'].html` etc. aus dem Mitschnitt), nicht raten.
+
+  **② NEU — Emissions Trend Card: Diagramm endet in der Mitte, nicht rechts.** Die Karte selbst ist jetzt richtig hoch (Fix C2a), aber der Line-Chart darin hört bei „Jun" auf ungefähr der Kartenmitte auf, der rechte Karten-Bereich bleibt leer/weiß. **Verdacht, ungeprüft:** das SVG/die Chart-Struktur hat eine feste `width` (px), die zur ALTEN (falschen) Vorstellung von der Kartenbreite passte, oder ein `viewBox`, das nicht auf die tatsächliche Container-Breite skaliert. Erster Schritt: rohes HTML dieses Bausteins ansehen, insbesondere `width=`/`viewBox=` auf `<svg>` und ob Balken/Linien-Punkte mit `px`-Koordinaten statt `%` gesetzt sind.
+
+  **③ NEU — Weißer Rahmen um das Profil in der Sidebar.** Um den „Jane Smith"-Bereich unten in der Sidebar (Avatar + Name + Zahnrad) liegt ein sichtbarer weißer Rand/Rahmen, der nicht zum lila Sidebar-Hintergrund passt — sieht aus wie ein eigener Container mit weißem `background` oder `border`, der dort nicht hingehört. **Verdacht, ungeprüft:** ein `<div>` mit `background:#fff` oder `border:1px solid #fff`, das die KI für ein Card-artiges Element gehalten hat, obwohl die Vorlage keinen sichtbaren Rahmen hat. Erster Schritt: rohes HTML von „Sidebar Navigation" (oder dem passenden Profil-Baustein) ansehen.
+
+  **Für alle drei NEUEN Befunde gilt: noch NICHT diagnostiziert, nur beobachtet — keine Ursache bestätigt, kein Fix begonnen.** Das rohe interpretierte HTML für alle drei liegt DAUERHAFT (nicht nur im flüchtigen Server-Puffer oder einer Session-Scratchpad) unter **`Testdaten/ecometrics-scan-27-07-nach-fixB.json`** — exakt das Bundle, das den Höhen-Fix oben belegt (import_id `66a6922aee9da66a`, Bild `Bildschirmfoto 2026-07-15 um 17.48.06.png`). Direkt einsetzbar: `cp Testdaten/ecometrics-scan-27-07-nach-fixB.json web/verification/prod-scan-raw.json`, dann `emit-in-browser.html` o.ä. Kein neuer Scan nötig, um mit der Diagnose anzufangen.
+
 - **27.07.2026 (mittags) — FIX B AN ECHTEN DATEN BELEGT. Voller Lauf autonom gefahren: Bild → Scan → Interpretation → Figma → Messung.** Kein Code geändert, reine Verifikation des Stands `808621e`.
 
   **Der Lauf:** `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png` (2296×2408, Robs EcoMetrics-Dashboard) selbst auf Prod hochgeladen, 21 Bausteine gescannt, **21/21 interpretiert ohne einen Fehlschlag**, Payload im echten Browser erzeugt, Figma per AppleScript ferngesteuert, Ergebnis per REST nachgemessen. Werkzeug dafür: `scratchpad/run-scan.mjs` (Upload + Interpretation in Häppchen gegen Prod).
