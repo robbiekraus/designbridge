@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU, tokenizeAnchorText, textJaccard, bestTextMatch, SPLICE_MIN_TEXT, measureContainerWidth, measureContainerHeight } from './htmlToPlan.js';
+import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU, tokenizeAnchorText, collectAnchorText, textJaccard, bestTextMatch, SPLICE_MIN_TEXT, measureContainerWidth, measureContainerHeight } from './htmlToPlan.js';
 import { PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
@@ -473,6 +473,33 @@ describe('htmlToPlan — border-* → stroke + strokeWeight (Spec §Mapping)', (
     const { plan } = htmlToPlan('<div style="border:2px solid transparent"></div>');
     expect(plan.stroke).toBeNull();
   });
+
+  // Live-Fund 27.07. (Robs EcoMetrics-Scan, Sidebar-Profilzeile): der Plan-Vertrag kennt nur EINEN
+  // stroke/strokeWeight für die ganze Box, keine Pro-Seite-Rahmen, und normalizeColor() verwirft
+  // den Alpha-Kanal beim Hex-Export (rgba(255,255,255,0.1) → #ffffff, so deckend wie 1.0). Ein im
+  // Original nur EINSEITIGER, 10%-deckender Trenner (`border-top:1px solid rgba(255,255,255,0.1)`)
+  // wurde dadurch zu einem VOLL DECKENDEN weißen Rahmen um ALLE VIER SEITEN — ein lauter,
+  // falscher Rahmenkasten statt der fast unsichtbaren Linie im Original. Da der Vertrag weder
+  // Transparenz noch Pro-Seite-Rahmen abbilden kann, ist kein Rahmen die treuere Näherung.
+  it('einseitiger Rahmen (nur border-top) mit sehr niedriger Deckkraft (<0.2) → stroke:null (Divider-Fall, kein Rahmenkasten)', () => {
+    const { plan } = htmlToPlan('<div style="border-top:1px solid rgba(255,255,255,0.1)"></div>');
+    expect(plan.stroke).toBeNull();
+  });
+
+  it('einseitiger Rahmen mit AUSREICHENDER Deckkraft (0.2) → bleibt ein echter Rahmen (kein falsch-positives Wegfiltern)', () => {
+    const { plan } = htmlToPlan('<div style="border-top:1px solid rgba(255,255,255,0.2)"></div>');
+    expect(plan.stroke).toEqual({ hex: '#ffffff', token: null });
+  });
+
+  it('RUNDUM gesetzter Rahmen (alle 4 Seiten) mit niedriger Deckkraft bleibt unangetastet (bewusster echter Kasten, kein Divider-Artefakt)', () => {
+    const { plan } = htmlToPlan('<div style="border:1px solid rgba(255,255,255,0.1)"></div>');
+    expect(plan.stroke).toEqual({ hex: '#ffffff', token: null });
+  });
+
+  it('einseitiger Rahmen mit VOLLER Deckkraft (keine rgba, normales Hex) bleibt unangetastet (Bestandsverhalten, z. B. helle Rahmenfarbe #e2e8f0)', () => {
+    const { plan } = htmlToPlan('<div style="border-top:1px solid #e2e8f0"></div>');
+    expect(plan.stroke).toEqual({ hex: '#e2e8f0', token: null });
+  });
 });
 
 describe('htmlToPlan — width/height (Spec §Mapping: NUR explizit gesetzte Größe, sonst null=HUG)', () => {
@@ -775,6 +802,39 @@ describe('htmlToPlan — SVG-Größen-Injektion (Spec 2026-07-19: fehlendes view
     const { plan } = htmlToPlan(html);
     const markup = plan.children[0].markup;
     expect(markup).toBe('<svg><rect width="5" height="5"></rect></svg>');
+  });
+
+  // Live-Fund 27.07. (Robs EcoMetrics-Scan, "Emissions Trend Chart Card"): die KI schreibt
+  // Chart-SVGs teils mit ECHTEN width="100%"/height="100%"-ATTRIBUTEN (nicht nur CSS) plus
+  // preserveAspectRatio="none", damit der Chart im Browser auf die volle Kartenbreite streckt.
+  // `hasAttribute('width')` ist dafür TRUE (der String "100%" ist ein vorhandenes Attribut) —
+  // die alte Injektion ließ das Prozent-Attribut deshalb unangetastet, Figma kann "100%" beim
+  // SVG-Import nicht auflösen und fällt auf die viewBox-Pixelbreite zurück → der Chart hört auf
+  // halber Kartenbreite auf (gemessen: viewBox 500 statt echter ~1036px Zielbreite). Fix: ein
+  // Prozent-Wert zählt für width/height als "nicht brauchbar" wie ein fehlendes Attribut und wird
+  // durch den echten gemessenen Pixelwert ersetzt; viewBox (der Koordinatenraum der Pfade) bleibt
+  // unangetastet, damit sich keine Pfad-Koordinate verschiebt.
+  it('width="100%"/height="100%" (Prozent-Attribut, nicht nur CSS), viewBox vorhanden → width/height durch gemessene Pixelwerte ersetzt, viewBox unberührt', () => {
+    const html =
+      '<svg width="100%" height="100%" viewBox="0 0 500 160" preserveAspectRatio="none" ' +
+      'data-mock-rect=\'{"x":0,"y":0,"width":1036,"height":180}\'><path d="M 0,140 500,40"></path></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup).toContain('viewBox="0 0 500 160"');
+    expect(markup).toContain('width="1036"');
+    expect(markup).toContain('height="180"');
+    expect(markup).not.toContain('width="100%"');
+    expect(markup).not.toContain('height="100%"');
+  });
+
+  it('width="100%" aber height als echter Pixelwert gesetzt → nur width wird ersetzt, height bleibt', () => {
+    const html =
+      '<svg width="100%" height="200" viewBox="0 0 500 200" ' +
+      'data-mock-rect=\'{"x":0,"y":0,"width":462,"height":200}\'><path d="M 0,100 500,50"></path></svg>';
+    const { plan } = htmlToPlan(html);
+    const markup = plan.children[0].markup;
+    expect(markup.match(/\bwidth="[^"]*"/g)).toEqual(['width="462"']);
+    expect(markup.match(/\bheight="[^"]*"/g)).toEqual(['height="200"']);
   });
 });
 
@@ -1674,6 +1734,46 @@ describe('bestSpliceMatch (reine Zuordnungslogik, kein DOM)', () => {
 // Funktionen (kein DOM nötig) — direkt mit Plain-Objects/Sets testbar, analog zu `iou`/
 // `bestSpliceMatch` oben (Spec §Tests 1–3).
 // ---------------------------------------------------------------------------
+// Live-Fund 27.07. (Robs EcoMetrics-Scan, "Search Bar Input"): reine DOM-Lesefunktion (kein Rect
+// nötig, jsdom reicht) — ergänzt Anker-Text um Platzhalter-Attribute von input/textarea, weil
+// `el.textContent` bei einem Void-Element wie `<input placeholder="…">` nichts sieht.
+describe('collectAnchorText (Platzhalter-Erweiterung, Live-Fund 27.07.)', () => {
+  it('eigenes <input placeholder> ohne Text-Kinder → Platzhalter wird zum Anker-Text', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<svg></svg><input placeholder="Search" />';
+    expect(collectAnchorText(div)).toBe('Search');
+  });
+
+  it('el selbst ist ein <input placeholder> (nicht nur ein Nachfahre)', () => {
+    const input = document.createElement('input');
+    input.setAttribute('placeholder', 'Search');
+    expect(collectAnchorText(input)).toBe('Search');
+  });
+
+  it('echter Text UND Platzhalter → beide werden zusammengeführt (Text zuerst)', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<label>Name</label><input placeholder="Jane Doe" />';
+    expect(collectAnchorText(div)).toBe('Name Jane Doe');
+  });
+
+  it('kein Text, kein Platzhalter (z. B. reines Icon) → leerer String', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<svg><path d="M0 0"></path></svg>';
+    expect(collectAnchorText(div)).toBe('');
+  });
+
+  it('leerer/nur-Whitespace-Platzhalter wird ignoriert', () => {
+    const div = document.createElement('div');
+    div.innerHTML = '<input placeholder="   " />';
+    expect(collectAnchorText(div)).toBe('');
+  });
+
+  it('nicht-Element/null → leerer String, wirft nie', () => {
+    expect(collectAnchorText(null)).toBe('');
+    expect(collectAnchorText(undefined)).toBe('');
+  });
+});
+
 describe('tokenizeAnchorText (reine Tokenisierung, Spec §1)', () => {
   it('lowercase, Satzzeichen raus, Zahlen mit Punkt/Prozent bleiben', () => {
     const tokens = tokenizeAnchorText('Storage / Upgrade — 3.4 GB of 15 GB!');
@@ -2038,6 +2138,42 @@ describe('htmlToPlan — Text-Anker-Matching (Composition-Splice v2, Spec 2026-0
     expect(warnings).toEqual([
       'Composition-Splice: kein passendes Element gefunden für: Ghost Widget (weder Text-Anker noch IoU ≥ 0.35) — Inhalt bleibt Teil der Eltern-Interpretation.',
     ]);
+  });
+
+  // Live-Fund 27.07. (Robs EcoMetrics-Scan, "Top Header Bar" / "Search Bar Input"): ein Suchfeld
+  // ist ein `<input placeholder="Search">` — ein Void-Element ohne Text-Kind-Knoten. Ohne
+  // collectAnchorText() (s. htmlToPlan.js) wären seine anchorTokens leer, es würde komplett aus
+  // Phase 1 fallen und in Phase 2 (reines IoU) einen viel BREITEREN Geschwister-Wrapper treffen —
+  // gemessen am echten Scan: der ganze rechte Toolbar-Wrapper (Suche+Zeitraum+Region+Export) schlug
+  // das echte Suchfeld-Div knapp (IoU 0.376 vs 0.362). Dieser Test bildet genau diese Geometrie
+  // nach: das echte Suchfeld-Div sitzt geometrisch NÄHER an der Ziel-bbox als der breite Wrapper,
+  // aber der Wrapper überlappt trotzdem stark genug, um Phase 2 (ohne Text-Anker) zu gewinnen.
+  it('Void-Input-Ziel (Platzhalter statt Text-Kind): anchorTokens aus dem Platzhalter matchen das ECHTE Suchfeld, nicht den breiteren Geschwister-Wrapper', () => {
+    const html = `
+      <div data-mock-rect='{"x":0,"y":0,"width":775,"height":98}'>
+        <div data-mock-rect='{"x":165,"y":21,"width":650,"height":57}'>
+          <div data-mock-rect='{"x":165,"y":31,"width":228,"height":36}'>
+            <input placeholder="Search" data-mock-rect='{"x":199,"y":40,"width":180,"height":18}' />
+          </div>
+          <div data-mock-rect='{"x":420,"y":31,"width":110,"height":36}'>This Month</div>
+          <div data-mock-rect='{"x":540,"y":31,"width":100,"height":36}'>India</div>
+          <div data-mock-rect='{"x":660,"y":31,"width":110,"height":36}'>Export</div>
+        </div>
+      </div>
+    `;
+    // anchorTokens wie emitFigmaComponents.js sie jetzt (mit collectAnchorText) aus der EIGENEN,
+    // separaten Interpretation von "Search Bar Input" bauen würde — ein Icon + genau dieses
+    // Void-Input, kein sichtbarer Text, nur der Platzhalter "Search".
+    const spliceTargets = [{ name: 'Search Bar Input', bbox: { x: 0.21, y: 0, w: 0.37, h: 0.8 }, anchorTokens: ['search'] }];
+    const { plan, warnings } = htmlToPlan(html, { spliceTargets });
+    expect(warnings).toEqual([]);
+    // Gewinner muss das kleine Suchfeld-Div sein (228×36), NICHT der 650×57 breite Toolbar-Wrapper.
+    const outerNode = plan.children[0]; // Toolbar-Wrapper (650×57) bleibt normaler Nachbau
+    expect(outerNode.type).not.toBe('component-ref');
+    const searchWrapper = outerNode.children[0]; // Slot-Box um die gesplicte Instanz (228×36)
+    expect(searchWrapper.width).toBe(228);
+    expect(searchWrapper.height).toBe(36);
+    expect(searchWrapper.children[0]).toMatchObject({ type: 'component-ref', name: 'Search Bar Input' });
   });
 });
 

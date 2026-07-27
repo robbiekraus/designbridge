@@ -236,9 +236,42 @@ function readFill(computed, ctx) {
   return resolveColorRef(normalizeColor(computed.backgroundColor), ctx);
 }
 
+/** Alpha-Kanal eines rgb()/rgba()-Farbwerts (wie getComputedStyle ihn liefert), 0..1. Nicht
+ *  parsbar/kein Alpha angegeben → 1 (voll deckend) — derselbe Parse-Weg wie normalizeColor, nur
+ *  dass hier gerade der Kanal interessiert, den normalizeColor beim Hex-Export verwirft. */
+function colorAlpha(value) {
+  if (typeof value !== 'string') return 1;
+  const match = value.trim().toLowerCase().match(/^rgba?\(([^)]+)\)$/);
+  if (!match) return 1;
+  const parts = match[1].split(',').map((p) => parseFloat(p.trim()));
+  const a = parts[3];
+  return Number.isFinite(a) ? a : 1;
+}
+
+// Schwelle, ab der ein Rahmen als „faktisch unsichtbarer Trenner" statt als echter Rahmen gilt
+// (s. Kommentar in readBorder). Bewusst niedrig (0.2) — echte, bewusst helle Rahmenfarben (z. B.
+// #e2e8f0) sind VOLL deckend und bleiben unberührt; nur Alpha-basierte Mini-Trenner (0.1 ist der
+// im Live-Fund gemessene Wert) fallen darunter.
+const FAINT_BORDER_ALPHA_MAX = 0.2;
+
 /** border-*-width + border-*-color → stroke + strokeWeight (Spec §Mapping: sichtbarer Rahmen,
  *  width>0 und nicht transparent). strokeWeight-Default bleibt 1, wenn kein Rahmen sichtbar ist
- *  (Vertrag: strokeWeight nur wirksam, wenn stroke !== null). */
+ *  (Vertrag: strokeWeight nur wirksam, wenn stroke !== null).
+ *
+ *  Live-Fund 27.07. (Robs EcoMetrics-Scan, Sidebar-Profilzeile): der Plan-Vertrag kennt nur EINEN
+ *  `stroke`/`strokeWeight` für die ganze Box (keine Pro-Seite-Rahmen) — eine im Original nur
+ *  EINSEITIGE, kaum sichtbare Trennlinie (`border-top:1px solid rgba(255,255,255,0.1)`, ein
+ *  10%-deckender Divider über dem Profilblock) wird sonst zu einem VOLL DECKENDEN weißen Rahmen
+ *  UM ALLE VIER SEITEN — `normalizeColor` verwirft den Alpha-Kanal beim Hex-Export (0.1 → gleiches
+ *  Hex wie 1.0), und Figma kennt in diesem Vertrag kein „nur oben". Ergebnis: ein lauter weißer
+ *  Rahmenkasten um den Profilbereich, der mit dem lila Sidebar-Hintergrund kollidiert — obwohl das
+ *  Original nur eine fast unsichtbare Linie zeigt. Da der Vertrag weder Transparenz noch
+ *  Pro-Seite-Rahmen abbilden kann, ist KEIN Rahmen die treuere Näherung als ein lauter, falscher
+ *  Rahmen auf allen vier Seiten: ein einseitiger Rahmen (Grenzfall reiner Divider) mit einer Farbe
+ *  unter `FAINT_BORDER_ALPHA_MAX` Deckkraft wird deshalb ganz weggelassen. Ein RUNDUM gesetzter
+ *  Rahmen (alle vier Seiten, ein bewusster echter Kasten) bleibt unangetastet, selbst bei
+ *  niedriger Deckkraft — dort ist „Rahmen auf allen Seiten" die korrekte Absicht, kein Artefakt
+ *  dieses Vertrags. */
 function readBorder(computed, ctx) {
   const widths = [computed.borderTopWidth, computed.borderRightWidth, computed.borderBottomWidth, computed.borderLeftWidth].map(pxOr0);
   const colors = [computed.borderTopColor, computed.borderRightColor, computed.borderBottomColor, computed.borderLeftColor];
@@ -246,6 +279,10 @@ function readBorder(computed, ctx) {
   if (idx === -1) return { stroke: null, strokeWeight: 1 };
   const hex = normalizeColor(colors[idx]);
   if (hex == null) return { stroke: null, strokeWeight: 1 };
+  const sideCount = widths.filter((w) => w > 0).length;
+  if (sideCount < 4 && colorAlpha(colors[idx]) < FAINT_BORDER_ALPHA_MAX) {
+    return { stroke: null, strokeWeight: 1 };
+  }
   return { stroke: resolveColorRef(hex, ctx), strokeWeight: widths[idx] || 1 };
 }
 
@@ -679,21 +716,42 @@ function stripExternalRefs(root, ctx) {
   }
 }
 
-/** Injiziert fehlende viewBox/width/height auf dem geklonten Wurzel-<svg> aus dem gemessenen Rect
- *  des LIVE-Elements (Spec: docs/superpowers/specs/2026-07-19-svg-viewbox-injection-design.md).
- *  Gemini liefert Chart-SVGs ohne diese Attribute (nur CSS width:100%/height:100%) — beim Figma-
- *  Import nicht auflösbar → Fallback auf CSS-Default (~300×150) → Pfade jenseits davon werden
- *  abgeschnitten. Fix: Pixel-Koordinatenraum der Pfade (= gemessene Fläche) 1:1 als viewBox setzen.
- *  Nur bei echtem Rect (>0, jsdom-Default 0×0 ohne Mock → keine Injektion, Markup bleibt verbatim).
- *  Vorhandene Attribute werden NIE überschrieben (hasAttribute-Check, nicht leere Strings). */
+/** Ein SVG-`width`/`height`-Attributwert ist nur dann eine BRAUCHBARE physische Pixelgröße, wenn
+ *  er sich als einheitenlose Zahl liest (SVG-Vertrag: ohne Einheit = px) — `parseFloat` allein
+ *  reicht nicht, weil es auch bei "100%" (Präfix "100") einen Zahlenwert liefert. Live-Fund 27.07.
+ *  (Robs EcoMetrics-Scan, `Emissions Trend Chart Card`): die KI schreibt Chart-SVGs teils mit
+ *  ECHTEN `width="100%"`-Attributen (nicht nur CSS) und `preserveAspectRatio="none"`, damit der
+ *  Chart im Browser auf die volle Kartenbreite streckt — Figmas `createNodeFromSvg` kennt aber
+ *  keinen Layout-Kontext, in dem "100%" auflösbar wäre, und fällt auf die viewBox-Pixelbreite
+ *  zurück (hier 500 statt der echten ~1036px Zielbreite) → der Chart hört auf halber Kartenbreite
+ *  auf, der Rest bleibt weiß. */
+function isUsablePixelSize(value) {
+  if (value == null) return false;
+  const trimmed = String(value).trim();
+  if (trimmed === '') return false;
+  return /^-?\d+(\.\d+)?$/.test(trimmed);
+}
+
+/** Injiziert fehlende/unbrauchbare viewBox/width/height auf dem geklonten Wurzel-<svg> aus dem
+ *  gemessenen Rect des LIVE-Elements (Spec: docs/superpowers/specs/2026-07-19-svg-viewbox-
+ *  injection-design.md, erweitert 27.07. um den Prozent-Fall s. isUsablePixelSize).
+ *  Gemini liefert Chart-SVGs teils ganz ohne Größen-Attribute (nur CSS width:100%/height:100%) —
+ *  beim Figma-Import nicht auflösbar → Fallback auf CSS-Default (~300×150) → Pfade jenseits davon
+ *  werden abgeschnitten. Fix: Pixel-Koordinatenraum der Pfade (= gemessene Fläche) 1:1 als viewBox
+ *  setzen. Nur bei echtem Rect (>0, jsdom-Default 0×0 ohne Mock → keine Injektion, Markup bleibt
+ *  verbatim). `viewBox` wird nur bei FEHLENDEM Attribut injiziert (sie definiert den Koordinatenraum
+ *  der Pfade — ein vorhandener, gültiger Wert darf nie überschrieben werden, sonst verschieben sich
+ *  alle Pfad-Koordinaten). `width`/`height` werden dagegen auch bei einem VORHANDENEN, aber
+ *  UNBRAUCHBAREN Wert (Prozent, leer, nicht-numerisch) ersetzt — nur ein echter Pixelwert lässt
+ *  Figma (wie zuvor der Browser) den Chart auf die tatsächliche Zielbreite strecken. */
 function injectMissingSvgSize(clone, el) {
   const rect = typeof el.getBoundingClientRect === 'function' ? el.getBoundingClientRect() : { width: 0, height: 0 };
   if (!(rect.width > 0 && rect.height > 0)) return;
   const w = Math.max(1, Math.round(rect.width));
   const h = Math.max(1, Math.round(rect.height));
   if (!clone.hasAttribute('viewBox')) clone.setAttribute('viewBox', `0 0 ${w} ${h}`);
-  if (!clone.hasAttribute('width')) clone.setAttribute('width', `${w}`);
-  if (!clone.hasAttribute('height')) clone.setAttribute('height', `${h}`);
+  if (!isUsablePixelSize(clone.getAttribute('width'))) clone.setAttribute('width', `${w}`);
+  if (!isUsablePixelSize(clone.getAttribute('height'))) clone.setAttribute('height', `${h}`);
 }
 
 // currentColor-Auflösung (Spec: docs/superpowers/specs/2026-07-19-svg-currentcolor-resolution-
@@ -911,6 +969,38 @@ export function bestSpliceMatch(elRectNorm, targets, usedNames) {
   return { name: best.name };
 }
 
+/** Live-Fund 27.07. (Robs EcoMetrics-Scan, `Search Bar Input`): ein Suchfeld ist im
+ *  Interpretations-HTML ein `<input placeholder="Search">` — ein HTML-Void-Element ohne Kind-
+ *  Knoten. `el.textContent` sieht davon NICHTS (der Platzhalter ist ein Attribut, kein Text-Kind),
+ *  also bekommt so ein Ziel leere `anchorTokens` und fällt KOMPLETT aus Phase 1 (Text-Anker) raus
+ *  — Phase 2 (reines IoU) matcht dann bei ähnlichem Score auch einen viel GRÖSSEREN Geschwister-
+ *  Wrapper (z. B. die ganze rechte Toolbar aus Suche+Glocke+Zeitraum+Region+Export-Button), weil
+ *  Phase 2 keine Spezifitäts-/Leaf-Präferenz kennt (gemessen: Toolbar-Wrapper IoU 0.376 schlägt
+ *  das echte Suchfeld-Div IoU 0.362 — beide über der Schwelle, der falsche gewinnt knapp). Das
+ *  spleißt die falsche, viel zu große Instanz an die Zielstelle — sichtbarer Overlap-Bug.
+ *
+ *  Fix: Anker-Text schließt Platzhalter-Attribute von `<input>`/`<textarea>` (eigenes Element UND
+ *  Nachfahren) ein — dieselbe Erweiterung muss auf BEIDEN Seiten des Vergleichs greifen (Ziel-
+ *  Interpretation UND Kandidaten-Element im Elternteil), sonst bleibt der Score bedeutungslos.
+ *  Reine DOM-Lesefunktion, kein Netz, wirft nie (defensive optional chaining überall). */
+export function collectAnchorText(el) {
+  if (!el || typeof el !== 'object') return '';
+  const parts = [];
+  const own = typeof el.textContent === 'string' ? el.textContent.trim() : '';
+  if (own) parts.push(own);
+  const tag = (el.tagName || '').toLowerCase();
+  const isControl = tag === 'input' || tag === 'textarea';
+  const descendants = typeof el.querySelectorAll === 'function'
+    ? Array.from(el.querySelectorAll('input, textarea'))
+    : [];
+  const controls = isControl ? [el, ...descendants] : descendants;
+  for (const control of controls) {
+    const placeholder = control.getAttribute?.('placeholder');
+    if (placeholder && placeholder.trim()) parts.push(placeholder.trim());
+  }
+  return parts.join(' ');
+}
+
 /** Text → Token-Set (Spec §1: „lowercase → alles außer Buchstaben/Ziffern/./% durch Space
  *  ersetzen → Tokens mit Länge ≥ 2 behalten"). Single Source of Truth für BEIDE Seiten des
  *  Vergleichs (Anker-Tokens aus der Kind-Interpretation UND Subtree-Text eines Kandidaten-
@@ -1043,7 +1133,7 @@ function computeSpliceAssignment(roots, spliceTargets, refRect) {
     for (const el of collectCandidateElements(roots)) {
       if (typeof el.getBoundingClientRect !== 'function') continue;
       if (!isPlausibleSpliceRect(el.getBoundingClientRect(), refArea)) continue;
-      const elTokens = tokenizeAnchorText(el.textContent || '');
+      const elTokens = tokenizeAnchorText(collectAnchorText(el));
       const match = bestTextMatch(elTokens, textTargets, new Set());
       if (!match) continue;
       const target = textTargets.find((t) => t.name === match.name);

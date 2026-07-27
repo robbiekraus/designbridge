@@ -483,6 +483,39 @@ describe('emitFigmaComponents — composed-spliced (Composition-Splice, Task 2)'
     expect(wrapperNode.children[0].name).toBe('KPI Chart');
   });
 
+  // Live-Fund 27.07. (Robs EcoMetrics-Scan, "Search Bar Input"): die Kind-Interpretation eines
+  // Suchfelds ist oft NUR ein Icon + ein Void-`<input placeholder="…">` — `detached.textContent`
+  // sieht davon nichts (Platzhalter ist ein Attribut, kein Text-Kind-Knoten), anchorTokens wären
+  // vorher leer geblieben und der Splice hätte sich (bei absichtlich falscher bbox wie hier) nicht
+  // mehr per Text retten können. collectAnchorText() zieht den Platzhalter zusätzlich heran.
+  it('Kind-Interpretation ist NUR ein <input placeholder> ohne Text-Kind → anchorTokens aus dem Platzhalter retten den Splice trotz absichtlich falscher Kind-bbox', () => {
+    const parentHtml =
+      '<div data-mock-rect=\'{"x":0,"y":0,"width":900,"height":400}\'>' +
+      '<h2>Dashboard-Titel</h2>' +
+      '<div data-mock-rect=\'{"x":300,"y":100,"width":300,"height":100}\'>' +
+      '<svg></svg><input placeholder="Search" />' +
+      '</div>' +
+      '</div>';
+    const result = baseResult(parentHtml);
+    // Kind-bbox absichtlich weit weg von der tatsächlichen Position → normierte IoU ≈ 0.
+    result.raw.organisms[0] = {
+      name: 'KPI Chart',
+      bbox: { x: 0.95, y: 0.95, w: 0.04, h: 0.04 },
+      confidence: 'high',
+      source: 'ai',
+      notes: null,
+    };
+    // Die Kind-Interpretation selbst ist NUR das Void-Input — kein sichtbarer Text irgendwo.
+    result.interpretations['KPI Chart'] = { html: '<svg></svg><input placeholder="Search" />', jsx: '<input />' };
+    const out = emitFigmaComponents(result);
+    const dashboard = out.find((c) => c.name === 'Dashboard');
+    expect(dashboard.source).toBe('composed-spliced');
+    const plan = dashboard.variants[0].plan;
+    const wrapperNode = plan.children.find((c) => c.type === 'box' && c.children?.[0]?.type === 'component-ref');
+    expect(wrapperNode).toBeDefined();
+    expect(wrapperNode.children[0].name).toBe('KPI Chart');
+  });
+
   it('Kind ohne eigene Interpretation → anchorTokens: [] (Fallback bleibt IoU, Bestandsverhalten unverändert)', () => {
     // Deckt sich mit dem allerersten Test dieser Suite (Kind "KPI Chart" hat dort KEINEN Eintrag
     // in result.interpretations) — bestätigt hier explizit, dass ein fehlender Interpretations-

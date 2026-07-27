@@ -5,7 +5,7 @@
 import { matchTemplate } from '../components/templates/registry.js';
 import { normalizeTokens } from './normalizeTokens.js';
 import { pickTokenRefs } from './pickTokenRefs.js';
-import { htmlToPlan, tokenizeAnchorText } from './htmlToPlan.js';
+import { htmlToPlan, tokenizeAnchorText, collectAnchorText } from './htmlToPlan.js';
 import { groundPlan } from './groundPlan.js';
 import { composePlan } from './composePlan.js';
 import { PREVIEW_VIRTUAL_WIDTH } from '../previewWidth.js';
@@ -138,15 +138,20 @@ export function emitFigmaComponents(result, opts = {}) {
           // Kind-bbox (absolute Bildkoordinaten 0..1) → auf den Elternteil normiert (Spec §2).
           // anchorTokens (Spec 2026-07-19-splice-text-anchor-matching-design.md §1): aus der
           // Kind-INTERPRETATION (nicht dem bbox-Item) per Detached-Div-Parse gezogen — kein
-          // Layout nötig, nur textContent. Kind ohne Interpretation/Tokens → [] (Fallback greift
-          // dann auf reines IoU-Matching, Spec §3).
+          // Layout nötig, nur textContent + Platzhalter-Attribute von input/textarea (Live-Fund
+          // 27.07., s. Kommentar bei collectAnchorText/htmlToPlan.js: ein Suchfeld ohne echten
+          // Text-Kind-Knoten — nur `<input placeholder="Search">` — bekäme sonst leere
+          // anchorTokens und würde komplett auf das ungenauere IoU-Fallback-Matching fallen, das
+          // dann einen viel größeren Geschwister-Wrapper statt des eigentlichen Suchfelds trifft).
+          // Kind ohne Interpretation/Tokens → [] (Fallback greift dann auf reines IoU-Matching,
+          // Spec §3).
           const spliceTargets = childItems.map((c) => {
             const childHtml = result?.interpretations?.[c.name]?.html;
             let anchorTokens = [];
             if (childHtml) {
               const detached = document.createElement('div');
               detached.innerHTML = childHtml;
-              anchorTokens = Array.from(tokenizeAnchorText(detached.textContent || ''));
+              anchorTokens = Array.from(tokenizeAnchorText(collectAnchorText(detached)));
             }
             return {
               name: c.name,
