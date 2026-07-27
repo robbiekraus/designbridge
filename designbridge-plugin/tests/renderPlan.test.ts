@@ -819,3 +819,82 @@ test('component-ref: Position x/y kommt in allen Fällen aus abs, auch wenn min(
   assert.equal(rendered.x, 42);
   assert.equal(rendered.y, 99);
 });
+
+// ─── Fix A für Fluss-Kinder (Robs EcoMetrics-Scan, 27.07.2026) ────────────────
+// Befund per Figma-REST an Robs Datei TjZhKKzgOXYr6SbjaihK91: 23 Stellen, an denen Inhalt aus
+// seinem Rahmen ragt — ALLE waagerecht, keine einzige senkrecht. Leitfälle: Text „EcoMetrics"
+// 400 breit in „Brand Logo" 287, Text „Dashboard" 232 in „Sidebar Nav Item" 287. Die
+// Rahmenbreite kommt aus der Messung, die Schriftgröße aus dem Scan-Maßstab — passt beides
+// nicht zueinander, schneidet clipsContent (Fix 6) den Überstand weg.
+// Entscheidung wie bei Fix A vom 18.07.: überragt der Inhalt seinen Rahmen, gewinnt der Inhalt.
+
+test('Fluss-Kind breiter als sein Rahmen → der Rahmen wächst mit, statt abzuschneiden', async () => {
+  installFigmaStub();
+  const kind = emptyBox({ width: 400, height: 50 });
+  const parent = emptyBox({ children: [kind], width: 287, height: 165, layout: 'row' });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  assert.equal(frame.width, 400, 'Rahmen wächst auf die Breite seines Inhalts');
+  assert.equal(frame.height, 165, 'die passende Achse bleibt unverändert');
+});
+
+test('das Padding auf der Überlauf-Seite zählt mit', async () => {
+  installFigmaStub();
+  const kind = emptyBox({ width: 400, height: 50 });
+  const parent = emptyBox({
+    children: [kind], width: 287, height: 165, layout: 'row', padding: [0, 54, 0, 54],
+  });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  // Der Stub simuliert kein Auto-Layout (Kind bleibt bei x=0), also 400 + paddingRight.
+  assert.equal(frame.width, 454, 'rechtes Padding wird zur benötigten Breite addiert');
+});
+
+test('passender Inhalt lässt den Rahmen unangetastet (Regressionsschutz)', async () => {
+  installFigmaStub();
+  const kind = emptyBox({ width: 100, height: 50 });
+  const parent = emptyBox({ children: [kind], width: 287, height: 165, layout: 'row' });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  assert.equal(frame.width, 287, 'kein Wachstum ohne Überlauf');
+  assert.equal(frame.height, 165);
+});
+
+test('der Rahmen wird nie KLEINER als sein Plan (nur wachsen, nie schrumpfen)', async () => {
+  installFigmaStub();
+  const kind = emptyBox({ width: 50, height: 20 });
+  const parent = emptyBox({ children: [kind], width: 600, height: 400, layout: 'row' });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  assert.equal(frame.width, 600);
+  assert.equal(frame.height, 400);
+});
+
+test('eine huggende Achse bleibt HUG — resize() darf sie nicht auf FIXED umstellen', async () => {
+  installFigmaStub();
+  // Nur die Breite ist im Plan gesetzt; die Höhe hugged (plan.height === null).
+  const kind = emptyBox({ width: 400, height: 50 });
+  const parent = emptyBox({ children: [kind], width: 287, layout: 'row' });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  assert.equal(frame.width, 400, 'die feste Achse wächst');
+  // layout row → Primärachse = Breite (FIXED gesetzt), Counter = Höhe (bleibt AUTO).
+  assert.equal(frame.counterAxisSizingMode, 'AUTO', 'die huggende Höhe bleibt gehugged');
+  assert.equal(frame.primaryAxisSizingMode, 'FIXED');
+});
+
+test('eine HUG-Box ohne explizite Größe wird gar nicht erst angefasst', async () => {
+  installFigmaStub();
+  const kind = emptyBox({ width: 400, height: 50 });
+  const parent = emptyBox({ children: [kind], layout: 'row' });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  // Ohne plan.width/height clippt der Rahmen ohnehin nicht (Fix 6) — nichts zu tun.
+  assert.equal(frame.primaryAxisSizingMode, 'AUTO');
+  assert.equal(frame.counterAxisSizingMode, 'AUTO');
+});
+
+test('absolute Kinder bleiben growToFitLoneAbsoluteChild überlassen', async () => {
+  installFigmaStub();
+  // Ein absolutes Kind, das breiter ist — der eng gefasste Sonderfall von 27.07. greift,
+  // der neue Fluss-Zweig darf nicht zusätzlich mitwachsen lassen (sonst doppelt).
+  const kind = emptyBox({ absolute: { x: 0, y: 0, width: 500, height: 600 }, width: 500, height: 600 });
+  const parent = emptyBox({ children: [kind], width: 287, height: 165 });
+  const frame = (await renderPlan(parent, new Map(), [], emptySections())) as unknown as FrameStub;
+  assert.equal(frame.width, 500, 'gewachsen — aber über den bestehenden, belegten Pfad');
+  assert.equal(frame.height, 600);
+});

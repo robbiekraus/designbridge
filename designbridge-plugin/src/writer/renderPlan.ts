@@ -323,6 +323,60 @@ function growToFitLoneAbsoluteChild(frame: FrameNode, plan: Extract<PlanNode, { 
   frame.resize(Math.max(frame.width, needW), Math.max(frame.height, needH));
 }
 
+/** Fluss-Kinder (Auto-Layout, NICHT absolut) können größer sein als ihr Rahmen: die Rahmengröße
+ *  kommt aus der MESSUNG (freezeRootWidth zieht die Wurzel auf ihren Slot), die Kinder bringen
+ *  aber ihre eigene natürliche Größe mit — ein Textknoten in Figma ist so breit, wie Inter bei
+ *  DIESER Schriftgröße es verlangt. Passt die aus dem Scan-Maßstab abgeleitete Schriftgröße nicht
+ *  zur gemessenen Slot-Breite, schneidet `clipsContent` (Fix 6) den Überstand weg.
+ *
+ *  Befund per Figma-REST an Robs EcoMetrics-Datei (27.07.2026): 23 Stellen, an denen Inhalt aus
+ *  seinem Rahmen ragt — ALLE waagerecht, keine einzige senkrecht. Leitfälle: Text „EcoMetrics"
+ *  400 breit in „Brand Logo" 287 (Schrift 72 bei 54 px Padding je Seite), Text „Dashboard" 232
+ *  in „Sidebar Nav Item" 287 (Schrift 45 bei 45 px Padding).
+ *
+ *  Dieselbe Entscheidung wie Fix A vom 18.07. und wie `growToFitLoneAbsoluteChild`: überragt der
+ *  Inhalt seinen Rahmen, gewinnt der Inhalt. Ein etwas zu breiter Baustein ist besser als ein
+ *  abgeschnittener — die eigentliche Ursache (die KI zeichnet den Baustein größer, als sein
+ *  gemessener Slot hergibt) sitzt im Scan-Prompt, nicht hier. Dies ist das Netz darunter.
+ *
+ *  Es wird NUR gewachsen, nie geschrumpft, und nur auf einer Achse, die der Plan explizit gesetzt
+ *  hat: eine huggende Achse clippt ohnehin nicht, und `resize()` würde sie auf FIXED umstellen —
+ *  dieselbe Falle wie bei `applyAbsolute`/`hugAxes` (Befund 27.07.). */
+function growToFitFlowChildren(frame: FrameNode, plan: Extract<PlanNode, { type: 'box' }>): void {
+  if (plan.width === null && plan.height === null) return; // HUG-Box clippt ohnehin nicht
+  if (frame.children.length === 0) return;
+
+  let needW = 0;
+  let needH = 0;
+  let sawFlowChild = false;
+  for (const child of frame.children) {
+    const positioned = child as SceneNode & { layoutPositioning?: 'AUTO' | 'ABSOLUTE' };
+    // Absolut positionierte Kinder deckt growToFitLoneAbsoluteChild ab — den eng gefassten,
+    // an der Fixture belegten Fall der v3-Flow-Box. Hier nicht zusätzlich mitzählen.
+    if (positioned.layoutPositioning === 'ABSOLUTE') continue;
+    sawFlowChild = true;
+    needW = Math.max(needW, child.x + child.width);
+    needH = Math.max(needH, child.y + child.height);
+  }
+  if (!sawFlowChild) return;
+  // Das Padding auf der Überlauf-Seite gehört dazu, sonst klebt der Inhalt am Rand.
+  needW += frame.paddingRight;
+  needH += frame.paddingBottom;
+
+  const targetW = plan.width !== null ? Math.max(frame.width, needW) : frame.width;
+  const targetH = plan.height !== null ? Math.max(frame.height, needH) : frame.height;
+  if (targetW === frame.width && targetH === frame.height) return;
+
+  // resize() stellt BEIDE Achsen auf FIXED. Die Sizing-Modes danach zurücksetzen, damit eine
+  // huggende Achse gehugged bleibt; die gewachsene Achse ist per Konstruktion schon FIXED
+  // (s. der Block, der plan.width/height anwendet), verliert also nichts.
+  const prevPrimary = frame.primaryAxisSizingMode;
+  const prevCounter = frame.counterAxisSizingMode;
+  frame.resize(targetW, targetH);
+  frame.primaryAxisSizingMode = prevPrimary;
+  frame.counterAxisSizingMode = prevCounter;
+}
+
 /** Welche Achsen eines Nodes ihre Größe aus dem Inhalt ziehen (Auto-Layout-Sizing 'AUTO').
  *  Ohne Auto-Layout ('NONE') oder auf einem Node ohne diese Felder: keine — beide Achsen fest. */
 function hugAxes(node: SceneNode): { width: boolean; height: boolean } {
@@ -458,6 +512,7 @@ export async function renderPlan(
       frame.resize(plan.width ?? frame.width, plan.height ?? frame.height);
     }
     growToFitLoneAbsoluteChild(frame, plan);
+    growToFitFlowChildren(frame, plan);
     // Fix 6 (Testrunde 6, Spec §Fix 6, Punkt 3): figma.createFrame() liefert clipsContent
     // DEFAULT true — ungesetzt clippt also JEDE Box, auch eine HUG-Box (plan.width/height beide
     // null), sobald ein Kind aus irgendeinem Grund über die gehuggte Größe hinausreicht (z. B.
