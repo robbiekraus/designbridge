@@ -113,3 +113,37 @@ test('lässt große Crops unverändert (kein Upscaling)', async () => {
   assert.equal(crop.getWidth(), 500);
   assert.equal(crop.getHeight(), 400);
 });
+
+// ─── Scheibe B: Pixelgröße als Größenvorgabe (27.07.2026) ─────────────────────
+// Der Interpretations-Prompt sagt der KI, wie groß der Baustein im Original wirklich ist
+// (renderSizeFor/componentHeading in interpretComponents.js). Ohne diese Angabe hier im
+// Segment gäbe es dort nichts umzurechnen.
+test('Segment mit bbox trägt seine Größe in Bildpixeln + die Bildbreite', async () => {
+  const p = await makeSplitImage(); // 100×100
+  const segments = await imageDecomposer.decompose(
+    { imagePath: p },
+    [{ name: 'Rechts', kind: 'atom', bbox: { x: 0.5, y: 0.25, w: 0.5, h: 0.5 } }],
+  );
+  assert.deepEqual(segments[0].pixel, { w: 50, h: 50, imageWidth: 100 });
+  fs.unlinkSync(p);
+});
+
+test('Segment ohne bbox hat keine Größenvorgabe', async () => {
+  const p = await makeSplitImage();
+  const segments = await imageDecomposer.decompose(
+    { imagePath: p },
+    [{ name: 'Ohne', kind: 'atom' }],
+  );
+  assert.equal(segments[0].pixel, null);
+  fs.unlinkSync(p);
+});
+
+test('eine geclampte bbox liefert eine Größe > 0 (keine 0×0-Vorgabe)', async () => {
+  const p = await makeSplitImage();
+  const segments = await imageDecomposer.decompose(
+    { imagePath: p },
+    [{ name: 'Winzig', kind: 'atom', bbox: { x: 0.99, y: 0.99, w: 0.001, h: 0.001 } }],
+  );
+  assert.ok(segments[0].pixel.w >= 1 && segments[0].pixel.h >= 1);
+  fs.unlinkSync(p);
+});

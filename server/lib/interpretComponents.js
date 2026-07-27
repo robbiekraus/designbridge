@@ -46,6 +46,40 @@ export function sanitizeHtml(html) {
     .replace(/(<img\b[^>]*\ssrc\s*=\s*)(?:https?:)?\/\/[^\s>]+/gi, `$1"${IMG_PLACEHOLDER}"`);
 }
 
+// Virtuelle Breite, in der der Emit interpretiertes HTML vermisst.
+// PINNED an web/src/lib/previewWidth.js (PREVIEW_VIRTUAL_WIDTH) — der Server kann nicht aus
+// web/ importieren, deshalb hier gespiegelt; ein Test haelt beide Zahlen zusammen.
+export const PROMPT_VIRTUAL_WIDTH = 1024;
+
+/** Zielgroesse eines Bausteins in der Skala, in der er spaeter vermessen wird (Scheibe B,
+ *  27.07.2026).
+ *
+ *  WARUM: Seit Scheibe C vermisst der Emit jeden Baustein in einem Container seiner ECHTEN
+ *  Breite (`bounds.w * PROMPT_VIRTUAL_WIDTH`). Die KI wusste davon nichts und zeichnete ihn in
+ *  beliebiger Groesse. Bei Robs EcoMetrics-Scan (27.07.) war das die Hauptursache fuer 23
+ *  abgeschnittene Stellen in Figma: das Brand Logo kam mit Schrift 32 in einem ~200 px breiten
+ *  Slot, „EcoMetrics" braucht damit allein schon mehr Platz als der ganze Baustein hat.
+ *
+ *  Skala: 1 px hier = imageWidth/PROMPT_VIRTUAL_WIDTH Bildpixel — fuer BEIDE Achsen derselbe
+ *  Faktor, sonst verzerrt die Vorgabe das Seitenverhaeltnis. */
+export function renderSizeFor(segment) {
+  const px = segment?.pixel;
+  if (!px || !px.imageWidth) return null;
+  const k = PROMPT_VIRTUAL_WIDTH / px.imageWidth;
+  const w = Math.round(px.w * k);
+  const h = Math.round(px.h * k);
+  if (!(w > 0) || !(h > 0)) return null;
+  return { w, h };
+}
+
+/** „Component: X" plus Groessenvorgabe, wenn eine bekannt ist. */
+export function componentHeading(segment) {
+  const size = renderSizeFor(segment);
+  return size
+    ? `Component: ${segment.label} — RENDER AT ${size.w}x${size.h} px`
+    : `Component: ${segment.label}`;
+}
+
 function buildPrompt(segments, hasFullImageFallback, hasStructure, hasCode, catalog = SHADCN_VOCABULARY) {
   const labels = segments.map((s) => s.label);
   // DS-Grounding (Spec 2026-07-23 §Q2/Q4): dem Modell das Katalog-Vokabular beibringen, damit es
@@ -73,6 +107,7 @@ Return ONLY valid JSON, no markdown, no preamble, in this shape:
 Rules:
 - The "html" field MUST style every element with inline style="..." attributes using concrete CSS values only — hex colors (e.g. style="background:#4263EB;color:#ffffff"), px padding/gap/border-radius, px font-size, font-weight, and flex layout (display:flex;flex-direction;align-items;justify-content). Do NOT use CSS class names or Tailwind utilities in "html": there is no stylesheet, so only inline styles render.
 - Stay as close to the original as possible: copy the visible colors, spacing, radii, typography and REAL text content.
+- SIZE: when a component's name line carries "RENDER AT <w>x<h> px", that is the space it actually occupies in the original screen — reproduce it AT THAT SIZE. Pick font sizes, padding, gaps and icon sizes so the content FITS inside those bounds; the crop you see is an enlarged detail, not the real size. Never let text or icons need more width than the given w. Match the given size closely; a small deviation in height is fine, the width is not.
 - Reproduce ALL text and NUMBERS visible in the crop verbatim — headings, labels, values, percentages, currency, units, dates. Do not invent placeholders and do not omit numbers.
 - html must be fully self-contained: inline styles only, no <script>, no event handlers, no external images or fonts. Inline SVG is allowed (e.g. for charts).
 - Give charts and their containers explicit px sizes so bars/lines/segments have real dimensions (e.g. a bar container style="display:flex;align-items:flex-end;height:96px;gap:8px" with each bar carrying its own px height like style="height:64px;background:#4263EB").
@@ -142,7 +177,7 @@ async function interpretChunk(c, fullImage, segments, catalog = SHADCN_VOCABULAR
     content.push({ type: 'image', source: { type: 'base64', media_type: fullImage.media_type, data: fullImage.base64 } });
   }
   for (const s of withVisual) {
-    content.push({ type: 'text', text: `Component: ${s.label}` });
+    content.push({ type: 'text', text: componentHeading(s) });
     content.push({ type: 'image', source: { type: 'base64', media_type: s.visual.media_type, data: s.visual.base64 } });
   }
   // Identische structure-Blöcke (z. B. der Vollseiten-Fallback mehrerer

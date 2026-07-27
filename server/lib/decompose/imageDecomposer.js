@@ -42,6 +42,7 @@ export const imageDecomposer = {
       const hasBox = item.bbox && typeof item.bbox.w === 'number' && item.bbox.w > 0 && item.bbox.h > 0;
       let visual = null;
       let bounds = null;
+      let pixel = null;
       if (hasBox) {
         if (!img) img = await Jimp.read(imagePath);
         // bounds ist als normiert 0..1 dokumentiert → auf den Bereich clampen,
@@ -57,6 +58,17 @@ export const imageDecomposer = {
         } catch {
           visual = null; // kaputte Box → Ganz-Bild-Fallback downstream
         }
+        // Größenvorgabe für den Interpretations-Prompt (Scheibe B, 27.07.2026): wie groß der
+        // Baustein im ORIGINALBILD wirklich ist. Ohne diese Angabe zeichnet die KI ihn in
+        // beliebiger Größe — bei Robs EcoMetrics-Scan das Brand Logo mit Schrift 32 in einem
+        // Slot, der nur ~200 px breit ist. Der Emit vermisst später in genau diesem Slot
+        // (measureContainerWidth, Scheibe C), also passt der Inhalt dann nicht hinein.
+        // In Bildpixeln, umgerechnet wird erst im Prompt (dort liegt die virtuelle Breite).
+        pixel = {
+          w: Math.max(1, Math.round(bounds.w * img.getWidth())),
+          h: Math.max(1, Math.round(bounds.h * img.getHeight())),
+          imageWidth: img.getWidth(),
+        };
       }
       segments.push({
         id: `seg_${i}`,
@@ -65,6 +77,7 @@ export const imageDecomposer = {
         confidence: item.confidence,
         notes: item.notes ?? '',
         bounds,
+        pixel,
         visual,
         structure: null,
       });

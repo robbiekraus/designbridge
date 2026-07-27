@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { interpretComponents, sanitizeHtml } from './interpretComponents.js';
+import { interpretComponents, sanitizeHtml, renderSizeFor, componentHeading, PROMPT_VIRTUAL_WIDTH } from './interpretComponents.js';
 
 function tmpImage() {
   const p = path.join(os.tmpdir(), `db-interp-${Date.now()}.png`);
@@ -502,4 +502,64 @@ test('Vollbild wird bei mehreren Chunks nur einmal von Platte gelesen', async ()
     fs.unlinkSync(full);
   }
   assert.equal(readCount, 1);
+});
+
+// ─── Scheibe B: Größenvorgabe im Prompt (27.07.2026) ──────────────────────────
+// Ursache der 23 abgeschnittenen Stellen in Robs Figma-Datei: seit Scheibe C vermisst der Emit
+// jeden Baustein in einem Container seiner ECHTEN Breite (bounds.w * 1024). Die KI wusste davon
+// nichts und zeichnete ihn in beliebiger Größe — Brand Logo mit Schrift 32 in einem ~200 px
+// breiten Slot. Jetzt bekommt sie die Zielgröße genannt.
+test('renderSizeFor rechnet Bildpixel in die Mess-Skala um', () => {
+  // Robs Scan: Bild 2296 breit, Brand Logo 451×165 Bildpixel.
+  const size = renderSizeFor({ pixel: { w: 451, h: 165, imageWidth: 2296 } });
+  assert.deepEqual(size, { w: 201, h: 74 });
+});
+
+test('renderSizeFor nutzt für BEIDE Achsen denselben Faktor (kein Verzerren)', () => {
+  const size = renderSizeFor({ pixel: { w: 400, h: 200, imageWidth: 2048 } });
+  assert.equal(size.w / size.h, 2, 'Seitenverhältnis bleibt erhalten');
+});
+
+test('ohne pixel-Angabe gibt es keine Größenvorgabe', () => {
+  assert.equal(renderSizeFor({ label: 'X' }), null);
+  assert.equal(renderSizeFor({ label: 'X', pixel: { w: 10, h: 10 } }), null, 'ohne imageWidth');
+  assert.equal(renderSizeFor(null), null);
+});
+
+test('componentHeading hängt die Zielgröße an, wenn sie bekannt ist', () => {
+  const mit = componentHeading({ label: 'Brand Logo', pixel: { w: 451, h: 165, imageWidth: 2296 } });
+  assert.equal(mit, 'Component: Brand Logo — RENDER AT 201x74 px');
+  // URL-/Repo-Import kennt keine bbox — dort bleibt die Zeile exakt wie bisher.
+  assert.equal(componentHeading({ label: 'Card' }), 'Component: Card');
+});
+
+test('der Prompt erklärt die RENDER-AT-Angabe', async () => {
+  let sent = null;
+  const client = { messages: { create: async (args) => { sent = args; return {
+    content: [{ text: JSON.stringify({ interpretations: [{ name: 'Brand Logo', html: '<div>x</div>' }] }) }],
+  }; } } };
+  const segments = [{
+    id: 'seg_0', label: 'Brand Logo', kind: 'atom',
+    bounds: { x: 0, y: 0, w: 0.196, h: 0.068 },
+    pixel: { w: 451, h: 165, imageWidth: 2296 },
+    visual: { base64: 'AAAA', media_type: 'image/png' }, structure: null,
+  }];
+  await interpretComponents(null, null, segments, { client });
+
+  const texte = sent.messages[0].content.filter((c) => c.type === 'text').map((c) => c.text);
+  assert.ok(texte.some((t) => t === 'Component: Brand Logo — RENDER AT 201x74 px'),
+    'die Zielgröße steht an der Namenszeile');
+  assert.ok(texte.some((t) => /RENDER AT <w>x<h> px/.test(t) && /FITS inside those bounds/.test(t)),
+    'und die Regel erklärt, was damit zu tun ist');
+});
+
+test('die virtuelle Breite ist an die Web-Konstante gepinnt', async () => {
+  // PREVIEW_VIRTUAL_WIDTH lebt in web/src/lib/previewWidth.js; der Server kann dort nicht
+  // importieren. Driften die beiden Zahlen auseinander, zeigt die Vorgabe auf eine Breite,
+  // in der nie gemessen wird — dieser Test bindet sie an die Quelle statt an eine Kopie.
+  const { readFileSync } = await import('fs');
+  const src = readFileSync(new URL('../../web/src/lib/previewWidth.js', import.meta.url), 'utf8');
+  const m = src.match(/PREVIEW_VIRTUAL_WIDTH\s*=\s*(\d+)/);
+  assert.ok(m, 'PREVIEW_VIRTUAL_WIDTH in web/src/lib/previewWidth.js gefunden');
+  assert.equal(PROMPT_VIRTUAL_WIDTH, Number(m[1]));
 });
