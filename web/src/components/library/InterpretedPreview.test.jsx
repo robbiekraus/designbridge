@@ -1,7 +1,7 @@
 // web/src/components/library/InterpretedPreview.test.jsx
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import InterpretedPreview, { buildSrcdoc } from './InterpretedPreview.jsx';
+import InterpretedPreview, { buildSrcdoc, THUMB_VIRTUAL_VIEWPORT } from './InterpretedPreview.jsx';
 import { sourceLabel } from './SourcePill.jsx';
 import { PREVIEW_VIRTUAL_WIDTH } from '../../lib/previewWidth.js';
 
@@ -255,3 +255,62 @@ describe('SourcePill "interpreted"', () => {
     expect(m.cls).toContain('amber');
   });
 });
+
+// ─── Viewport-Einheiten im Thumbnail (Robs Befund 27.07.: „das Template wächst
+//     immer länger, immer länger") ────────────────────────────────────────────
+//
+// Ursache, im echten Browser an Robs EcoMetrics-Scan gemessen: die Template-
+// Interpretation trägt `min-height:100vh`. Im Thumbnail-iframe ist `100vh` die
+// iframe-Höhe — und die setzt die Komponente aus der GEMELDETEN Inhaltshöhe.
+// Damit ist der Kreis geschlossen: Inhalt 100vh → gemeldet iframe-Höhe + 24
+// (Body-Padding) → neue iframe-Höhe → neue 100vh → … Gemessen: **+24 px pro
+// Runde, unbegrenzt**, angetrieben vom ResizeObserver.
+//
+// Fix: im Thumbnail-Dokument hat „Viewport" keine sinnvolle Bedeutung. Deshalb
+// werden vh-Höhen auf eine FESTE virtuelle Viewport-Höhe umgerechnet, bevor
+// gemessen wird. Damit hängt die gemeldete Höhe nicht mehr an der iframe-Höhe
+// und die Rückkopplung ist konstruktiv unmöglich.
+describe('buildSrcdoc — vh-Neutralisierung', () => {
+  it('legt die vh-Basis im Thumbnail auf eine feste virtuelle Viewport-Höhe', () => {
+    const doc = buildSrcdoc('<div style="min-height:100vh">Hi</div>', 'inst-1');
+    expect(doc).toContain(String(THUMB_VIRTUAL_VIEWPORT));
+    // Tailwinds Klassen-Variante muss genauso erschlagen werden wie Inline-vh.
+    expect(doc).toMatch(/min-h-screen/);
+    expect(doc).toMatch(/vh/);
+  });
+
+  it('rechnet Inline-vh in Pixel um, bevor die Höhe gemeldet wird', () => {
+    // Das Neutralisierungs-Skript aus dem Dokument gegen ein echtes DOM fahren.
+    const doc = buildSrcdoc('<div id="t" style="min-height:100vh;width:10px">Hi</div>', 'inst-2');
+    const script = extractNeutralizeScript(doc);
+    document.body.innerHTML = '<div id="t" style="min-height:100vh;width:10px">Hi</div>';
+    // eslint-disable-next-line no-new-func
+    new Function(script)();
+    expect(document.getElementById('t').style.minHeight).toBe(`${THUMB_VIRTUAL_VIEWPORT}px`);
+    document.body.innerHTML = '';
+  });
+
+  it('lässt Höhen ohne vh unangetastet', () => {
+    const doc = buildSrcdoc('<div id="t" style="min-height:300px">Hi</div>', 'inst-3');
+    const script = extractNeutralizeScript(doc);
+    document.body.innerHTML = '<div id="t" style="min-height:300px">Hi</div>';
+    // eslint-disable-next-line no-new-func
+    new Function(script)();
+    expect(document.getElementById('t').style.minHeight).toBe('300px');
+    document.body.innerHTML = '';
+  });
+
+  it('das Vollbild-Modal bleibt unangetastet — dort ist der Viewport echt', () => {
+    // Ohne instanceId (Modal) gibt es weder Höhen-Meldung noch Neutralisierung:
+    // das Modal-iframe hat eine feste Größe, `100vh` ist dort richtig.
+    const doc = buildSrcdoc('<div style="min-height:100vh">Hi</div>');
+    expect(doc).not.toContain('designbridge-neutralize-vh');
+  });
+});
+
+/** Holt das vh-Neutralisierungs-Skript aus dem erzeugten Dokument. */
+function extractNeutralizeScript(doc) {
+  const m = doc.match(/\/\* designbridge-neutralize-vh \*\/([\s\S]*?)\/\* end-neutralize-vh \*\//);
+  if (!m) throw new Error('Neutralisierungs-Skript nicht im Dokument gefunden');
+  return m[1];
+}

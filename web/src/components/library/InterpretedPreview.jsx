@@ -27,6 +27,25 @@ const THUMB_MAX_HEIGHT = 420;
 const THUMB_MIN_HEIGHT = 40;
 const HEIGHT_MESSAGE_TYPE = 'designbridge-preview-height';
 
+// Feste vh-Basis des Thumbnails (Robs Befund 27.07.: „das Template wächst immer länger").
+//
+// PROBLEM: Die Template-Interpretation trägt `min-height:100vh`. Im Thumbnail-iframe ist `100vh`
+// die iframe-Höhe — und genau die setzt diese Komponente aus der gemeldeten Inhaltshöhe. Damit
+// ist der Kreis geschlossen: Inhalt 100vh → body.scrollHeight = iframe-Höhe + 24 (Body-Padding)
+// → neue iframe-Höhe → neue 100vh → … Im echten Browser an Robs EcoMetrics-Scan gemessen:
+// **+24 px pro Runde, unbegrenzt**, angetrieben vom ResizeObserver. Sichtbar wird das als
+// Vorschau, in der der Inhalt in eine winzige Ecke schrumpft (der Maßstab ist 420/frameHeight)
+// und der Rest weiß bleibt.
+//
+// LÖSUNG: Im Thumbnail hat „Viewport" keine sinnvolle Bedeutung — es ist ein Ausschnitt fester
+// virtueller Breite, kein Bildschirm. vh-Höhen werden deshalb VOR der Messung auf diese feste
+// Basis umgerechnet. Danach hängt die gemeldete Höhe nicht mehr an der iframe-Höhe, und die
+// Rückkopplung ist konstruktiv unmöglich statt nur gedämpft.
+//
+// Das Vollbild-Modal bleibt unangetastet: dort hat das iframe eine feste, vom Inhalt unabhängige
+// Größe, `100vh` ist also richtig.
+export const THUMB_VIRTUAL_VIEWPORT = THUMB_VIRTUAL_HEIGHT;
+
 // buildSrcdoc(html, instanceId?) — instanceId ist optional. Wird sie
 // mitgegeben (Thumbnail), bekommt das Dokument ein Mini-Script, das die
 // Inhaltshöhe per postMessage an den Parent meldet (nach load + bei
@@ -34,6 +53,36 @@ const HEIGHT_MESSAGE_TYPE = 'designbridge-preview-height';
 // Ohne instanceId (Vollbild-Modal) bleibt das Dokument wie bisher —
 // html bleibt der erste Parameter, bestehende Aufrufe/Exporte bleiben kompatibel.
 export function buildSrcdoc(html, instanceId) {
+  // Nur im Thumbnail (instanceId gesetzt): vh-Höhen auf die feste virtuelle Viewport-Höhe
+  // umrechnen. Beides ist nötig — Tailwinds Klassen (`min-h-screen`, `h-screen`) über CSS,
+  // und Inline-`style="…100vh"` per Skript, weil eine Stilregel gegen ein Inline-Style nicht
+  // ankommt. Die Marker-Kommentare grenzen das Skript für den Test ab.
+  const vhReset = instanceId == null ? '' : [
+    `<style>`,
+    `  .min-h-screen { min-height: ${THUMB_VIRTUAL_VIEWPORT}px !important; }`,
+    `  .h-screen { height: ${THUMB_VIRTUAL_VIEWPORT}px !important; }`,
+    `  .max-h-screen { max-height: ${THUMB_VIRTUAL_VIEWPORT}px !important; }`,
+    `</style>`,
+    '<script>',
+    '/* designbridge-neutralize-vh */',
+    '(function () {',
+    `  var VV = ${THUMB_VIRTUAL_VIEWPORT};`,
+    '  var nodes = document.querySelectorAll(\'[style*="vh"]\');',
+    '  for (var i = 0; i < nodes.length; i++) {',
+    '    var el = nodes[i];',
+    '    var css = el.getAttribute("style");',
+    '    if (!css) continue;',
+    // Nur echte vh-Laengen ersetzen, nicht z.B. das "vh" in einem Farbnamen.
+    '    var next = css.replace(/(-?\\d+(?:\\.\\d+)?)vh\\b/g, function (_, n) {',
+    '      return (parseFloat(n) / 100 * VV) + "px";',
+    '    });',
+    '    if (next !== css) el.setAttribute("style", next);',
+    '  }',
+    '})();',
+    '/* end-neutralize-vh */',
+    '</script>',
+  ].join('\n');
+
   const heightScript = instanceId == null ? '' : [
     '<script>',
     '(function () {',
@@ -63,6 +112,9 @@ export function buildSrcdoc(html, instanceId) {
     '<script src="https://cdn.tailwindcss.com"></script>',
     '</head><body style="margin:0;padding:12px;background:#ffffff">',
     html,
+    // NACH dem Inhalt: das Skript muss die Knoten schon vorfinden, und die
+    // Neutralisierung muss vor der ersten Höhenmeldung passiert sein.
+    vhReset,
     heightScript,
     '</body></html>',
   ].join('');
