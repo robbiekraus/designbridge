@@ -319,6 +319,34 @@ function avatarFallbackClasses(textNode, tokens) {
   return out.filter(Boolean);
 }
 
+/** Live-Fund 27.07. Abend (EcoMetrics-Scan „User Avatar" + „Jane Smith" in „Sidebar Navigation"):
+ *  ein gegroundeter Avatar-Fallback OHNE Text, aber mit Bild-/Illustrations-Inhalt (SVG-Portrait
+ *  statt Initialen) verlor bislang JEDE Stilinfo der gemessenen Hülle — nur das nackte SVG landete
+ *  im `<Avatar>`-Tag, dessen Katalog-Default (`h-10 w-10 bg-muted`, 40×40 grau) die gemessene echte
+ *  Größe (hier 31×32) UND Hintergrundfarbe (hier #3b33cc) komplett überschrieb. Sichtbar als falsch
+ *  großer, falsch eingefärbter Avatar (Robs Befund „Profil ist verschossen") — verifiziert im echten
+ *  Browser (`web/verification/user-avatar-emit-in-browser.html`) gegen `Testdaten/ecometrics-scan-
+ *  27-07-abend.json`, sowohl für die alleinstehende „User Avatar"-Interpretation als auch für den
+ *  strukturell ANDERS aufgebauten Avatar-Ausschnitt in „Sidebar Navigation" (eigene Interpretation,
+ *  kein Splice in jsdom/Emit — s. CLAUDE.md). Analog zu `avatarFallbackClasses` (Text-Fall), aber für
+ *  Größe + Hintergrund statt Typografie. `!`-important, weil Tailwinds generierte Stylesheet-
+ *  Reihenfolge über Kollisionen entscheidet, nicht die Position im `class`-Attribut (wie schon bei
+ *  den Card-Slots, s. walkCatalogSlots) — sonst gewinnt teils der Katalog-Default trotz spezifischerer
+ *  Klasse. Bewusst OHNE radius-Override: die runde Form bleibt Katalog-Vorgabe (`rounded-full`) — das
+ *  Interpretations-HTML nestet die eigentliche Rundung oft in einem inneren div, nicht an der von uns
+ *  gegroundeten Wurzel, ein Radius-Override würde also eher zufällig richtig oder falsch liegen. */
+function avatarFallbackVisualClasses(fallbackRoot) {
+  if (!fallbackRoot || typeof fallbackRoot !== 'object') return [];
+  const out = [];
+  const w = Number.isFinite(fallbackRoot.width) && fallbackRoot.width > 0 ? Math.round(fallbackRoot.width) : null;
+  const h = Number.isFinite(fallbackRoot.height) && fallbackRoot.height > 0 ? Math.round(fallbackRoot.height) : null;
+  if (w) out.push(`!w-[${w}px]`);
+  if (h) out.push(`!h-[${h}px]`);
+  const bgSym = colorSymbol(fallbackRoot.fill);
+  if (bgSym) out.push(`!bg-${bgSym}`);
+  return out;
+}
+
 /** Sichtbare SVG-Knoten eines (fallback-)Subtrees einsammeln (Dokumentreihenfolge, beliebig tief,
  *  steigt auch in Fallbacks verschachtelter Refs ab) — spiegelt extractText strukturell. Live-Fund
  *  25.07. (Prod-Scan): ein Icon-Button-Fallback trägt NUR ein SVG, keinen Text; ohne diese Sammlung
@@ -417,6 +445,13 @@ function walkCatalogRef(node, depth, componentName, tokens) {
     const svgNodes = collectSvgNodes(node.fallback);
     if (svgNodes.length) {
       const kids = svgNodes.map((s) => walkSvg(s, depth + 1)).join('\n');
+      // `styledFallbackText` (s. avatarFallbackVisualClasses): ein Bild-/Illustrations-Avatar ohne
+      // Text braucht dieselbe Rettung der gemessenen Hülle wie der Text-Fall oben — sonst verschwindet
+      // die interpretierte Größe/Farbe hinter dem 40×40-grauen Katalog-Default.
+      if (node.styledFallbackText) {
+        const cls = ['flex', 'items-center', 'justify-center', ...avatarFallbackVisualClasses(node.fallback)];
+        return `${pad}<${tag} className="${cls.join(' ')}"${attrStr}>\n${kids}\n${pad}</${tag}>`;
+      }
       return `${pad}<${tag}${attrStr}>\n${kids}\n${pad}</${tag}>`;
     }
   }

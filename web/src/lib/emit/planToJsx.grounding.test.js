@@ -134,6 +134,40 @@ describe('planToJsx — DS-Grounding: Katalog-refs als echte Komponenten', () =>
     const code = planToJsx(plan, { name: 'X' });
     expect(code).toContain('<Avatar className="flex items-center justify-center">AB</Avatar>');
   });
+
+  // Live-Fund 27.07. Abend (EcoMetrics-Scan „User Avatar" + „Jane Smith" in „Sidebar Navigation"):
+  // ein Bild-/Illustrations-Avatar (SVG-Portrait, KEIN Fallback-Text) verlor die gemessene Größe UND
+  // Hintergrundfarbe seiner Hülle komplett — das nackte SVG landete im 40×40-grauen Katalog-Default
+  // statt in der interpretierten 31×32-Hülle mit ihrer eigenen Farbe (verifiziert im echten Browser
+  // gegen Testdaten/ecometrics-scan-27-07-abend.json, s. web/verification/user-avatar-emit-in-
+  // browser.html). `styledFallbackText` deckt jetzt auch den Bild-Fall ab (avatarFallbackVisualClasses).
+  it('styledFallbackText: true + SVG statt Text im Fallback → gemessene Größe + Hintergrundfarbe der Hülle bleiben erhalten (!important, Katalog-Default h-10 w-10 bg-muted überschrieben)', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Avatar', import: { name: 'Avatar', from: '@/components/ui/avatar' },
+      props: {}, styledFallbackText: true,
+      fallback: box({
+        width: 31, height: 32, fill: { hex: '#3b33cc', token: null },
+        children: [{ type: 'svg', markup: '<svg width="27" height="27"><circle cx="16" cy="16" r="16" fill="#e2cf3b"/></svg>' }],
+      }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Avatar className="flex items-center justify-center !w-[31px] !h-[32px] !bg-[#3b33cc]">');
+    expect(code).toContain('<circle cx="16" cy="16" r="16" fill="#e2cf3b"/>');
+  });
+
+  it('styledFallbackText fehlt/false + SVG ohne Text → unverändertes altes Verhalten (kein className, schützt Button/Badge-Icon-Fallbacks)', () => {
+    const plan = box({ children: [catalogRef({
+      name: 'Button', import: { name: 'Button', from: '@/components/ui/button' },
+      props: { variant: 'ghost', size: 'icon' },
+      fallback: box({
+        width: 40, height: 40, fill: { hex: '#000000', token: null },
+        children: [{ type: 'svg', markup: '<svg width="16" height="16"><path d="M5 12h14"/></svg>' }],
+      }),
+    }) ] });
+    const code = planToJsx(plan, { name: 'X' });
+    expect(code).toContain('<Button variant="ghost" size="icon">');
+    expect(code).not.toMatch(/<Button[^>]*className=/);
+  });
 });
 
 // Task 2 (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md §Umbau → planToJsx.js):
