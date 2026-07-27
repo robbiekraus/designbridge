@@ -4,6 +4,32 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **27.07.2026 (mittags) — FIX B AN ECHTEN DATEN BELEGT. Voller Lauf autonom gefahren: Bild → Scan → Interpretation → Figma → Messung.** Kein Code geändert, reine Verifikation des Stands `808621e`.
+
+  **Der Lauf:** `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png` (2296×2408, Robs EcoMetrics-Dashboard) selbst auf Prod hochgeladen, 21 Bausteine gescannt, **21/21 interpretiert ohne einen Fehlschlag**, Payload im echten Browser erzeugt, Figma per AppleScript ferngesteuert, Ergebnis per REST nachgemessen. Werkzeug dafür: `scratchpad/run-scan.mjs` (Upload + Interpretation in Häppchen gegen Prod).
+
+  **① Die KI hält sich an die Größenvorgabe.** Gleicher Messwert (Inhaltsbreite ÷ Slot-Breite, im echten Browser), gleiches Bild, vorher/nachher:
+
+  | | vorher (07:02-Scan) | nachher (Fix B) |
+  |---|---|---|
+  | Median-Faktor Inhalt/Slot | **1,47** | **1,00** |
+  | zu breit | 11 von 16 (69 %) | 10 von 21 (48 %) |
+  | schlimmster Fall | 2,35× | 2,00× |
+  | Summe Überstand | **1413 px** | **350 px** |
+
+  **② In Figma: 23 → 12 → 10 Überläufe** (roh → nach Fix A → nach Fix A+B, Datei `ug1zAZhKYEx61FavxErmmf`). Wichtiger als die Zahl ist ihre ART: die **geklemmten Instanzen sind von 9 auf 1** gefallen, und die strukturellen Leitfälle sind **ganz verschwunden**.
+  - `Brand Logo`: vorher 451×165 mit Schrift 72 und „EcoMetrics" 400 px breit (Überlauf +288) → jetzt **287×72**, Schrift **40**, Text 222 breit — passt in den Rahmen, ohne dass Fix A überhaupt wachsen lassen muss.
+  - `Sidebar Nav Item`: vorher 296 breit mit Schrift 45 (Überlauf +89) → jetzt **348×91**, kein Überlauf.
+  - Von den 10 Resten sind 4 dasselbe Muster (Pagination-„1" in einem 81×81-Frame), 2 sind reine Rundung (+3), 2 sind +0 (Vector genau bündig).
+
+  **③ Der leere 100×100-Frame ist WEG — „LEERE KÄSTCHEN (0)".** OFFEN 2 seit dem 26.07., an der Fixture nie reproduzierbar. Er entstand offenbar aus einem Baustein, den die KI ohne Inhalt zeichnete; mit der Größenvorgabe passiert das nicht mehr. **Nicht durch einen gezielten Fix behoben** — mitgenommen, also im Auge behalten.
+
+  **④ Zwei Fallen aus diesem Lauf:**
+  - **Der Zugriff auf das Volume brach mitten in der Sitzung weg** (alle externen Laufwerke + `~/Desktop` „Operation not permitted", intern und `~/Documents` weiter ok). Klassische macOS-TCC-Signatur, kein Platten- oder exFAT-Defekt: `stat` ging, `opendir` nicht. Nach einer Weile war es von selbst wieder da. Wenn das wieder passiert: **nicht** an der Platte suchen.
+  - **Das Figma-Plugin-Menü braucht Zeit.** `click menu item "Entwicklung"` wirft `-1728`, wenn zu schnell nach `⌘N` geklickt wird — der Eintrag existiert, das Menü ist nur noch nicht aufgebaut. Mit `delay 1,5` zwischen den Menüebenen läuft es. Im Zweifel erst die Einträge auflisten.
+
+  **⇒ NÄCHSTER SCHRITT:** Robs Sichtprüfung von `ug1zAZhKYEx61FavxErmmf`. Die Zahlen sagen „deutlich besser", ob es auch **aussieht** wie gewollt, sagt nur er. Danach: die Pagination-„1" (4 von 10 Resten, ein Muster) und die eine verbliebene geklemmte Instanz.
+
 - **27.07.2026 (vormittags, mit Rob) — ROBS BEFUND „ES WIRD IMMER BESCHISSENER" AUFGEKLÄRT: zwei verschiedene Ursachen, beide gefixt.** Suiten: **Web 880 · Server 366 · Plugin 141 · Harness 19**, Build + Typecheck sauber, alles auf `main` gepusht (`ed4019a`).
 
   **⇒ WO DIE NÄCHSTE SESSION ANFÄNGT:**
