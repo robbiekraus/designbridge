@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU, tokenizeAnchorText, collectAnchorText, textJaccard, bestTextMatch, SPLICE_MIN_TEXT, measureContainerWidth, measureContainerHeight } from './htmlToPlan.js';
+import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU, tokenizeAnchorText, collectAnchorText, textJaccard, bestTextMatch, SPLICE_MIN_TEXT, measureContainerWidth, measureContainerHeight, fixFlexGridTruncationOverflow, hasEllipsisIntent } from './htmlToPlan.js';
 import { PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
@@ -2788,5 +2788,149 @@ describe('height:100% loest gegen die echte Slot-Hoehe auf', () => {
     const { plan } = htmlToPlan('<div style="height:100%">x</div>', { designSlotWidth: 200 });
     expect(plan).toBeTruthy();
     expect(measureContainerHeight(null)).toBe(PREVIEW_VIRTUAL_HEIGHT);
+  });
+});
+
+// Live-Fund 27.07. (Robs Sunstone-Scan, `Top Products Card`): Produktname kollidiert im echten
+// Browser mit der Preis-Spalte, weil `white-space:nowrap;overflow:hidden;text-overflow:ellipsis`
+// nie greift — der Browser-Default `min-width:auto` auf Flex-/Grid-ITEMS verweigert das
+// Schrumpfen unter die Content-Breite, solange kein Vorfahre `min-width:0` setzt. jsdom liefert
+// `display`/`overflow`/`text-overflow`/`white-space` als reine (kaskadierte) CSS-Werte OHNE
+// Layout-Engine (s. Kopf-Kommentar dieser Datei) — die Kürzungs-ERKENNUNG und die Vorfahren-
+// Ancestor-Kette sind damit vollständig in jsdom testbar; NUR die tatsächliche Sichtwirkung
+// (greift die Kürzung wirklich?) ist testblind und im echten Browser verifiziert (s. CLAUDE.md
+// „Skalierungspfad ist testblind" — dieselbe Grenze gilt hier für den Flex-/Grid-Reflow).
+describe('hasEllipsisIntent', () => {
+  it('true nur, wenn ALLE DREI Kürzungs-Stile gesetzt sind', () => {
+    const el = document.createElement('span');
+    el.style.overflow = 'hidden';
+    el.style.textOverflow = 'ellipsis';
+    el.style.whiteSpace = 'nowrap';
+    document.body.appendChild(el);
+    expect(hasEllipsisIntent(getComputedStyle(el))).toBe(true);
+    el.remove();
+  });
+
+  it('fehlt ein Stil (z. B. white-space:nowrap), greift die Erkennung nicht', () => {
+    const el = document.createElement('span');
+    el.style.overflow = 'hidden';
+    el.style.textOverflow = 'ellipsis';
+    document.body.appendChild(el);
+    expect(hasEllipsisIntent(getComputedStyle(el))).toBe(false);
+    el.remove();
+  });
+
+  it('normales Element ohne Kürzungsabsicht → false', () => {
+    const el = document.createElement('span');
+    document.body.appendChild(el);
+    expect(hasEllipsisIntent(getComputedStyle(el))).toBe(false);
+    el.remove();
+  });
+});
+
+describe('fixFlexGridTruncationOverflow', () => {
+  it('setzt min-width:0 auf jeden Flex-/Grid-Vorfahren einer Kürzungs-Absicht, bis zum Container', () => {
+    // Nachbau der REALEN Sunstone-Struktur (Top Products Card, Zeile 1): Grid-Zeile → Icon+Name-
+    // Flex-Reihe → Name+Kategorie-Flex-Spalte → Name-Span mit Kürzungs-Absicht. Keiner dieser
+    // Vorfahren trägt eine eigene Breite — genau das Muster, das im echten Browser kollidiert.
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column">
+        <div style="display:grid;grid-template-columns:24px 1fr 60px">
+          <span>1</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:34px;height:34px;flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column">
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Olive Women Padded Jacket</span>
+              <span>Jacket</span>
+            </div>
+          </div>
+          <span>$26.31</span>
+        </div>
+      </div>`;
+    document.body.appendChild(container);
+
+    const rowsWrapper = container.querySelector(':scope > div');
+    const gridRow = rowsWrapper.children[0];
+    const iconNameFlexRow = gridRow.children[1];
+    const iconBox = iconNameFlexRow.children[0];
+    const nameColumnWrapper = iconNameFlexRow.children[1];
+
+    fixFlexGridTruncationOverflow(container);
+
+    // Die gesamte Vorfahren-Kette bis zum Container bekommt min-width:0 (keiner hat eine eigene
+    // Breite).
+    expect(nameColumnWrapper.style.minWidth).toBe('0px');
+    expect(iconNameFlexRow.style.minWidth).toBe('0px');
+    expect(gridRow.style.minWidth).toBe('0px');
+
+    // rowsWrapper ist der ÄUSSERSTE Knoten (direktes Kind von `container`) — sein Elternteil
+    // (der Messbehälter) ist kein Flex-/Grid-Container, also ist rowsWrapper selbst kein
+    // Flex-/Grid-ITEM und bleibt zu Recht unangetastet (kein Track, der ihn quetschen könnte).
+    expect(rowsWrapper.style.minWidth).toBe('');
+
+    // Das Icon (eigene explizite Breite, flex-shrink:0) ist kein Vorfahre des Namens-Spans —
+    // bleibt unangetastet.
+    expect(iconBox.style.minWidth).toBe('');
+
+    container.remove();
+  });
+
+  it('rührt einen Vorfahren mit EIGENER expliziter Breite nicht an', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div style="display:flex">
+        <div style="display:flex;width:200px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Ein sehr langer Produktname</span>
+        </div>
+      </div>`;
+    document.body.appendChild(container);
+
+    const fixedWidthAncestor = container.querySelector(':scope > div').children[0];
+    fixFlexGridTruncationOverflow(container);
+
+    expect(fixedWidthAncestor.style.minWidth).toBe('');
+    expect(fixedWidthAncestor.style.width).toBe('200px');
+
+    container.remove();
+  });
+
+  it('rührt Elemente OHNE jede Kürzungs-Absicht im Baum gar nicht erst an (minimal-invasiv)', () => {
+    const container = document.createElement('div');
+    container.innerHTML = `
+      <div style="display:flex">
+        <div style="display:flex"><span>Normaler Text ohne Kürzungsabsicht</span></div>
+      </div>`;
+    document.body.appendChild(container);
+
+    const untouched = container.querySelector(':scope > div').children[0];
+    fixFlexGridTruncationOverflow(container);
+
+    expect(untouched.style.minWidth).toBe('');
+
+    container.remove();
+  });
+
+  it('regression: reale Sunstone-Zeile — htmlToPlan wirft nicht und liefert weiter einen Plan', () => {
+    // Reproduziert die GEMESSENE Geometrie aus dem echten Browser (web/verification/
+    // emit-in-browser.html, Sunstone-Scan 27.07.): vor dem Fix lag clientWidth === scrollWidth
+    // (Kürzung griff nie), Namensspan kollidierte mit der Preis-Spalte. jsdom kann die Kollision
+    // selbst nicht nachstellen (keine Layout-Engine) — dieser Test sichert nur den Vertrag „wirft
+    // nie, liefert weiter einen Plan", die reale Sichtwirkung ist im Browser verifiziert (s. oben).
+    const rowHtml = '<div data-ds-component="Card" style="width:522px;height:355px;display:flex;flex-direction:column">'
+      + '<div style="display:flex;flex-direction:column">'
+      + '<div style="display:grid;grid-template-columns:24px 1fr 60px 50px 65px 85px;align-items:center">'
+      + '<span>1</span>'
+      + '<div style="display:flex;align-items:center;gap:10px">'
+      + '<div style="width:34px;height:34px;flex-shrink:0"></div>'
+      + '<div style="display:flex;flex-direction:column">'
+      + '<span style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Olive Women Padded Jacket</span>'
+      + '<span style="font-size:11px">Jacket</span>'
+      + '</div></div>'
+      + '<span>$26.31</span><span>432</span><span>$11.232</span><span>50%</span>'
+      + '</div></div></div>';
+    const { plan, warnings } = htmlToPlan(rowHtml, { designSlotWidth: 522, designSlotHeight: 355 });
+    expect(plan).toBeTruthy();
+    expect(warnings).toEqual([]);
   });
 });

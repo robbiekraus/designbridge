@@ -716,6 +716,58 @@ function stripExternalRefs(root, ctx) {
   }
 }
 
+// Live-Fund 27.07. (Robs Sunstone-Scan, `Top Products Card`): Textknoten mit der Standard-
+// Kürzungs-Absicht (`white-space:nowrap;overflow:hidden;text-overflow:ellipsis`) kürzen NUR,
+// wenn irgendein Vorfahre eine begrenzte Breite hat. Ohne das läuft der Produktname (KEIN
+// eigenes Breiten-Limit) über die `1fr`-Grid-Spalte hinaus und kollidiert mit der Preis-Spalte
+// — sichtbar im echten Browser (gemessen: clientWidth === scrollWidth, die Kürzung greift nie).
+// Root Cause: der CSS-Default `min-width:auto` auf Flex-/Grid-ITEMS verweigert das Schrumpfen
+// unter die Content-Breite, solange kein Vorfahre explizit `min-width:0` setzt — das
+// klassischste Flex-/Grid-Footgun, das die KI regelmäßig reproduziert (sie schreibt die
+// Kürzungs-Absicht, aber nie das dafür nötige `min-width:0`). Reine Content-Frage, keine
+// Skalierungs-/Emit-Frage — deshalb hier, symmetrisch zu injectMissingSvgSize, als Defense-in-
+// Depth gegen ein bekanntes KI-HTML-Muster behoben statt am Prompt.
+const FLEX_GRID_DISPLAYS = new Set(['flex', 'inline-flex', 'grid', 'inline-grid']);
+
+/** Erkennt die Kürzungs-ABSICHT (nicht, ob sie greift) an einem Element. Prüft `overflowX` UND
+ *  das `overflow`-Shorthand: echte Browser lösen die Shorthand-Zuweisung in `overflowX`/
+ *  `overflowY` auf, jsdoms CSSOM tut das NICHT (bleibt bei `overflowX:'visible'`, nur das
+ *  Shorthand selbst liefert `'hidden'` zurück — empirisch geprüft, gleiche Kategorie Lücke wie
+ *  die `border-radius`-Kurzform, s. Kopf-Kommentar dieser Datei) — ohne den Shorthand-Fallback
+ *  wäre diese Erkennung in jsdom blind und nur im echten Browser testbar. */
+export function hasEllipsisIntent(computed) {
+  const hidden = computed.overflowX === 'hidden' || computed.overflow === 'hidden';
+  return hidden
+    && computed.textOverflow === 'ellipsis'
+    && computed.whiteSpace === 'nowrap';
+}
+
+/** Behebt das fehlende `min-width:0` für JEDEN Flex-/Grid-Vorfahren eines Elements mit
+ *  Kürzungs-Absicht (s. hasEllipsisIntent), bis hinauf zu `container` (exklusive). Nur Vorfahren
+ *  OHNE eigene explizite Breite (Vertrag §readSize: ein Inline-`width` ist eine bewusste
+ *  Größenvorgabe, z. B. das 34×34-Icon mit `flex-shrink:0` — bleibt unangetastet, `min-width:0`
+ *  ändert an einer bereits fixen Breite nichts). Bewusst NUR entlang der tatsächlich betroffenen
+ *  Vorfahren-Kette (statt pauschal auf jedes Flex-/Grid-Kind im Container) — minimal-invasiv,
+ *  kein Seiteneffekt auf unbeteiligte Bausteine. Läuft nur sichtbar im echten Browser (jsdom hat
+ *  keine Layout-Engine, s. Modul-Kopf); die Stil-Zuweisung selbst ist auch dort unschädlich. */
+export function fixFlexGridTruncationOverflow(container) {
+  for (const el of Array.from(container.querySelectorAll('*'))) {
+    if (!hasEllipsisIntent(getComputedStyle(el))) continue;
+    let ancestor = el.parentElement;
+    while (ancestor && ancestor !== container) {
+      const parent = ancestor.parentElement;
+      if (parent) {
+        const parentDisplay = getComputedStyle(parent).display;
+        if (FLEX_GRID_DISPLAYS.has(parentDisplay)) {
+          const hasOwnWidth = !!(ancestor.style?.width) && ancestor.style.width !== 'auto';
+          if (!hasOwnWidth && !ancestor.style.minWidth) ancestor.style.minWidth = '0px';
+        }
+      }
+      ancestor = parent;
+    }
+  }
+}
+
 /** Ein SVG-`width`/`height`-Attributwert ist nur dann eine BRAUCHBARE physische Pixelgröße, wenn
  *  er sich als einheitenlose Zahl liest (SVG-Vertrag: ohne Einheit = px) — `parseFloat` allein
  *  reicht nicht, weil es auch bei "100%" (Präfix "100") einen Zahlenwert liefert. Live-Fund 27.07.
@@ -1471,6 +1523,12 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     }
 
     document.body.appendChild(container);
+
+    // Live-Fund 27.07. (Sunstone-Scan, `Top Products Card`, s. fixFlexGridTruncationOverflow):
+    // NACH dem Einhängen (braucht echte getComputedStyle-Werte für display/overflow/textOverflow),
+    // VOR jeder Größen-Messung/Konvertierung — sonst wurde bereits mit der defekten (nicht
+    // kürzenden) Breite gemessen.
+    fixFlexGridTruncationOverflow(container);
 
     const roots = Array.from(container.children);
     if (roots.length === 0) {
