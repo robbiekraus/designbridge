@@ -149,6 +149,14 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
   // ein component-ref entsteht — der Baustein fällt auf den normalen, unveränderten Box-Nachbau
   // zurück (identisch zum selben, noch unmarkierten Widget im früheren Scan desselben Tages,
   // Testdaten/ecometrics-scan-27-07-nachmittag.json, das korrekt rendert).
+  //
+  // Update 28.07. (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-final-test.json):
+  // derselbe Fallback-Box-Nachbau fror die 18%-deckende Füllung bislang selbst wieder OPAK ein
+  // (readFill vor dem FAINT_FILL_ALPHA_MAX-Fix: `bg-[#000000]`, ein lauter schwarzer Kasten statt
+  // der fast unsichtbaren Tönung) — ein Rest des URSPRÜNGLICHEN Alpha-Verwurf-Bugs (s. readFill-
+  // Kommentar in htmlToPlan.js), nur diesmal im FALLBACK statt im Katalog-Grounding sichtbar. Mit
+  // dem Fix bleibt die Füllung ganz weg (transparent) statt falsch-opak — Text bleibt in JEDEM Fall
+  // lesbar, hier UND auf echtem lila Sidebar-Grund (Reports-Zeile/Storage-Panel im vollen Scan).
   it('dunkel gefüllte Card mit hellem Katalog-Default (bg-card=weiß) wird NICHT gegroundet — Text bleibt lesbar statt weiß-auf-weiß zu verschwinden', () => {
     const html = '<div data-ds-component="Card" style="background:rgba(0,0,0,0.18);border-radius:10px;padding:10px">'
       + '<span style="font-size:11px;font-weight:700;color:#ffffff;">Storage</span>'
@@ -161,7 +169,7 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(warnings.some((w) => w.includes('unlesbare Katalog-Hülle'))).toBe(true);
     const code = planToJsx(plan, { name: 'StorageWidget' });
     expect(code).not.toContain('<Card');
-    expect(code).toMatch(/bg-\[#000000\]/);
+    expect(code).not.toMatch(/bg-\[#000000\]/);
   });
 
   // Gegenprobe: eine HELL gefüllte Card (typischer Dashboard-Fall, wie in den bestehenden

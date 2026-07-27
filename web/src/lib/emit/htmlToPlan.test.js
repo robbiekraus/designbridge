@@ -175,6 +175,32 @@ describe('htmlToPlan — Farben (background-color/color, rgb()→hex, Spec §Map
     expect(htmlToPlan('<div></div>').plan.fill).toBeNull();
   });
 
+  // Live-Fund 28.07. (Robs EcoMetrics-Scan, Testdaten/ecometrics-scan-27-07-final-test.json,
+  // DashboardLayoutTemplate): dieselbe Alpha-Verwurf-Lücke, die readBorder schon für Rahmen
+  // gefixt bekam (s. dortiger Kommentar + Tests), traf bislang readFill NICHT. Ein 10–18%
+  // deckendes weißes Overlay auf dem lila Sidebar-Grund (aktive Nav-Zeile „Reports", Storage-
+  // Panel, Icon-Badges „Tasks"/„Help Center") wurde dadurch zu einer VOLL DECKENDEN weißen
+  // Füllung — die dann noch zufällig exakt auf den "card-background"-Token (#ffffff, die echten
+  // weißen Content-Karten) snappte, weil matchColorToken nur den nackten Hex kennt. Ergebnis:
+  // weißer Text auf jetzt ebenfalls weißem Grund verschwindet komplett (Robs Befund: „Reports",
+  // „Storage", „3.4 GB", „of 15 GB" unsichtbar). FAINT_FILL_ALPHA_MAX (analog zu
+  // FAINT_BORDER_ALPHA_MAX) lässt die Füllung stattdessen ganz weg (transparent) — der dunkle
+  // Sidebar-Hintergrund bleibt sichtbar, der weiße Text bleibt lesbar.
+  it('background mit sehr niedriger Deckkraft (<0.2) → fill:null statt falsch-opak (Overlay-Tönung, kein echter Fill)', () => {
+    const { plan } = htmlToPlan('<div style="background:rgba(255,255,255,0.15)"></div>');
+    expect(plan.fill).toBeNull();
+  });
+
+  it('background mit AUSREICHENDER Deckkraft (0.2) → bleibt eine echte Füllung (kein falsch-positives Wegfiltern)', () => {
+    const { plan } = htmlToPlan('<div style="background:rgba(255,255,255,0.2)"></div>');
+    expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+  });
+
+  it('background mit VOLLER Deckkraft (keine rgba, normales Hex) bleibt unangetastet (Bestandsverhalten)', () => {
+    const { plan } = htmlToPlan('<div style="background:#ffffff"></div>');
+    expect(plan.fill).toEqual({ hex: '#ffffff', token: null });
+  });
+
   it('color auf einem Text-Blatt → PlanText.color', () => {
     const { plan } = htmlToPlan('<p style="color:#111827">Hi</p>');
     expect(plan.children[0].color).toEqual({ hex: '#111827', token: null });

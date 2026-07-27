@@ -263,8 +263,27 @@ function readRadius(computed) {
   return Math.min(raw, 9999);
 }
 
-/** background-color (Spec §Mapping: rgb→hex, dann Token-Rückbindung; transparent → null). */
+// Schwelle, ab der eine Füllung als „faktisch unsichtbare Tönung" statt echter Füllung gilt —
+// dieselbe Schwelle wie FAINT_BORDER_ALPHA_MAX unten, hier fürs Fill statt fürs Stroke.
+const FAINT_FILL_ALPHA_MAX = 0.2;
+
+/** background-color (Spec §Mapping: rgb→hex, dann Token-Rückbindung; transparent → null).
+ *
+ *  Live-Fund 27./28.07. (Robs EcoMetrics-Scan, Sidebar „Reports"-Navzeile + Storage-Widget):
+ *  `normalizeColor` verwirft den Alpha-Kanal beim Hex-Export (rgba(255,255,255,0.15) → #ffffff,
+ *  so deckend wie 1.0) — GENAU dasselbe Muster, das `readBorder` unten schon für Rahmen gefixt
+ *  bekam (s. dortiger Kommentar zum Sidebar-Divider). Ein im Original nur LEICHT AUFGEHELLTES
+ *  Overlay auf dunklem Grund (`background:rgba(255,255,255,0.15)` für den aktiven Nav-Eintrag,
+ *  `rgba(255,255,255,0.1)` fürs Storage-Panel — beide auf der lila Sidebar) wurde dadurch zu
+ *  einer VOLL DECKENDEN Füllung, die per Zufall exakt auf den unabhängig davon extrahierten
+ *  "card-background"-Token (#ffffff, die echten weißen Content-Karten) snapte (matchColorToken
+ *  kennt nur den nackten Hex-Wert, keine Herkunft) — ein lauter weißer Kasten, auf dem der
+ *  unveränderte weiße Text unlesbar wurde (verifiziert per Re-Emit aus Testdaten/ecometrics-scan-
+ *  27-07-final-test.json: exakt „Reports", „Storage", „3.4 GB", „of 15 GB" betroffen). Der
+ *  Plan-Vertrag kennt keine Transparenz fürs Fill — keine Füllung ist die treuere Näherung als
+ *  eine falsch-opake, die zufällig einen unpassenden Katalog-Token bindet. */
 function readFill(computed, ctx) {
+  if (colorAlpha(computed.backgroundColor) < FAINT_FILL_ALPHA_MAX) return null;
   return resolveColorRef(normalizeColor(computed.backgroundColor), ctx);
 }
 
