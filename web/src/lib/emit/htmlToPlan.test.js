@@ -2565,6 +2565,14 @@ describe('htmlToPlan — Bild-Platzhalter-Glyph (Spec 2026-07-19-image-placehold
     expect(plan.radius).toBe(16);
     expectGlyphChild(plan.children[0], 19);
   });
+
+  it('7) leere Box, Fill, 38×50 (Ratio 0.76, gestapeltes Balken-Chart-Segment) → KEIN Glyph (Live-Fund 27.07. abends, EcoMetrics „Energy Consumption Type Card")', () => {
+    const html = `<div style="background-color:#5542e2" data-mock-rect='{"x":0,"y":0,"width":38,"height":50}'></div>`;
+    const { plan } = htmlToPlan(html);
+    expect(plan.type).toBe('box');
+    expect(plan.fill).toEqual({ hex: '#5542e2', token: null });
+    expect(plan.children).toEqual([]);
+  });
 });
 
 describe('htmlToPlan — naturalWidth', () => {

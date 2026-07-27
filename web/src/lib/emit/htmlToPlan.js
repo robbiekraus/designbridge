@@ -474,10 +474,17 @@ function attachStretchGrow(node, stretchGrow) {
 // Bild-Platzhalter-Glyph (Spec: docs/superpowers/specs/2026-07-19-image-placeholder-glyph-design.md
 // §Heuristik): Grenzwerte für Kriterium (B) — „Box mit Hintergrund-Fill, OHNE Element-Kinder, OHNE
 // nicht-leeren Text". An v3-Payload verifiziert (trennt den 32×32-Logo-Fall sauber von Notification-
-// Dots, Legenden-Chips und KPI-Icon-Kreisen, s. Spec §Heuristik).
+// Dots, Legenden-Chips und KPI-Icon-Kreisen, s. Spec §Heuristik). Die Spec sagt selbst „treffen NUR
+// den Logo-Fall (32×32 quadratisch)" — das ursprüngliche Fenster 0.7–1.43 war aber deutlich weiter als
+// „quadratisch" und traf einen unvorhergesehenen Fall: ein Segment eines gestapelten Balken-Charts
+// (Live-Fund 27.07. abends, EcoMetrics-Scan „Energy Consumption Type Card" — Balken 38×50, Ratio
+// 0.76, volle Deckfarbe, keine Kinder → erfüllte (B) und bekam fälschlich den Bild-Platzhalter-Glyph
+// statt der reinen Farbfläche, sichtbar als „broken image"-Icon im Storybook-Export). Enger gefasst
+// auf ein echtes Quadrat-Fenster (±~18%, reziprok symmetrisch): schließt den 32×32-Logo-Fall weiterhin
+// ein, schließt 38×50-Balkensegmente (und Ähnliches unterhalb ~0.85) aus.
 const IMAGE_GLYPH_MIN_SIZE = 24;
-const IMAGE_GLYPH_MIN_RATIO = 0.7;
-const IMAGE_GLYPH_MAX_RATIO = 1.43;
+const IMAGE_GLYPH_MIN_RATIO = 0.85;
+const IMAGE_GLYPH_MAX_RATIO = 1.18;
 
 /** Standard-„Bild"-Icon-Markup (Spec §Glyph), Größe = round(min(w,h)*0.6), min 12. Trägt bewusst
  *  KEIN stretch/grow/absolute (Spec: „skaliert nicht mit, konsistent mit svg-Regel"). */
