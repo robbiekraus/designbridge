@@ -137,4 +137,42 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(code).toContain('<Input />');
     expect(code).not.toContain('<Input>');
   });
+
+  // Live-Fund 27.07. abends (Robs EcoMetrics-Scan „Sidebar Navigation", Storage/Upgrade-Widget):
+  // eine dunkel gefüllte Card (rgba(0,0,0,0.18), Overlay für weißen Text auf lila Sidebar-Grund)
+  // wurde als data-ds-component="Card" gegroundet — die Katalog-Hülle ersetzt fill/stroke/radius
+  // IMMER durch den (hellen) Default (shadcn `bg-card` = weiß, s. Tests oben in
+  // groundPlan.test.js/planToJsx.grounding.test.js: das ist ein bewusster, getesteter Vertrag,
+  // keine Lücke). Der unveränderte weiße Kinder-Text wurde dadurch auf hellem Grund unlesbar
+  // (Robs Befund: „komplett leeres weißes Rechteck", kein Storage/Upgrade/3.4 GB/Fortschrittsbalken
+  // sichtbar). Der Legibility-Guard (containerHullWouldClash) lehnt genau diesen Match ab, BEVOR
+  // ein component-ref entsteht — der Baustein fällt auf den normalen, unveränderten Box-Nachbau
+  // zurück (identisch zum selben, noch unmarkierten Widget im früheren Scan desselben Tages,
+  // Testdaten/ecometrics-scan-27-07-nachmittag.json, das korrekt rendert).
+  it('dunkel gefüllte Card mit hellem Katalog-Default (bg-card=weiß) wird NICHT gegroundet — Text bleibt lesbar statt weiß-auf-weiß zu verschwinden', () => {
+    const html = '<div data-ds-component="Card" style="background:rgba(0,0,0,0.18);border-radius:10px;padding:10px">'
+      + '<span style="font-size:11px;font-weight:700;color:#ffffff;">Storage</span>'
+      + '<span style="font-size:9px;color:rgba(255,255,255,0.7);">Upgrade</span>'
+      + '</div>';
+    const { plan, warnings } = htmlToPlan(html, { catalog: CATALOG });
+    expect(findCatalogRef(plan)).toBeNull();
+    expect(findText(plan, 'Storage')).toBeTruthy();
+    expect(findText(plan, 'Upgrade')).toBeTruthy();
+    expect(warnings.some((w) => w.includes('unlesbare Katalog-Hülle'))).toBe(true);
+    const code = planToJsx(plan, { name: 'StorageWidget' });
+    expect(code).not.toContain('<Card');
+    expect(code).toMatch(/bg-\[#000000\]/);
+  });
+
+  // Gegenprobe: eine HELL gefüllte Card (typischer Dashboard-Fall, wie in den bestehenden
+  // groundPlan/planToJsx-Tests) darf vom Guard nicht betroffen sein — der Katalog-Vertrag „Hülle
+  // kommt immer aus dem Katalog" bleibt für den Normalfall unangetastet.
+  it('hell gefüllte Card bleibt vom Legibility-Guard unberührt — wird ganz normal gegroundet', () => {
+    const html = '<div data-ds-component="Card" style="background:#ffffff;padding:20px"><span style="font-size:14px;color:#111827">Orders</span></div>';
+    const { plan } = htmlToPlan(html, { catalog: CATALOG });
+    const ref = findCatalogRef(plan);
+    expect(ref).toBeTruthy();
+    expect(ref.name).toBe('Card');
+    expect(ref.container).toBe(true);
+  });
 });

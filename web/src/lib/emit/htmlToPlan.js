@@ -1001,6 +1001,59 @@ function matchKnownComponent(el) {
   return null;
 }
 
+// Legibility-Guard fürs Container-Grounding (Live-Fund 27.07. abends, Robs EcoMetrics-Scan
+// „Sidebar Navigation" → Storage-Widget). Container-Katalog-Einträge (Card, Pagination) ersetzen
+// ihre Hülle (fill/stroke/radius) IMMER durch den Katalog-Default (Spec 2026-07-25-komposition-
+// gegroundeter-bausteine-design.md §Entscheidung 3/4, s. groundContainer in groundPlan.js /
+// walkCatalogRef in planToJsx.js) — bewusst, sogar wenn die Messung selbst eine ganz andere Farbe
+// trägt (s. groundPlan.test.js/planToJsx.grounding.test.js: ein absichtlich rotes #ef4444-Fallback-
+// Fill gewinnt dort NIE gegen den Katalog — das ist ein getesteter Vertrag, kein Versehen). Trägt
+// das Original aber eine erkennbar DUNKLE eigene Füllung (hier `rgba(0,0,0,0.18)`, ein Overlay für
+// weißen Text auf lila Sidebar-Grund) UND der Katalog-Default für genau diesen Eintrag ist HELL
+// (Card: `bg-card` = weiß) — dann macht das Grounden die (unveränderten, weißen) Kind-Texte auf
+// hellem Grund unlesbar (Robs Befund: „komplett leeres weißes Rechteck"). Statt die Hülle für ALLE
+// Container zu öffnen (bricht die o.g. Tests + die Katalog-Treue), lehnt dieser Guard NUR den Match
+// selbst ab, wenn er offensichtlich zu einem unlesbaren Ergebnis führen würde — der Baustein fällt
+// dann auf den normalen (unveränderten, korrekt lesbaren) Box-Nachbau zurück, exakt wie ein Element
+// ganz ohne `data-ds-component`-Markierung (s. Testdaten/ecometrics-scan-27-07-nachmittag.json, wo
+// derselbe Storage-Widget-Baustein — noch ohne die Card-Markierung — unverändert korrekt rendert).
+const CONTAINER_HULL_LIGHT_MIN = 0.6;
+const CONTAINER_HULL_DARK_MAX = 0.3;
+const CONTAINER_HULL_MIN_BG_ALPHA = 0.05;
+
+/** 0..1 Wahrnehmungs-Helligkeit eines #rrggbb-Hex (naive Gewichtung, reicht für den Schwellenwert-
+ *  Vergleich hier); nicht parsbar → null. */
+function perceivedBrightness(hex) {
+  const m = typeof hex === 'string' && /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+/** true, wenn ein Container-Katalog-Match `el` auf eine erkennbar unlesbare Hülle grounden würde
+ *  (helles Katalog-Default-Fill vs. dunkle eigene Messung, s. Kommentar oben). Reine Sicherheits-
+ *  bremse — Blatt-Einträge (kein `container`) und Einträge ohne eigenes Fill (z. B. Pagination)
+ *  sind nie betroffen. */
+function containerHullWouldClash(entry, props, el) {
+  if (!entry.container || typeof entry.plan !== 'function') return false;
+  let shell;
+  try {
+    shell = entry.plan(props);
+  } catch {
+    return false;
+  }
+  const shellBrightness = perceivedBrightness(shell?.fill?.hex);
+  if (shellBrightness == null || shellBrightness < CONTAINER_HULL_LIGHT_MIN) return false;
+  const computed = getComputedStyle(el);
+  const ownHex = normalizeColor(computed.backgroundColor);
+  if (!ownHex || colorAlpha(computed.backgroundColor) < CONTAINER_HULL_MIN_BG_ALPHA) return false;
+  const ownBrightness = perceivedBrightness(ownHex);
+  return ownBrightness != null && ownBrightness <= CONTAINER_HULL_DARK_MAX;
+}
+
 /**
  * DS-Grounding (Spec 2026-07-23-slice1-ds-grounding-default-catalog-design.md §Q2): explizite
  * `data-ds-component="Button"`-Markierung des Interpretations-HTML gegen den Katalog auflösen.
@@ -1027,6 +1080,10 @@ function matchCatalogComponent(el, ctx) {
     if (v == null) continue;
     if (Array.isArray(axes[axis]) && axes[axis].includes(v)) props[axis] = v;
     else ctx.warnings.add(`data-ds-${axis}="${v}" ist keine gültige ${axis}-Option für ${name} — ignoriert.`);
+  }
+  if (containerHullWouldClash(entry, props, el)) {
+    ctx.warnings.add(`data-ds-component="${name}" hätte eine unlesbare Katalog-Hülle ergeben (dunkle eigene Füllung vs. hellem Katalog-Default) — freihändiger Fallback statt Grounding.`);
+    return null;
   }
   return {
     name, source: ctx.catalog.source, import: entry.import, variant: props.variant ?? null, props,
