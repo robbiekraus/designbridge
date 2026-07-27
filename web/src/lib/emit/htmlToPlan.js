@@ -1303,6 +1303,25 @@ export function measureContainerWidth(designSlotWidth) {
   return Math.round(designSlotWidth);
 }
 
+/** Das fehlende Gegenstueck zu measureContainerWidth (Robs Befund 27.07.: „die Karten sind riesig,
+ *  also ewig lang, aber wahrscheinlich korrekte Breite").
+ *
+ *  Scheibe C gab dem Messbehaelter die ECHTE Slot-BREITE, seine Hoehe blieb aber die Konstante
+ *  PREVIEW_VIRTUAL_HEIGHT (768). Eine KI-Wurzel mit `height:100%` — die KPI-Karte in Robs Scan
+ *  emittiert genau `width:100%;height:100%;justify-content:space-between` — loeste damit fuer
+ *  JEDEN Baustein zu 768 auf. Mal Scan-Massstab 2,24 sind das ~1720 px hohe Karten, deren Inhalt
+ *  per space-between auf Anfang/Mitte/Ende auseinandergezogen wird. Genau Robs Bild.
+ *
+ *  Mit der echten Slot-Hoehe loest `height:100%` gegen den Platz auf, den der Baustein im
+ *  Screenshot wirklich einnimmt — und Prozent-Hoehen-Ketten (Balkensegmente `height:30%`) haben
+ *  weiterhin einen Referenzwert, nur eben den richtigen statt eines geratenen.
+ *
+ *  Ohne bbox (URL-/Repo-Import) → PREVIEW_VIRTUAL_HEIGHT, also unveraendertes Verhalten. */
+export function measureContainerHeight(designSlotHeight) {
+  if (!Number.isFinite(designSlotHeight) || designSlotHeight <= 0) return PREVIEW_VIRTUAL_HEIGHT;
+  return Math.round(designSlotHeight);
+}
+
 /**
  * @param {string} html Sanitisiertes KI-HTML.
  * @param {{ tokens?: object, knownComponents?: Array<{name: string, kind: string}>,
@@ -1319,7 +1338,7 @@ export function measureContainerWidth(designSlotWidth) {
  *   wie bisher). `components` wird intern zu einer Map name→Eintrag normiert.
  * @returns {{ plan: object|null, warnings: string[] }}
  */
-export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null, designSlotWidth = null } = {}) {
+export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTargets = [], catalog = null, designSlotWidth = null, designSlotHeight = null } = {}) {
   const warnings = new Set();
   // DS-Grounding-Kontext (Spec 2026-07-23 §Q2): SEPARAT von knownComponents gehalten, damit die
   // scan-interne Heuristik (matchKnownComponent) unberührt bleibt — Grounding ist rein explizit
@@ -1345,10 +1364,11 @@ export function htmlToPlan(html, { tokens = {}, knownComponents = [], spliceTarg
     container.style.top = '0px';
     container.style.left = '-99999px';
     container.style.width = `${measureContainerWidth(designSlotWidth)}px`;
-    // Scheibe B (Spec §Scheibe B): zusätzlicher Höhen-Kontext, rein additiv — löst Prozent-
-    // Höhen-Ketten (height:100% → height:30% in Bar-Segmenten) auf, die sonst ohne einen
-    // Referenzwert zu 0px kollabieren (Höhen-Pendant zu PREVIEW_VIRTUAL_WIDTH oben).
-    container.style.height = `${PREVIEW_VIRTUAL_HEIGHT}px`;
+    // Höhen-Kontext: löst Prozent-Höhen-Ketten (height:100% → height:30% in Bar-Segmenten) auf,
+    // die sonst ohne Referenzwert zu 0px kollabieren. Seit 27.07. ist das die ECHTE Slot-Höhe
+    // statt der Konstanten — sonst wird jede `height:100%`-Wurzel 768 hoch (s.
+    // measureContainerHeight). Fehlt sie, bleibt es bei PREVIEW_VIRTUAL_HEIGHT.
+    container.style.height = `${measureContainerHeight(designSlotHeight)}px`;
     container.style.boxSizing = 'border-box';
     container.innerHTML = html;
 

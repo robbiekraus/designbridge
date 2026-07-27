@@ -99,6 +99,13 @@ export function emitFigmaComponents(result, opts = {}) {
   // danach macht daraus wieder genau die Slot-Breite.
   const designSlotWidthOf = (bbox) =>
     (bbox && Number.isFinite(bbox.w) && bbox.w > 0) ? bbox.w * PREVIEW_VIRTUAL_WIDTH : null;
+  // Gegenstück in DERSELBEN Skala: die Slot-Höhe in Bildpixeln (bbox.h * ih), geteilt durch
+  // scanScale. Ohne sie bekäme der Messbehälter weiter eine konstante Höhe und jede
+  // `height:100%`-Wurzel würde 768 hoch (Robs „ewig lange Karten", 27.07.).
+  const designSlotHeightOf = (bbox) =>
+    (bbox && Number.isFinite(bbox.h) && bbox.h > 0 && Number.isFinite(iw) && iw > 0 && Number.isFinite(ih) && ih > 0)
+      ? (bbox.h * ih) / (iw / PREVIEW_VIRTUAL_WIDTH)
+      : null;
 
   const out = [];
   for (const [rawKey, kind] of KINDS) {
@@ -152,7 +159,7 @@ export function emitFigmaComponents(result, opts = {}) {
               anchorTokens,
             };
           });
-          const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog, designSlotWidth: designSlotWidthOf(item.bbox) });
+          const { plan, warnings } = htmlToPlan(parentInterp.html, { tokens: { colors: namedColors }, knownComponents, spliceTargets, catalog, designSlotWidth: designSlotWidthOf(item.bbox), designSlotHeight: designSlotHeightOf(item.bbox) });
           if (warnings.length) converterWarnings.push(...warnings);
           if (plan) {
             // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md
@@ -202,7 +209,7 @@ export function emitFigmaComponents(result, opts = {}) {
 
       const interp = result?.interpretations?.[item.name];
       if (interp?.html) {
-        const { plan, warnings } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog, designSlotWidth: designSlotWidthOf(item.bbox) });
+        const { plan, warnings } = htmlToPlan(interp.html, { tokens: { colors: namedColors }, knownComponents, catalog, designSlotWidth: designSlotWidthOf(item.bbox), designSlotHeight: designSlotHeightOf(item.bbox) });
         if (warnings.length) converterWarnings.push(...warnings);
         if (plan) {
           // Figma-Grounding (Spec 2026-07-25-komposition-gegroundeter-bausteine-design.md

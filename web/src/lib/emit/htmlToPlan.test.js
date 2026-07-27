@@ -1,15 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  htmlToPlan,
-  iou,
-  bestSpliceMatch,
-  SPLICE_MIN_IOU,
-  tokenizeAnchorText,
-  textJaccard,
-  bestTextMatch,
-  SPLICE_MIN_TEXT,
-  measureContainerWidth,
-} from './htmlToPlan.js';
+import { htmlToPlan, iou, bestSpliceMatch, SPLICE_MIN_IOU, tokenizeAnchorText, textJaccard, bestTextMatch, SPLICE_MIN_TEXT, measureContainerWidth, measureContainerHeight } from './htmlToPlan.js';
+import { PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 import { PREVIEW_VIRTUAL_WIDTH, PREVIEW_VIRTUAL_HEIGHT } from '../previewWidth.js';
 
 // ---------------------------------------------------------------------------
@@ -2597,5 +2588,69 @@ describe('Slot-Breite auf der Wurzel (Scheibe C, Vollausbau)', () => {
       const { plan } = htmlToPlan('<div style="width:560px">K</div>', { designSlotWidth: bad });
       expect(plan.width).toBe(560);
     }
+  });
+});
+
+// ─── Scheibe C2a: der Messbehälter bekommt auch die echte HÖHE (27.07.2026) ────
+// Robs Befund an der frischen Datei: „die Karten sind riesig, also ewig lang, aber wahrscheinlich
+// korrekte Breite". Ursache: seit Scheibe C hat der Behälter die ECHTE Slot-Breite, seine Höhe war
+// aber weiter die Konstante PREVIEW_VIRTUAL_HEIGHT (768). Eine KI-Wurzel mit `height:100%` — bei
+// der KPI-Karte genau so emittiert — löste damit für JEDEN Baustein zu 768 auf, mal Scan-Maßstab
+// 2,24 ≈ 1720 px hohe Karten. Das Gegenstück zur Breite hat schlicht gefehlt.
+describe('measureContainerHeight', () => {
+  it('nimmt die echte Slot-Höhe, wenn sie bekannt ist', () => {
+    expect(measureContainerHeight(92)).toBe(92);
+    expect(measureContainerHeight(92.4)).toBe(92);
+  });
+
+  it('faellt ohne brauchbare Angabe auf die virtuelle Hoehe zurueck (URL-/Repo-Import)', () => {
+    for (const bad of [null, undefined, 0, -5, NaN, Infinity, '200']) {
+      expect(measureContainerHeight(bad)).toBe(PREVIEW_VIRTUAL_HEIGHT);
+    }
+  });
+});
+
+describe('height:100% loest gegen die echte Slot-Hoehe auf', () => {
+  // jsdom hat KEINE Layout-Engine — hier wird deshalb nur der Vertrag geprueft (welche Hoehe der
+  // Messbehaelter bekommt). Die Wirkung auf die Geometrie ist im echten Browser gemessen, s.
+  // CLAUDE.md „Skalierungspfad ist testblind".
+  it('setzt die Behaelter-Hoehe auf die durchgereichte Slot-Hoehe', () => {
+    const gesetzt = [];
+    const echt = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tag, ...rest) => {
+      const el = echt(tag, ...rest);
+      if (tag === 'div') {
+        const style = el.style;
+        let letzte = '';
+        Object.defineProperty(el, 'style', {
+          configurable: true,
+          get() {
+            return new Proxy(style, {
+              set(t, k, v) {
+                if (k === 'height') { letzte = v; gesetzt.push(v); }
+                t[k] = v;
+                return true;
+              },
+              get(t, k) { return typeof t[k] === 'function' ? t[k].bind(t) : t[k]; },
+            });
+          },
+        });
+        void letzte;
+      }
+      return el;
+    });
+    try {
+      htmlToPlan('<div style="height:100%">x</div>', { designSlotWidth: 248, designSlotHeight: 92 });
+      expect(gesetzt).toContain('92px');
+      expect(gesetzt).not.toContain(`${PREVIEW_VIRTUAL_HEIGHT}px`);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('ohne designSlotHeight bleibt es bei der virtuellen Hoehe (URL-/Repo-Import unberuehrt)', () => {
+    const { plan } = htmlToPlan('<div style="height:100%">x</div>', { designSlotWidth: 200 });
+    expect(plan).toBeTruthy();
+    expect(measureContainerHeight(null)).toBe(PREVIEW_VIRTUAL_HEIGHT);
   });
 });
