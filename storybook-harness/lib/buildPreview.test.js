@@ -75,6 +75,31 @@ export const Default = {};
   assert.match(thrown.message, /storybook konnte nicht gebaut werden/i);
 });
 
+// Live-Fund 27.07.: Auf Railway lieferte nur err.message in den Logs — das eigentliche
+// Storybook/npm-stderr (wo der echte Grund für den 500er steht) ging beim throw new
+// Error(...) verloren, weil execFile-Fehler stderr/stdout als eigene Properties tragen,
+// nicht in message. Dieser Test hält fest, dass beide auf dem geworfenen Error landen.
+test('kaputter Komponenten-Code → geworfener Error trägt das echte stderr/stdout des Builds', async () => {
+  const brokenComponents = {
+    'Broken.jsx': 'export function Broken( {\n  return <div>;\n}\n', // absichtlich kaputtes JSX
+  };
+  const brokenStories = {
+    'Broken.stories.jsx': `import { Broken } from '../components/Broken';
+export default { title: 'Atoms/Broken', component: Broken };
+export const Default = {};
+`,
+  };
+
+  let thrown = null;
+  try {
+    await buildPreview({ components: brokenComponents, stories: brokenStories });
+  } catch (err) {
+    thrown = err;
+  }
+  assert.ok(thrown, 'buildPreview sollte werfen, nicht ein halbes Storybook zurückgeben');
+  assert.ok(typeof thrown.stderr === 'string' && thrown.stderr.length > 0, 'thrown.stderr sollte das echte Build-stderr enthalten');
+});
+
 test('TTL 0 räumt die Vorschau sofort ab (Muster: repoStore.js)', async () => {
   const { id } = await buildPreview({ components: COMPONENTS, stories: STORIES }, { ttlMs: 0 });
   await new Promise((r) => setTimeout(r, 50));

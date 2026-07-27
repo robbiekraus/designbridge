@@ -83,7 +83,13 @@ export async function buildPreview(
     });
   } catch (err) {
     await rm(workDir, { recursive: true, force: true });
-    throw new Error(`Storybook konnte nicht gebaut werden: ${err.message}`);
+    const wrapped = new Error(`Storybook konnte nicht gebaut werden: ${err.message}`);
+    // execFile-Fehler tragen das echte Storybook/npm-stderr+stdout — das ist genau die
+    // Information, die in den Railway-Logs bisher fehlte (nur err.message landete dort).
+    // Client sieht das weiterhin nie (server.js loggt es nur server-seitig, s. dort).
+    wrapped.stderr = err.stderr;
+    wrapped.stdout = err.stdout;
+    throw wrapped;
   }
 
   const staticDir = path.join(workDir, 'storybook-static');

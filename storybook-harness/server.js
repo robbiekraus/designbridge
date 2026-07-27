@@ -42,6 +42,11 @@ export function buildApp() {
       // Fehlermeldung (kann rohes Child-Process-Stderr mit ANSI-Codes enthalten) landet
       // nur im Server-Log.
       console.error('Storybook-Build fehlgeschlagen:', err.message);
+      // err.stderr/err.stdout kommen von execFile (s. buildPreview.js) und enthalten die
+      // eigentliche Storybook/npm-Fehlermeldung — bisher fehlten sie in den Railway-Logs
+      // komplett. Nur server-seitig loggen, die Client-Antwort bleibt unverändert.
+      if (err.stderr) console.error('Storybook-Build stderr:', err.stderr);
+      if (err.stdout) console.error('Storybook-Build stdout:', err.stdout);
       res.status(500).json({ error: BUILD_FAILED_MESSAGE });
     }
   });
