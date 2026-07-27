@@ -72,3 +72,36 @@ describe('matchTemplate — cards are never a template match (Card-Template reti
     expect(matchTemplate('CARD')).toBeNull();
   });
 });
+
+describe('matchTemplate — dropdown triggers and compound search bars route to interpretation, not a generic template', () => {
+  // Live-Fund 27.07. (Robs Sunstone-Scan, Testdaten/sunstone-scan-27-07.json): "Date Range
+  // Dropdown Button" und "User Dropdown Button" matchten per Namensteil ("butt") das generische
+  // Button-Template und wurden als leerer Farbklecks in Default-Größe statt als
+  // Icon+Label+Chevron-Trigger gerendert (falsche Position/Größe, weil das Template die
+  // gemessene bbox nie sieht). "Search Input Bar" matchte analog "Input" und wurde zur nackten
+  // "Wert eingeben…"-Box statt Icon+Label-Suchfeld. Gleiches Fix-Muster wie das retired
+  // Card-Template (Commit 623fc35, CONTENT_TOKENS).
+  it('rejects dropdown-trigger names for the Button template', () => {
+    expect(matchTemplate('Date Range Dropdown Button')).toBeNull();
+    expect(matchTemplate('User Dropdown Button')).toBeNull();
+    expect(matchTemplate('Select Menu Button')).toBeNull();
+  });
+
+  it('rejects compound bar/container names for the Input template', () => {
+    expect(matchTemplate('Search Input Bar')).toBeNull();
+  });
+
+  it('still matches plain, non-compound Button/Input names (no regression)', () => {
+    expect(matchTemplate('Button')?.key).toBe('button');
+    expect(matchTemplate('Icon Button')?.key).toBe('button');
+    expect(matchTemplate('primary btn')?.key).toBe('button');
+    expect(matchTemplate('CTA')?.key).toBe('button');
+    expect(matchTemplate('Search Input')?.key).toBe('input');
+    expect(matchTemplate('text field')?.key).toBe('input');
+  });
+
+  it('is case-insensitive for the dropdown/bar exclusions', () => {
+    expect(matchTemplate('date range DROPDOWN button')).toBeNull();
+    expect(matchTemplate('search input BAR')).toBeNull();
+  });
+});
