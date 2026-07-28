@@ -1,11 +1,14 @@
 # UIPrism / Designbridge — Linkliste
 
-Alle wichtigen Links an einem Ort. Stand: 22.07.2026.
+Alle wichtigen Links an einem Ort. Stand: 28.07.2026.
 
 ## Live / deployt
 
 - **App (Prod, Railway):** https://designbridge-production.up.railway.app
 - **One-Pager (Netlify):** https://uiprism.netlify.app
+- **Präsentation „Bauen im Blindflug" (Netlify):** https://uiprism.netlify.app/deck.html
+  — 10 Slides, Pfeiltasten zum Blättern. Quelle: Repo `uiprism-onepager`, `deck.html`.
+  Vorgänger (Low-Fi-Platzhalter) liegt weiter unter `/deck-lowfi.html`.
 - **Demo-Report für URL-Scans (auf Prod):** https://designbridge-production.up.railway.app/demo/report.html
 - **GitHub-Repo:** https://github.com/robbiekraus/designbridge
 
