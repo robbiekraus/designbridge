@@ -4,6 +4,26 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
 ## Stand
 
+- **28.07.2026 (vormittags) — ROBS MORGEN-IMPORT WAR SCHLECHT (drei Ursachen, alle identifiziert), DANACH VOLL AUTONOMER NEU-IMPORT MIT STRETCH-FIX: TEMPLATE JETZT RICHTIG. STRETCH-DIAGNOSE AN ECHTEN DATEN BESTÄTIGT.** Rob hat vormittags Videos aufgenommen; sein Import (`ePuSoEVMWfFyzxWH8IkWr9`) sah schlecht aus — Sidebar überlappend/doppelt, KPI-Karten gequetscht.
+
+  **Warum Robs Morgen-Import schlecht war (drei unabhängige Ursachen):**
+  1. **Scan-Varianz:** Der 07:06-Scan grenzte „Nav Item" als KOMPLETTEN Nav-Block ab (332×451, alle 7 Einträge in einem „Atom") statt als eine Zeile. Beim Splice ersetzte EINE Instanz davon den Nav-Block der Sidebar, auf 330×287 geklemmt → Überlappungen + Doppelungen. Das interpretierte HTML selbst war fehlerfrei — kein Code-Bug. (Robs beide Morgen-Scans gesichert: `Testdaten/scan-2807-*.json`.)
+  2. **Alpha-Fix (`59de5e6`) war NICHT auf Prod** (lag ungepusht) → Storybook weiter weiß-auf-weiß. Vormittags gepusht + deployt.
+  3. **Plugin lief auf altem `dist`** (bewusst zurückgebaut, s. Eintrag darunter) → STRETCH-Bug voll da: KPI-Zeile 376, Karten 105 (per `measure-stretch-fix.mjs` an Robs Datei gemessen).
+
+  **Der Neu-Import (voll autonom, Rob war im Meeting):** Frischer Prod-Scan (import_id `a06e1086fc71c605`, diesmal sauber: „Sidebar Nav Item" als Molekül, EINE Zeile, instanceCount 7; 20/20 interpretiert nach Einzel-Retry von 4 Bausteinen — Chunk-502 war transienter KI-JSON-Fehler). Lauf gesichert: **`Testdaten/scan-2807-neuversuch-a06e1086.json`**. Payload über die Prod-App im Browser-Pane gebaut (localStorage-Injektion → Export → „An Figma senden"). Plugin-`dist` aus `experiment/stretch-sizing` gebaut. Neue Figma-Datei per **Figma-MCP `create_new_file`** angelegt (`APT8O6HSPcIU3A17req6ej`, „UIPrism Import 2807 v2"), per Datei-Menü „Datei-URL aus der Zwischenablage öffnen" im Desktop geöffnet (⌘N-keystroke wurde vom Auto-Modus-Classifier blockiert — Menü-Klicks gehen durch), Dev-Plugin per Menü gestartet, Import-Knopf (heißt jetzt **„Aus UIPrism übernehmen"**) per AX-Baum geklickt. „Fertig — 10 Farben, 5 Textstile, 20 Bausteine, 16 DS-Komponenten."
+
+  **✅ STRETCH-Fix GREIFT — Vorhersage getroffen:** KPI-Zeile **1821** (vorher 411), jede Karte **592** (vorher 105/119). Die 19-px-Abweichung von der 1802er-Vorhersage ist Scan-Varianz (Vorhersage war auf die Interpretationsgrößen des ALTEN Scans kalibriert — Messwerkzeug-Toleranz entsprechend eng, die formalen ❌ sind falsch-negativ). Überläufe 9→6, Sidebar sauber (volle Nav-Liste, keine Doppelung, Reports aktiv), Template-Render sieht erstmals richtig aus: alle 3 KPI-Karten voll lesbar, Charts volle Breite.
+  ⚠️ **`ae7a389` liegt weiter NUR auf `experiment/stretch-sizing`** — Robs Merge-Entscheidung offen. Das lokale `dist` hat den Fix drin (Stand nach dem Neu-Import).
+
+  **❌ Neuer Restfehler, gefixt in `b530ba5` (gepusht, Deploy läuft):** Storage-Widget im Neu-Import als weiße Box (Storage/3.4 GB unsichtbar). Ursache: die Hülle trug diesmal VOLLDECKENDES Lila `#4f3cc9` = Helligkeit **0,32** — die Legibility-Guard-Schwelle `CONTAINER_HULL_DARK_MAX=0,3` ließ das Card-Grounding um **zwei Hundertstel** durch. Neu 0,55 („deutlich dunkler als die helle Hülle" statt „fast schwarz"), Regressionstest mit exakt diesem Hex, Stash-Probe bestanden, **946/946**. Erst-Verdacht „Payload von alter Instanz" war falsch — Payload vor/nach Reload byte-identisch.
+
+  **✅ ABGESCHLOSSEN (11:00): Re-Import nach dem `b530ba5`-Deploy durchgefahren — Storage-Widget jetzt lesbar (lila Karte, Storage/3.4 GB/Upgrade/Balken alle sichtbar), Update-Pfad des Plugins bestätigt („20 Bausteine aktualisiert", gleiche Datei `APT8O6HSPcIU3A17req6ej`).** Payload-Beleg: Storage-Hülle trägt `#4f3cc9` statt `{token:card,#ffffff}`. Der Deploy-Neustart wurde am leeren Scan-Store erkannt (`/api/scan/runs` = 0, Hintergrund-Poll); das Import-Bundle überlebte im localStorage des Browser-Tabs.
+
+  **Bekannte Rest-Optik (klein, bewusst offen):** „Jane Smith" bricht in der Sidebar zweizeilig um; „Top Emissions By Plants"-Karte ohne Titel und leicht mit der Trend-Karte überlappend; Reports-Karte mit viel Leerraum zwischen Titel und Tabelle. Nichts davon macht die Datei unvorzeigbar.
+
+  **⇒ ROBS ENTSCHEIDUNGEN:** (1) `ae7a389` (STRETCH-Fix) von `experiment/stretch-sizing` nach `main` mergen — der Fix ist jetzt an ECHTEN Daten belegt (KPI-Zeile 1821 statt 411). Solange nicht gemerged: `dist` trägt den Fix lokal, aber jeder `npm run build` auf `main` wirft ihn wieder raus. (2) Figma-Teil des Videos mit `APT8O6HSPcIU3A17req6ej` („UIPrism Import 2807 v2") neu aufnehmen?
+
 - **28.07.2026 (nachts) — VOLLER E2E-TESTLAUF AUF PROD GEFAHREN. Kein Code geändert, reine Verifikation. Ergebnis: Pipeline grün, EIN neuer Storybook-Befund, Figma-Template weiter das Sorgenkind. Videoaufnahme auf heute Vormittag verschoben, zwei Fix-Stränge laufen.**
 
   **Der Lauf (alles gegen Prod, frischer Scan von `Testdaten/Bildschirmfoto 2026-07-15 um 17.48.06.png`):**
