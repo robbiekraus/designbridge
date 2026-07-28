@@ -22,7 +22,9 @@ Volle Session-Historie (chronologisch, alle „✅ …"-Einträge/Testrunden/Sch
 
   **Bekannte Rest-Optik (klein, bewusst offen):** „Jane Smith" bricht in der Sidebar zweizeilig um; „Top Emissions By Plants"-Karte ohne Titel und leicht mit der Trend-Karte überlappend; Reports-Karte mit viel Leerraum zwischen Titel und Tabelle. Nichts davon macht die Datei unvorzeigbar.
 
-  **⇒ ROBS ENTSCHEIDUNGEN:** (1) `ae7a389` (STRETCH-Fix) von `experiment/stretch-sizing` nach `main` mergen — der Fix ist jetzt an ECHTEN Daten belegt (KPI-Zeile 1821 statt 411). Solange nicht gemerged: `dist` trägt den Fix lokal, aber jeder `npm run build` auf `main` wirft ihn wieder raus. (2) Figma-Teil des Videos mit `APT8O6HSPcIU3A17req6ej` („UIPrism Import 2807 v2") neu aufnehmen?
+  **✅ STRETCH-FIX GEMERGED (Robs OK, 28.07. mittags): `f61aae7` auf `main`, gepusht.** Plugin-Suite nach dem Merge 144/144, Typecheck sauber, `dist` aus `main` neu gebaut (Marker-Gegenprobe: `layoutSizingHorizontal` = 2). Der Experiment-Branch ist damit in `main` aufgegangen — jeder künftige Build trägt den Fix. ⚠️ Beim Merge tauchte wieder die exFAT-Falle auf: eine AppleDouble-Datei `._renderPlan.test.ts` ließ esbuild mit `Unexpected "\x00"` platzen — `find . -name '._*' -delete` (CLAUDE.md Regel 7), danach alles grün.
+
+  **⇒ OFFEN:** Figma-Teil des Videos mit `APT8O6HSPcIU3A17req6ej` („UIPrism Import 2807 v2") neu aufnehmen? Robs Sache.
 
 - **28.07.2026 (nachts) — VOLLER E2E-TESTLAUF AUF PROD GEFAHREN. Kein Code geändert, reine Verifikation. Ergebnis: Pipeline grün, EIN neuer Storybook-Befund, Figma-Template weiter das Sorgenkind. Videoaufnahme auf heute Vormittag verschoben, zwei Fix-Stränge laufen.**
 
