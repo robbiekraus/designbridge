@@ -55,6 +55,10 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
   const [copied, setCopied] = useState(null);
   const [sent, setSent] = useState(null);
   const [figmaJsonOpen, setFigmaJsonOpen] = useState(false);
+  // Fertige Vorschau-URL + echter Fehlertext bleiben stehen (s. Kommentare am Storybook-Knopf):
+  // der automatisch geöffnete Tab ist nicht verlässlich (Popup-Blocker), ein sichtbarer Link ist es.
+  const [storybookUrl, setStorybookUrl] = useState(null);
+  const [storybookError, setStorybookError] = useState(null);
   const [figmaCopied, setFigmaCopied] = useState(null);
   const [storybookPreview, setStorybookPreview] = useState(null); // null | 'building' | 'error'
 
@@ -126,6 +130,8 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
     // window.open nichts (z. B. im Test), fällt es unten auf den alten Weg zurück.
     const tab = window.open('', '_blank');
     setStorybookPreview('building');
+    setStorybookUrl(null);
+    setStorybookError(null);
     try {
       const files = storybookFiles(result);
       const components = {};
@@ -147,17 +153,33 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
           tokensCss: files['tokens.css'],
         }),
       });
-      if (!res.ok) throw new Error('Storybook-Builder antwortete mit Fehler');
+      if (!res.ok) {
+        // Die echte Meldung des Builders zeigen statt „bitte nochmal versuchen" — bei einem
+        // 400 („Keine Komponenten übergeben.") hilft ein zweiter Versuch nie, und in einer
+        // Live-Demo ist eine stumme Fehlermeldung das Schlimmste.
+        let detail = `HTTP ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.error) detail = body.error;
+        } catch { /* kein JSON-Body — dann bleibt der Status die Auskunft */ }
+        throw new Error(detail);
+      }
       const { url } = await res.json();
       const previewUrl = `${builderUrl}${url}`;
+      // Die URL BLEIBT stehen (s. Kommentar am Knopf unten): der synchron geöffnete Tab ist
+      // der bequeme Weg, aber er ist nicht verlässlich — der sichtbare Link ist der Weg, der
+      // immer funktioniert.
+      setStorybookUrl(previewUrl);
       if (tab) tab.location = previewUrl;
       else window.open(previewUrl, '_blank');
       setStorybookPreview(null);
     } catch (err) {
       console.error('Storybook-Live-Preview fehlgeschlagen:', err);
       if (tab) tab.close();
+      setStorybookError(err instanceof Error ? err.message : String(err));
       setStorybookPreview('error');
-      setTimeout(() => setStorybookPreview(null), 4000);
+      // Fehlertext NICHT mehr nach 4 s wegräumen — er verschwand genau dann, wenn man ihn
+      // jemandem zeigen wollte. Er geht beim nächsten Klick weg (s. oben).
     }
   };
 
@@ -211,8 +233,28 @@ export default function Export({ result, storybookBuilderUrl = '' }) {
               Dieser Import enthält keine Bausteine — es gibt nichts zu bauen. Erst ein Bild scannen und interpretieren lassen.
             </span>
           )}
+          {/* Live-Fund 27.07. abends (kurz vor dem Präsentationsvideo): der Build lief auf Prod
+              nachweislich durch (200, 23 Bausteine, Vorschau-URL lieferte aus), trotzdem „ging
+              nichts". Ursache dieser Klasse: der Tab wird per `window.open` geöffnet, und wenn der
+              Popup-Blocker greift, passiert SICHTBAR GAR NICHTS — der zweite `window.open` nach dem
+              `await` ist außerhalb der Nutzergeste und wird zuverlässig blockiert (steht so schon im
+              Kommentar an der Funktion). Deshalb bleibt die fertige Vorschau-URL jetzt als echter,
+              anklickbarer Link stehen: ein Klick auf einen `<a>` ist immer erlaubt, unabhängig von
+              jeder Popup-Einstellung. Der automatische Tab bleibt als bequemer Weg erhalten. */}
+          {storybookUrl && (
+            <a
+              href={storybookUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-primary underline underline-offset-2 hover:no-underline"
+            >
+              Storybook ist fertig gebaut — hier öffnen ↗
+            </a>
+          )}
           {storybookPreview === 'error' && (
-            <span className="text-[11px] text-red-600">Storybook konnte nicht gebaut werden — bitte nochmal versuchen.</span>
+            <span className="text-[11px] text-red-600">
+              Storybook konnte nicht gebaut werden{storybookError ? `: ${storybookError}` : ' — bitte nochmal versuchen.'}
+            </span>
           )}
           <button
             onClick={handleExportStorybook}
