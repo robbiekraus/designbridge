@@ -1037,7 +1037,12 @@ function matchKnownComponent(el) {
 // ganz ohne `data-ds-component`-Markierung (s. Testdaten/ecometrics-scan-27-07-nachmittag.json, wo
 // derselbe Storage-Widget-Baustein — noch ohne die Card-Markierung — unverändert korrekt rendert).
 const CONTAINER_HULL_LIGHT_MIN = 0.6;
-const CONTAINER_HULL_DARK_MAX = 0.3;
+// Live-Fund 28.07. (EcoMetrics, „Storage Usage Progress Card"): die Hülle trug Sidebar-Lila
+// #4f3cc9 — Helligkeit 0,32, die alte Schwelle 0,3 ließ das Grounding um zwei Hundertstel durch
+// und der weiße Text stand wieder auf weißer Card. Der Guard soll ablehnen, was DEUTLICH dunkler
+// als die helle Katalog-Hülle (>= LIGHT_MIN 0,6) ist, nicht nur Fast-Schwarz: echte helle Karten
+// liegen bei >= 0,85 und bleiben von 0,55 unberührt (Regressionstest hält beides fest).
+const CONTAINER_HULL_DARK_MAX = 0.55;
 const CONTAINER_HULL_MIN_BG_ALPHA = 0.05;
 
 /** 0..1 Wahrnehmungs-Helligkeit eines #rrggbb-Hex (naive Gewichtung, reicht für den Schwellenwert-

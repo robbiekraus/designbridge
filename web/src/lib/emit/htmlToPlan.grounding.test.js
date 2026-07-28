@@ -172,6 +172,23 @@ describe('htmlToPlan — DS-Grounding gegen den Katalog', () => {
     expect(code).not.toMatch(/bg-\[#000000\]/);
   });
 
+  // Live-Fund 28.07. vormittags (Robs EcoMetrics-Scan, Figma-Datei APT8O6HSPcIU3A17req6ej,
+  // „Storage Usage Progress Card"): die Hülle trug diesmal VOLLDECKENDES Sidebar-Lila #4f3cc9 —
+  // wahrgenommene Helligkeit 0,32. Die alte Schwelle CONTAINER_HULL_DARK_MAX=0,3 ließ das
+  // Grounding um zwei Hundertstel durch, der weiße Text („Storage", „3.4 GB") stand wieder auf
+  // weißer Katalog-Card. Die Schwelle misst jetzt „deutlich dunkler als die helle Hülle" (0,55)
+  // statt nur Fast-Schwarz.
+  it('mittel-dunkle (lila #4f3cc9) Card wird ebenfalls NICHT gegroundet — Schwelle misst deutlich-dunkler, nicht nur fast-schwarz', () => {
+    const html = '<div data-ds-component="Card" style="background:#4f3cc9;border-radius:8px;padding:8px 10px">'
+      + '<span style="font-size:11px;font-weight:700;color:#ffffff;">Storage</span>'
+      + '<span style="font-size:11px;color:#ffffff;">3.4 GB</span>'
+      + '</div>';
+    const { plan, warnings } = htmlToPlan(html, { catalog: CATALOG });
+    expect(findCatalogRef(plan)).toBeNull();
+    expect(findText(plan, 'Storage')).toBeTruthy();
+    expect(warnings.some((w) => w.includes('unlesbare Katalog-Hülle'))).toBe(true);
+  });
+
   // Gegenprobe: eine HELL gefüllte Card (typischer Dashboard-Fall, wie in den bestehenden
   // groundPlan/planToJsx-Tests) darf vom Guard nicht betroffen sein — der Katalog-Vertrag „Hülle
   // kommt immer aus dem Katalog" bleibt für den Normalfall unangetastet.
